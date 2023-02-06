@@ -1,3 +1,4 @@
+# pipenv install pandas~=1.3.5 
 # pipenv requirements > requirements.txt
 
 from app import app

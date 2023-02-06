@@ -7,7 +7,7 @@ name = "pypi"
 flask = "*"
 gunicorn = "*"
 requests = "*"
-pandas = "*"
+pandas = "~=1.3.5"
 
 [dev-packages]
 autopep8 = "*"
