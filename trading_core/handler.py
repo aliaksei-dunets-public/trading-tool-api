@@ -59,7 +59,7 @@ class HandlerCurrencyCom(HandlerBase):
                                          'tradingHours', 'assetType', 'status']]
                 symbols_df.set_index('symbol', inplace=True)
 
-                symbols_df.to_json(file_path)
+                symbols_df.to_json(file_path, orient="records")
 
         for index, row in symbols_df.iterrows():
             if code and index != code:

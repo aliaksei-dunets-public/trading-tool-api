@@ -1,3 +1,17 @@
+class Const:
+    # Signal Values
+    STRONG_BUY = 'Strong Buy'
+    BUY = 'Buy'
+    STRONG_SELL = 'Strong Sell'
+    SELL = 'Sell'
+
+    # Column Names
+    SIGNAL = 'Signal'
+
+class ExhangeInfo:
+    pass
+
+
 class TradingTime:
     pass
 
@@ -20,17 +34,13 @@ class HistoryData:
 
     def getSymbol(self):
         return self.__symbol
-    
+
     def getInterval(self):
         return self.__interval
-    
+
     def getLimit(self):
         return self.__limit
 
     def getDataFrame(self):
         return self.__dataFrame
 
-
-
-class ExhangeInfo:
-    pass

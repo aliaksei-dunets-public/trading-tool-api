@@ -25,10 +25,14 @@ class Config:
         return self.__handler
 
     def getIntervals(self):
-        return [self.TA_INTERVAL_5M, self.TA_INTERVAL_15M, self.TA_INTERVAL_30M,
-                self.TA_INTERVAL_1H, self.TA_INTERVAL_4H, self.TA_INTERVAL_1D, self.TA_INTERVAL_1WK]
+        intervals = []
 
-    def getIntervalsDetails(self):
+        for x in self.getIntervals():
+            intervals.append(x["interval"])
+
+        return intervals
+
+    def getIntervalDetails(self):
 
         details = [{"interval": self.TA_INTERVAL_5M,  "name": "5 minutes", "order": 10},
                    {"interval": self.TA_INTERVAL_15M,
@@ -44,6 +48,18 @@ class Config:
                    {"interval": self.TA_INTERVAL_1WK, "name": "1 week", "order": 70}]
 
         return details
+
+    def getIndicators(self):
+
+        return [{"code": "CCI", "name": "Commodity Channel Index"}]
+
+    def getStrategies(self):
+
+        strategies = [{"code": "CCI_14_TREND_100", "name": "CCI(14): Indicator value +/- 100"},
+                      {"code": "CCI_20_TREND_100", "name": "CCI(20): Indicator value +/- 100"},
+                      {"code": "CCI_50_TREND_0", "name": "CCI(50): Indicator value 0"}]
+
+        return strategies
 
 
 class SymbolList:
@@ -63,43 +79,3 @@ class SymbolList:
     def getSymbols(self, code: str = None, name: str = None, status: str = None, type: str = None) -> list:
         symbols = Config().getHandler().getSymbols(code=code, name=name, status=status, type=type)
         return symbols
-
-    # def getSymbol(self, code):
-    #     symbols = self.getSymbols(code=code)
-
-    #     if len(symbols) == 0:
-    #         raise Exception(f'Symbol with code {code} can not be found')
-
-    #     return symbols[0]
-
-    # def getSymbols(self, code=None, name=None, status=None, type=None, isBuffer=True) -> list:
-    #     return self.getHandler().getExchangeInfo(code, name, status, type, isBuffer)
-
-# class Symbol:
-#     def __init__(self, code, name, status, tradingTime, type):
-#         self.code = code
-#         self.name = name
-#         self.status = status
-#         self.tradingTime = tradingTime
-#         self.type = type
-
-#     def getTradingTime(self):
-#         pass
-
-# class Symbols:
-#     pass
-
-# class Asset:
-#     def __init__(self, symbol):
-#         self.__symbol = symbol
-#         self.__handler = config.Configuration().getHandler()
-#         self.__name = symbol
-
-#     def getSymbol(self):
-#         return self.__symbol
-
-#     def getName(self):
-#         return config.Configuration().getSymbol(code=self.__symbol).name
-
-#     def getHistoryDataFrame(self, interval, limit):
-#         return self.__handler.getHistoryDataFrame(self.__symbol, interval, limit)
