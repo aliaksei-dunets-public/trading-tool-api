@@ -38,48 +38,52 @@ class HandlerCurrencyCom(HandlerBase):
     def getSymbols(self, code: str = None, name: str = None, status: str = None, type: str = None, isBuffer: bool = True) -> list:
 
         symbols = []
-        symbols_df = pd.DataFrame()
+        tempSymbols = []
 
         file_path = f'{os.getcwd()}\static\symbols_df.json'
 
         if isBuffer and os.path.exists(file_path):
-            symbols_df = pd.read_json(file_path)
+            with open(file_path, 'r') as reader:
+                tempSymbols = json.load(reader)
 
-        if symbols_df.empty:
+        if not tempSymbols:
             response = requests.get(
                 "https://api-adapter.backend.currency.com/api/v2/exchangeInfo")
 
             if response.status_code == 200:
                 jsonResponse = json.loads(response.text)
 
-                df = pd.DataFrame(jsonResponse['symbols'])
-                df_cleared = df.query(
-                    "quoteAssetId == 'USD' and assetType in ('CRYPTOCURRENCY','EQUITY','COMMODITY')")
-                symbols_df = df_cleared[['symbol', 'name',
-                                         'tradingHours', 'assetType', 'status']]
-                symbols_df.set_index('symbol', inplace=True)
+                for obj in jsonResponse['symbols']:
+                    if obj['quoteAssetId'] == 'USD' and obj['assetType'] in ['CRYPTOCURRENCY', 'EQUITY', 'COMMODITY'] and 'REGULAR' in obj['marketModes']:
+                        tempSymbols.append({'code': obj['symbol'],
+                                            'name': obj['name'],
+                                            'status': obj['status'],
+                                            'tradingTime': obj['tradingHours'],
+                                            'type': obj['assetType']})
+                    else:
+                        continue
 
-                symbols_df.to_json(file_path, orient="records")
+                with open(file_path, 'w') as writer:
+                    writer.write(json.dumps(
+                        sorted(tempSymbols, key=lambda i: i['code'])))
 
-        for index, row in symbols_df.iterrows():
-            if code and index != code:
+        for row in tempSymbols:
+            if code and row['code'] != code:
                 continue
-            if name and name.lower() not in row['name'].lower():
+            elif name and name.lower() not in row['name'].lower():
                 continue
-            if status and row['status'] != status:
+            elif status and row['status'] != status:
                 continue
             elif type and row['assetType'] != type:
                 continue
-
-            symbols.append(Symbol(
-                code=index, name=row['name'], status=row['status'], tradingTime=row['tradingHours'], type=row['assetType']))
+            else:
+                symbols.append(Symbol(
+                    code=row['code'], name=row['name'], status=row['status'], tradingTime=row['tradingTime'], type=row['type']))
 
         return symbols
 
     def __getKlines(self, symbol, interval, limit):
-        params = {"symbol": symbol,
-                  "interval": interval,
-                  "limit": limit}
+        params = {"symbol": symbol, "interval": interval, "limit": limit}
         response = requests.get(
             "https://api-adapter.backend.currency.com/api/v2/klines", params=params)
 

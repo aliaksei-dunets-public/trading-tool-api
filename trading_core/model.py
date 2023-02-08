@@ -27,7 +27,7 @@ class Config:
     def getIntervals(self):
         intervals = []
 
-        for x in self.getIntervals():
+        for x in self.getIntervalDetails():
             intervals.append(x["interval"])
 
         return intervals
@@ -56,10 +56,14 @@ class Config:
     def getStrategies(self):
 
         strategies = [{"code": "CCI_14_TREND_100", "name": "CCI(14): Indicator value +/- 100"},
-                      {"code": "CCI_20_TREND_100", "name": "CCI(20): Indicator value +/- 100"},
+                      {"code": "CCI_20_TREND_100",
+                          "name": "CCI(20): Indicator value +/- 100"},
                       {"code": "CCI_50_TREND_0", "name": "CCI(50): Indicator value 0"}]
 
         return strategies
+
+    def getStrategyCodes(self):
+        return [item['code'] for item in self.getStrategies()]
 
 
 class SymbolList:
@@ -77,5 +81,12 @@ class SymbolList:
         return symbols[0]
 
     def getSymbols(self, code: str = None, name: str = None, status: str = None, type: str = None) -> list:
-        symbols = Config().getHandler().getSymbols(code=code, name=name, status=status, type=type)
+        symbols = Config().getHandler().getSymbols(
+            code=code, name=name, status=status, type=type)
         return symbols
+
+    def getSymbolCodes(self, code: str = None, name: str = None, status: str = None, type: str = None) -> list:
+        return [item.code for item in self.getSymbols(code, name, status, type)]
+
+
+config = Config()

@@ -58,3 +58,13 @@ def getStrategyData():
     limit = int(request.args.get('limit'))
 
     return resp.getStrategyData(code=code, symbol=symbol, interval=interval, limit=limit)
+
+    
+
+@app.route('/signals', methods=['GET'])
+def getSignals():
+    symbols = request.args.getlist('symbol', None)
+    intervals = request.args.getlist('interval', None)
+    codes = request.args.getlist('code', None)
+
+    return resp.getSignals(symbols, intervals, codes)

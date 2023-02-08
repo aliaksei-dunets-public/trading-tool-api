@@ -19,7 +19,7 @@ class StrategyBase():
     def getName(self):
         return self._name
 
-    def getStrategy(self, symbol: str, interval: str, limit: int):
+    def getStrategy(self, symbol: str, interval: str, limit: int = 0):
         pass
 
     def getStrategyByHistoryData(self, historyData: HistoryData):
@@ -48,7 +48,7 @@ class StrategyFactory(StrategyBase):
     def getName(self):
         return self.__instance.getName()
 
-    def getStrategy(self, symbol: str, interval: str, limit: int):
+    def getStrategy(self, symbol: str, interval: str, limit: int = 0):
         return self.__instance.getStrategy(symbol, interval, limit)
 
     def getStrategyByHistoryData(self, historyData: HistoryData):
@@ -61,7 +61,7 @@ class Strategy_CCI(StrategyBase):
         self._value = value
         self._cci = Indicator_CCI(length)
 
-    def getStrategy(self, symbol: str, interval: str, limit: int):
+    def getStrategy(self, symbol: str, interval: str, limit: int = 0):
         default_limit = self._cci.getLength() + 1
         limit = limit if limit > default_limit else default_limit
         historyData = Config().getHandler().getHistoryData(symbol=symbol, interval=interval, limit=limit)

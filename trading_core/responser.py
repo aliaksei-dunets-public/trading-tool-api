@@ -4,6 +4,7 @@ import pandas as pd
 from .model import Config, SymbolList
 from .indicator import Indicator_CCI
 from .strategy import StrategyFactory
+from .simulator import Simulator
 
 
 def decorator_json(func) -> str:
@@ -58,3 +59,7 @@ def getIndicatorData(code: str, length: int, symbol: str, interval: str, limit: 
 @decorator_json
 def getStrategyData(code: str, symbol: str, interval: str, limit: int):
     return StrategyFactory(code).getStrategy(symbol, interval, limit)
+
+
+def getSignals(symbols: list, intervals: list, strategyCodes: list):
+    return json.dumps(Simulator().determineSignals(symbols, intervals, strategyCodes))
