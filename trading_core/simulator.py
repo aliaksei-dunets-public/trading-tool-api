@@ -25,8 +25,8 @@ class Simulator():
 
         signals = []
 
-        if not symbols:
-            symbols = SymbolList().getSymbolCodes()
+        # if not symbols:
+        #     symbols = SymbolList().getSymbolCodes()
 
         if not intervals:
             intervals = config.getIntervals()
@@ -47,8 +47,8 @@ class Simulator():
 
         simulations = []
 
-        if not symbols:
-            symbols = SymbolList().getSymbolCodes()
+        # if not symbols:
+        #     symbols = SymbolList().getSymbolCodes()
 
         if not intervals:
             intervals = config.getIntervals()

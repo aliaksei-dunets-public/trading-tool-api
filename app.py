@@ -67,6 +67,9 @@ def getSignals():
     intervals = request.args.getlist('interval', None)
     codes = request.args.getlist('code', None)
 
+    if symbols == []:
+        return jsonify({"error": "Symbol is missed",}), 500
+
     return resp.getSignals(symbols, intervals, codes)
 
 
@@ -75,5 +78,8 @@ def getSimulation():
     symbols = request.args.getlist('symbol', None)
     intervals = request.args.getlist('interval', None)
     codes = request.args.getlist('code', None)
+
+    if symbols == []:
+        return jsonify({"error": "Symbol is missed",}), 500
 
     return resp.getSimulation(symbols, intervals, codes)
