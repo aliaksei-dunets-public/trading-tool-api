@@ -5,8 +5,21 @@ class Const:
     STRONG_SELL = 'Strong Sell'
     SELL = 'Sell'
 
+    # Direction Values
+    LONG = 'LONG'
+    SHORT = 'SHORT'
+
     # Column Names
     SIGNAL = 'Signal'
+
+    # Order Statuses
+    ORDER_STATUS_OPEN = 'Open'
+    ORDER_STATUS_CLOSE = 'Close'
+
+    # Order Close Reason
+    ORDER_CLOSE_REASON_STOP_LOSS = 'Stop Loss'
+    ORDER_CLOSE_REASON_TAKE_PROFIT = 'Take Profit'
+    ORDER_CLOSE_REASON_SIGNAL = 'Signal'
 
 class ExhangeInfo:
     pass
@@ -43,4 +56,12 @@ class HistoryData:
 
     def getDataFrame(self):
         return self.__dataFrame
+
+class SimulateOptions:
+    def __init__(self, balance, limit, stopLossRate, takeProfitRate, feeRate):
+        self.balance=balance
+        self.limit=int(limit)
+        self.stopLossRate=stopLossRate
+        self.takeProfitRate=takeProfitRate
+        self.feeRate=feeRate
 

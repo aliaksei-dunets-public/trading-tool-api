@@ -68,3 +68,12 @@ def getSignals():
     codes = request.args.getlist('code', None)
 
     return resp.getSignals(symbols, intervals, codes)
+
+
+@app.route('/simulate', methods=['GET'])
+def getSimulation():
+    symbols = request.args.getlist('symbol', None)
+    intervals = request.args.getlist('interval', None)
+    codes = request.args.getlist('code', None)
+
+    return resp.getSimulation(symbols, intervals, codes)

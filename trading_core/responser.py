@@ -11,8 +11,13 @@ def decorator_json(func) -> str:
     def wrapper(*args, **kwargs):
         value = func(*args, **kwargs)
 
-        if isinstance(value, list) and all(isinstance(item, object) for item in value):
-            return json.dumps([item.__dict__ for item in value])
+        if isinstance(value, list):
+            if all(type(item) == dict for item in value):
+                return json.dumps(value)
+            if all(isinstance(item, object) for item in value):
+                return json.dumps([item.__dict__ for item in value])
+            else:
+                return json.dumps(value)
         elif isinstance(value, pd.DataFrame):
             return value.to_json(orient="table", index=True)
         elif isinstance(value, object):
@@ -61,5 +66,11 @@ def getStrategyData(code: str, symbol: str, interval: str, limit: int):
     return StrategyFactory(code).getStrategy(symbol, interval, limit)
 
 
+@decorator_json
 def getSignals(symbols: list, intervals: list, strategyCodes: list):
-    return json.dumps(Simulator().determineSignals(symbols, intervals, strategyCodes))
+    return Simulator().determineSignals(symbols, intervals, strategyCodes)
+
+
+@decorator_json
+def getSimulation(symbols: list, intervals: list, strategyCodes: list):
+    return Simulator().simulateTrading(symbols, intervals, strategyCodes)
