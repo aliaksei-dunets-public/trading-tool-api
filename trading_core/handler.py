@@ -47,7 +47,7 @@ class HandlerCurrencyCom(HandlerBase):
         symbols = []
         tempSymbols = []
 
-        file_path = f'{os.getcwd()}\static\symbols.json'
+        file_path = f'{os.getcwd()}/static/symbols.json'
 
         if isBuffer and os.path.exists(file_path):
             with open(file_path, 'r') as reader:

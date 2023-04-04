@@ -92,7 +92,7 @@ class Simulator():
         
         filteredSimulations = []
 
-        file_path = f'{os.getcwd()}\static\positiveSimulations.json'
+        file_path = f'{os.getcwd()}/static/positiveSimulations.json'
 
         with open(file_path, 'r') as reader:
             simulations = json.load(reader)
