@@ -3,9 +3,11 @@ import requests
 import json
 import pandas as pd
 import os
+import logging
 
 from .core import Symbol, HistoryData
 
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 class HandlerBase:
     def getHistoryData(self, symbol, interval, limit) -> HistoryData:
@@ -23,6 +25,9 @@ class HandlerBase:
 
 class HandlerCurrencyCom(HandlerBase):
     def getHistoryData(self, symbol, interval, limit) -> HistoryData:
+
+        logging.info(f'getHistoryData(symbol={symbol}, interval={interval}, limit={limit})')
+
         response = self.__getKlines(symbol, self._mapInterval(interval), limit)
 
         df = pd.DataFrame(response, columns=[
@@ -36,11 +41,13 @@ class HandlerCurrencyCom(HandlerBase):
         return HistoryData(symbol, interval, limit, df)
 
     def getSymbols(self, code: str = None, name: str = None, status: str = None, type: str = None, isBuffer: bool = True) -> list:
+        
+        logging.info(f'getSymbols(code={code}, name={name}, status={status}, type={type}, isBuffer={isBuffer})')
 
         symbols = []
         tempSymbols = []
 
-        file_path = f'{os.getcwd()}\static\symbols_df.json'
+        file_path = f'{os.getcwd()}\static\symbols.json'
 
         if isBuffer and os.path.exists(file_path):
             with open(file_path, 'r') as reader:

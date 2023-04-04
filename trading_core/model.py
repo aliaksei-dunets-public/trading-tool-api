@@ -11,6 +11,14 @@ class Config:
     TA_INTERVAL_1D = "1d"
     TA_INTERVAL_1WK = "1w"
 
+    INTERVALS = [{"interval": TA_INTERVAL_5M,  "name": "5 minutes", "order": 10, "importance": 'LOW'},
+                 {"interval": TA_INTERVAL_15M, "name": "15 minutes", "order": 20, "importance": 'LOW'},
+                 {"interval": TA_INTERVAL_30M, "name": "30 minutes", "order": 30, "importance": 'MEDIUM'},
+                 {"interval": TA_INTERVAL_1H, "name": "1 hour", "order": 40, "importance": 'MEDIUM'},
+                 {"interval": TA_INTERVAL_4H, "name": "4 hours", "order": 50, "importance": 'HIGH'},
+                 {"interval": TA_INTERVAL_1D, "name": "1 day", "order": 60, "importance": 'HIGH'},
+                 {"interval": TA_INTERVAL_1WK, "name": "1 week", "order": 70, "importance": 'HIGH'}]
+
     _instance = None
 
     def __new__(class_, *args, **kwargs):
@@ -24,30 +32,19 @@ class Config:
             self.__handler = HandlerCurrencyCom()
         return self.__handler
 
-    def getIntervals(self):
+    def getIntervals(self, importance=None):
+        return [x["interval"] for x in self.getIntervalDetails(importance)]
+
+    def getIntervalDetails(self, importance=None):
         intervals = []
 
-        for x in self.getIntervalDetails():
-            intervals.append(x["interval"])
+        for x in self.INTERVALS:
+            if importance and importance != x['importance']:
+                continue
+            else:
+                intervals.append(x)
 
         return intervals
-
-    def getIntervalDetails(self):
-
-        details = [{"interval": self.TA_INTERVAL_5M,  "name": "5 minutes", "order": 10},
-                   {"interval": self.TA_INTERVAL_15M,
-                       "name": "15 minutes", "order": 20},
-                   {"interval": self.TA_INTERVAL_30M,
-                       "name": "30 minutes", "order": 30},
-                   {"interval": self.TA_INTERVAL_1H,
-                       "name": "1 hour", "order": 40},
-                   {"interval": self.TA_INTERVAL_4H,
-                       "name": "4 hours", "order": 50},
-                   {"interval": self.TA_INTERVAL_1D,
-                       "name": "1 day", "order": 60},
-                   {"interval": self.TA_INTERVAL_1WK, "name": "1 week", "order": 70}]
-
-        return details
 
     def getIndicators(self):
 

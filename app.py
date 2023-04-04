@@ -12,7 +12,9 @@ def index():
 
 @app.route('/intervals', methods=['GET'])
 def getIntervals():
-    return resp.getIntervals()
+    importance = request.args.get('importance')
+
+    return resp.getIntervals(importance)
 
 
 @app.route('/symbols', methods=['GET'])
@@ -74,7 +76,7 @@ def getSignals():
 
 
 @app.route('/simulate', methods=['GET'])
-def getSimulation():
+def getSimulate():
     symbols = request.args.getlist('symbol', None)
     intervals = request.args.getlist('interval', None)
     codes = request.args.getlist('code', None)
@@ -82,4 +84,12 @@ def getSimulation():
     if symbols == []:
         return jsonify({"error": "Symbol is missed",}), 500
 
-    return resp.getSimulation(symbols, intervals, codes)
+    return resp.getSimulate(symbols, intervals, codes)
+
+@app.route('/simulations', methods=['GET'])
+def getSimulations():
+    symbols = request.args.getlist('symbol', None)
+    intervals = request.args.getlist('interval', None)
+    codes = request.args.getlist('code', None)
+
+    return resp.getSimulations(symbols, intervals, codes)

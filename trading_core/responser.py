@@ -27,8 +27,8 @@ def decorator_json(func) -> str:
     return wrapper
 
 
-def getIntervals() -> json:
-    return json.dumps(Config().getIntervalDetails())
+def getIntervals(importance: str) -> json:
+    return json.dumps(Config().getIntervalDetails(importance))
 
 
 @decorator_json
@@ -72,5 +72,10 @@ def getSignals(symbols: list, intervals: list, strategyCodes: list):
 
 
 @decorator_json
-def getSimulation(symbols: list, intervals: list, strategyCodes: list):
+def getSimulate(symbols: list, intervals: list, strategyCodes: list):
     return Simulator().simulateTrading(symbols, intervals, strategyCodes)
+
+
+@decorator_json
+def getSimulations(symbols: list, intervals: list, strategyCodes: list):
+    return Simulator().getSimulations(symbols, intervals, strategyCodes)

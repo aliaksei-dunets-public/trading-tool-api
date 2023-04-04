@@ -1,7 +1,12 @@
+import logging
+import os
+import json
+
 from .core import Const, HistoryData, SimulateOptions
 from .model import config, SymbolList
 from .strategy import StrategyFactory
 
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 class Simulator():
 
@@ -13,11 +18,11 @@ class Simulator():
         for index, strategy_row in strategy_df.iterrows():
             signal_value = strategy_row[Const.SIGNAL]
             if signal_value:
-                return {'DateTime': index.isoformat(),
-                        'Symbol': symbol,
-                        'Interval': interval,
-                        'Strategy': strategyCode,
-                        'Signal': signal_value}
+                return {'dateTime': index.isoformat(),
+                        'symbol': symbol,
+                        'interval': interval,
+                        'strategy': strategyCode,
+                        'signal': signal_value}
             else:
                 return None
 
@@ -37,9 +42,13 @@ class Simulator():
         for symbol in symbols:
             for interval in intervals:
                 for code in strategyCodes:
-                    signal = self.determineSignal(symbol, interval, code)
-                    if signal:
-                        signals.append(signal)
+                    try:
+                        signal = self.determineSignal(symbol, interval, code)
+                        if signal:
+                            signals.append(signal)
+                    except Exception as error:
+                        logging.error(f'For symbol={symbol}, interval={interval}, code={code} - {error}')
+                        continue
 
         return signals
 
@@ -55,25 +64,53 @@ class Simulator():
 
         if not strategyCodes:
             strategyCodes = config.getStrategyCodes()
-        
+
         if not optionsList:
-            optionsList = [SimulateOptions(balance=100, limit=500, stopLossRate=0, takeProfitRate=0, feeRate=0.5)]
+            optionsList = [SimulateOptions(
+                balance=100, limit=500, stopLossRate=0, takeProfitRate=0, feeRate=0.5)]
 
         for symbol in symbols:
             for interval in intervals:
+                limit = 0
                 for options in optionsList:
-
-                    historyData = config.getHandler().getHistoryData(
-                        symbol=symbol, interval=interval, limit=options.limit)
-
+                    if limit == 0 or limit < options.limit:
+                        limit = options.limit
+                        historyData = config.getHandler().getHistoryData(symbol=symbol, interval=interval, limit=options.limit)
                     for code in strategyCodes:
+                        try:
+                            simulation = self.__simulateStragy(
+                                historyData=historyData, strategyCode=code, options=options)
 
-                        simulation = self.__simulateStragy(
-                            historyData=historyData, strategyCode=code, options=options)
-
-                        simulations.append(simulation)
+                            simulations.append(simulation)
+                        except Exception as error:
+                            logging.error(f'For symbol={symbol}, interval={interval}, limit={limit} - {error}')
+                            continue
 
         return simulations
+
+    def getSimulations(self, symbols=[], intervals=[], strategyCodes=[]):
+        
+        filteredSimulations = []
+
+        file_path = f'{os.getcwd()}\static\positiveSimulations.json'
+
+        with open(file_path, 'r') as reader:
+            simulations = json.load(reader)
+        
+        for simulation in simulations:
+            if symbols and simulation['symbol'] not in symbols:
+                continue
+
+            if intervals and simulation['interval'] not in intervals:
+                continue
+
+            if strategyCodes and simulation['strategy'] not in strategyCodes:
+                continue
+            
+            filteredSimulations.append(simulation)
+        
+        return filteredSimulations
+
 
     def __simulateStragy(self, historyData: HistoryData, strategyCode, options: SimulateOptions):
 
