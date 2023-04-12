@@ -37,8 +37,8 @@ def getSymbol(code: str) -> json:
 
 
 @decorator_json
-def getSymbols(code: str = None, name: str = None, status: str = None, type: str = None) -> json:
-    return SymbolList().getSymbols(code=code, name=name, status=status, type=type)
+def getSymbols(code: str = None, name: str = None, status: str = None, type: str = None, isBuffer: bool = True) -> json:
+    return SymbolList().getSymbols(code=code, name=name, status=status, type=type, isBuffer=isBuffer)
 
 
 def getIndicators() -> json:
@@ -79,3 +79,8 @@ def getSimulate(symbols: list, intervals: list, strategyCodes: list):
 @decorator_json
 def getSimulations(symbols: list, intervals: list, strategyCodes: list):
     return Simulator().getSimulations(symbols, intervals, strategyCodes)
+
+
+@decorator_json
+def getSignalsBySimulation(symbols: list, intervals: list, strategyCodes: list):
+    return Simulator().getSignalsBySimulation(symbols, intervals, strategyCodes)

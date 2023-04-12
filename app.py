@@ -1,13 +1,15 @@
 from flask import Flask, jsonify, request
+# from flask_restplus import Api, Resource
 
 import trading_core.responser as resp
 
 app = Flask(__name__)
+# api = Api(app, version='1.0', title='Trading Tool API', description='Trading Tool API for getting symbols, history data, indicators, signals, simulations')
 
 
 @app.route("/")
 def index():
-    return "<h1>Hello World</h1>"
+    return "<h1>This is the Trading tool API</h1>"
 
 
 @app.route('/intervals', methods=['GET'])
@@ -23,16 +25,20 @@ def getSymbols():
     name = request.args.get('name')
     status = request.args.get('status')
     type = request.args.get('type')
+    isBuffer = request.args.get('isBuffer')
 
-    return resp.getSymbols(code=code, name=name, status=status, type=type)
+    return resp.getSymbols(code=code, name=name, status=status, type=type, isBuffer=isBuffer)
+
 
 @app.route('/indicators', methods=['GET'])
 def getIndicators():
     return resp.getIndicators()
 
+
 @app.route('/strategies', methods=['GET'])
 def getStrategies():
     return resp.getStrategies()
+
 
 @app.route('/historyData', methods=['GET'])
 def getHistoryData():
@@ -42,6 +48,7 @@ def getHistoryData():
 
     return resp.getHistoryData(symbol=symbol, interval=interval, limit=limit)
 
+
 @app.route('/indicatorData', methods=['GET'])
 def getIndicatorData():
     code = request.args.get('code')
@@ -50,7 +57,8 @@ def getIndicatorData():
     interval = request.args.get('interval')
     limit = int(request.args.get('limit'))
 
-    return resp.getIndicatorData(code=code,length=length, symbol=symbol, interval=interval, limit=limit)
+    return resp.getIndicatorData(code=code, length=length, symbol=symbol, interval=interval, limit=limit)
+
 
 @app.route('/strategyData', methods=['GET'])
 def getStrategyData():
@@ -61,7 +69,6 @@ def getStrategyData():
 
     return resp.getStrategyData(code=code, symbol=symbol, interval=interval, limit=limit)
 
-    
 
 @app.route('/signals', methods=['GET'])
 def getSignals():
@@ -70,7 +77,7 @@ def getSignals():
     codes = request.args.getlist('code', None)
 
     if symbols == []:
-        return jsonify({"error": "Symbol is missed",}), 500
+        return jsonify({"error": "Symbol is missed", }), 500
 
     return resp.getSignals(symbols, intervals, codes)
 
@@ -82,9 +89,10 @@ def getSimulate():
     codes = request.args.getlist('code', None)
 
     if symbols == []:
-        return jsonify({"error": "Symbol is missed",}), 500
+        return jsonify({"error": "Symbol is missed", }), 500
 
     return resp.getSimulate(symbols, intervals, codes)
+
 
 @app.route('/simulations', methods=['GET'])
 def getSimulations():
@@ -93,3 +101,12 @@ def getSimulations():
     codes = request.args.getlist('code', None)
 
     return resp.getSimulations(symbols, intervals, codes)
+
+
+@app.route('/signalsBySimulation', methods=['GET'])
+def getSignalsBySimulation():
+    symbols = request.args.getlist('symbol', None)
+    intervals = request.args.getlist('interval', None)
+    codes = request.args.getlist('code', None)
+
+    return resp.getSignalsBySimulation(symbols, intervals, codes)

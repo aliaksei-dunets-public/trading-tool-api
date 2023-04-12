@@ -77,9 +77,9 @@ class SymbolList:
             raise Exception('Symbol with code {code} could not be found')
         return symbols[0]
 
-    def getSymbols(self, code: str = None, name: str = None, status: str = None, type: str = None) -> list:
+    def getSymbols(self, code: str = None, name: str = None, status: str = None, type: str = None, isBuffer: bool = True) -> list:
         symbols = Config().getHandler().getSymbols(
-            code=code, name=name, status=status, type=type)
+            code=code, name=name, status=status, type=type, isBuffer=isBuffer)
         return symbols
 
     def getSymbolCodes(self, code: str = None, name: str = None, status: str = None, type: str = None) -> list:

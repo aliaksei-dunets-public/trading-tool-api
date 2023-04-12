@@ -6,7 +6,9 @@ from .core import Const, HistoryData, SimulateOptions
 from .model import config, SymbolList
 from .strategy import StrategyFactory
 
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+
 
 class Simulator():
 
@@ -46,8 +48,11 @@ class Simulator():
                         signal = self.determineSignal(symbol, interval, code)
                         if signal:
                             signals.append(signal)
+                        else:
+                            continue
                     except Exception as error:
-                        logging.error(f'For symbol={symbol}, interval={interval}, code={code} - {error}')
+                        logging.error(
+                            f'For symbol={symbol}, interval={interval}, code={code} - {error}')
                         continue
 
         return signals
@@ -75,7 +80,8 @@ class Simulator():
                 for options in optionsList:
                     if limit == 0 or limit < options.limit:
                         limit = options.limit
-                        historyData = config.getHandler().getHistoryData(symbol=symbol, interval=interval, limit=options.limit)
+                        historyData = config.getHandler().getHistoryData(
+                            symbol=symbol, interval=interval, limit=options.limit)
                     for code in strategyCodes:
                         try:
                             simulation = self.__simulateStragy(
@@ -83,20 +89,21 @@ class Simulator():
 
                             simulations.append(simulation)
                         except Exception as error:
-                            logging.error(f'For symbol={symbol}, interval={interval}, limit={limit} - {error}')
+                            logging.error(
+                                f'For symbol={symbol}, interval={interval}, limit={limit} - {error}')
                             continue
 
         return simulations
 
     def getSimulations(self, symbols=[], intervals=[], strategyCodes=[]):
-        
+
         filteredSimulations = []
 
         file_path = f'{os.getcwd()}/static/positiveSimulations.json'
 
         with open(file_path, 'r') as reader:
             simulations = json.load(reader)
-        
+
         for simulation in simulations:
             if symbols and simulation['symbol'] not in symbols:
                 continue
@@ -106,11 +113,38 @@ class Simulator():
 
             if strategyCodes and simulation['strategy'] not in strategyCodes:
                 continue
-            
+
             filteredSimulations.append(simulation)
-        
+
         return filteredSimulations
 
+    def getSignalsBySimulation(self, symbols=[], intervals=[], strategyCodes=[]):
+
+        simulationsWithSignal = []
+
+        simulations = self.getSimulations(symbols, intervals, strategyCodes)
+
+        # Detect unique entries for symbol, interval, strategy from simulations
+        uniqueSignalParams = set((d['symbol'], d['interval'], d['strategy']) for d in simulations)
+
+        for symbol, interval, strategy in uniqueSignalParams:
+            try:
+                signal = self.determineSignal(symbol, interval, strategy)
+
+                for simulation in simulations:
+                    if signal and simulation['symbol'] == symbol and simulation['interval'] == interval and simulation['strategy'] == strategy:
+
+                        simulation['dateTime'] = signal['dateTime']
+                        simulation['signal'] = signal['signal'] 
+
+                        simulationsWithSignal.append(simulation)       
+                    else:
+                        continue
+            except Exception as error:
+                logging.error( f'For symbol={symbol}, interval={interval}, code={strategy} - {error}')
+                continue
+        
+        return simulationsWithSignal
 
     def __simulateStragy(self, historyData: HistoryData, strategyCode, options: SimulateOptions):
 
@@ -131,7 +165,6 @@ class Simulator():
                 "feeRate": options.feeRate
                 # "orders": orderHandler.getOrders4Json()
                 }
-
 
 class OrderHandler:
     def __init__(self, balance, stopLossRate, takeProfitRate, feeRate):
