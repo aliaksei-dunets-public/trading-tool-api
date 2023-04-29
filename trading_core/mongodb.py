@@ -1,6 +1,5 @@
 import pymongo
 from dotenv import dotenv_values
-from bson.objectid import ObjectId
 
 config = dotenv_values(".env")
 
