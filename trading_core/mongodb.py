@@ -1,15 +1,18 @@
 import pymongo
-from dotenv import dotenv_values
+import os
+from dotenv import load_dotenv
 
-config = dotenv_values(".env")
+load_dotenv()
+
+mongodb_uri = os.getenv("MONGO_CONFIG")
 
 try:
-    if not config['MONGO_CONFIG']:
+    if not mongodb_uri:
         raise Exception('Mongo Config is not maintained in the environment values')
 except KeyError:
     raise Exception('Mongo Config is not maintained in the environment values')
 
-client = pymongo.MongoClient(config['MONGO_CONFIG'])
+client = pymongo.MongoClient(mongodb_uri)
 
 database = client['ClusterShared']
 
