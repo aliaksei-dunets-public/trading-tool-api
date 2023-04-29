@@ -1,10 +1,13 @@
 from flask import Flask, jsonify, request
-# from flask_restplus import Api, Resource
 
 import trading_core.responser as resp
+import trading_core.utils as utils
 
 app = Flask(__name__)
 # api = Api(app, version='1.0', title='Trading Tool API', description='Trading Tool API for getting symbols, history data, indicators, signals, simulations')
+
+scheduler = utils.Scheduler()
+scheduler.start()
 
 
 @app.route("/")
@@ -110,3 +113,46 @@ def getSignalsBySimulation():
     codes = request.args.getlist('code', None)
 
     return resp.getSignalsBySimulation(symbols, intervals, codes)
+
+# Define endpoints for creating, reading, updating, and deleting background jobs
+
+
+@app.route('/jobs', methods=['POST'])
+def create_job():
+    pass
+    # job_id = request.json.get('job_id')
+    # interval = request.json.get('interval')
+    # job = scheduler.add_job(func=lambda: asyncio.run(
+    #     send_message()), trigger='interval', **interval)
+    # jobs[job_id] = job
+    # return jsonify({'job_id': job_id}), 201
+
+
+@app.route('/jobs/<job_id>', methods=['GET'])
+def read_job(job_id):
+    pass
+    # job = jobs.get(job_id)
+    # if job:
+    #     return jsonify({'job_id': job_id, 'interval': job.trigger.fields_as_string()}), 200
+    # else:
+    #     return jsonify({'error': 'Job not found'}), 404
+
+
+@app.route('/jobs/<job_id>', methods=['PUT'])
+def update_job(job_id):
+    pass
+    # job = jobs.get(job_id)
+    # if job:
+    #     interval = request.json.get('interval')
+    #     job.reschedule(trigger='interval', **interval)
+    #     return jsonify({'job_id': job_id, 'interval': job.trigger.fields_as_string()}), 200
+    # else:
+    #     return jsonify({'error': 'Job not found'}), 404
+
+
+@app.route('/jobs/<job_id>', methods=['DELETE'])
+def delete_job(job_id):
+    if scheduler.removeJob(job_id):
+        return jsonify({'message': 'Job deleted'}), 200
+    else:
+        return jsonify({'error': 'Job not found'}), 404
