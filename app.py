@@ -119,13 +119,9 @@ def getSignalsBySimulation():
 
 @app.route('/jobs', methods=['POST'])
 def create_job():
-    pass
-    # job_id = request.json.get('job_id')
-    # interval = request.json.get('interval')
-    # job = scheduler.add_job(func=lambda: asyncio.run(
-    #     send_message()), trigger='interval', **interval)
-    # jobs[job_id] = job
-    # return jsonify({'job_id': job_id}), 201
+    interval = request.json.get('interval')
+    job = scheduler.createJob(interval)
+    return jsonify({'job_id': job.id}), 201
 
 
 @app.route('/jobs/<job_id>', methods=['GET'])

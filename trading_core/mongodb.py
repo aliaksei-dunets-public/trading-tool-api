@@ -16,8 +16,8 @@ database = client['ClusterShared']
 jobsCollection = database['jobs']
 
 # Create new job details
-def create_job(job):
-    result = jobsCollection.insert_one({'_id': job.id})
+def create_job(job, interval):
+    result = jobsCollection.insert_one({'_id': job.id, 'interval': interval})
     return str(result.inserted_id)
 
 # Update job details

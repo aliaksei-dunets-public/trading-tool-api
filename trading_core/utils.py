@@ -34,19 +34,21 @@ class Scheduler:
         self.__initJobs()
 
     def __initJobs(self):
-        self.createJob()
+        # self.addJob()
+        pass
 
-    def addJob(self):
-        job = self.__scheduler.add_job(lambda: asyncio.run(send_bot_notification(interval='4h')),
+    def addJob(self, interval):
+        job = self.__scheduler.add_job(lambda: asyncio.run(send_bot_notification(interval)),
                                        CronTrigger(
                                            hour='0,4,8,12,16,20', minute='2', jitter=60, timezone='UTC')
                                        )
         
         return job
     
-    def createJob(self):
-        job = self.addJob()
-        db.create_job(job)
+    def createJob(self, interval):
+        job = self.addJob(interval)
+        db.create_job(job, interval)
+        return job
     
     def removeJob(self, jobId):
         self.__scheduler.remove_job(jobId)
