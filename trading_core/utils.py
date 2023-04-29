@@ -2,7 +2,8 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 import asyncio
 import requests
-from dotenv import dotenv_values
+import os
+from dotenv import load_dotenv
 import logging
 
 import trading_core.mongodb as db
@@ -10,18 +11,19 @@ import trading_core.mongodb as db
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-config = dotenv_values(".env")
-
+load_dotenv()
 
 async def send_bot_notification(interval):
+    bot_token = os.getenv("BOT_TOKEN")
+
     try:
-        if not config['BOT_TOKEN']:
+        if not bot_token:
             logging.error(
                 'Bot token is not maintained in the environment values')
     except KeyError:
         logging.error('Bot token is not maintained in the environment values')
 
-    url = f'https://api.telegram.org/bot{config["BOT_TOKEN"]}/sendMessage'
+    url = f'https://api.telegram.org/bot{bot_token}/sendMessage'
     params = {'chat_id': '1658698044', 'text': 'Ping'}
     response = requests.post(url, data=params)
     if not response.ok:
