@@ -35,7 +35,7 @@ async def send_bot_notification(interval):
     for alert in dbAlerts:
         for signal in signals:
             if alert['symbol'] == signal['symbol'] and alert['interval'] == signal['interval']:
-                signal_text = f'{signal["dateTime"]}  -  <b>{signal["symbol"]} - signal["interval"]</b>: ({signal["strategy"]}) - <b>{signal["signal"]}</b>\n'
+                signal_text = f'{signal["dateTime"]}  -  <b>{signal["symbol"]} - {signal["interval"]}</b>: ({signal["strategy"]}) - <b>{signal["signal"]}</b>\n'
                 if alert['chatId'] in responses:
                     responses[alert['chatId']] += signal_text
                 else:
