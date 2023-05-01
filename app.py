@@ -6,8 +6,7 @@ import trading_core.utils as utils
 app = Flask(__name__)
 # api = Api(app, version='1.0', title='Trading Tool API', description='Trading Tool API for getting symbols, history data, indicators, signals, simulations')
 
-scheduler = utils.Scheduler()
-scheduler.start()
+scheduler = utils.JobScheduler()
 
 
 @app.route("/")
@@ -124,8 +123,17 @@ def create_job():
     return jsonify({'job_id': job.id}), 201
 
 
+@app.route('/jobs', methods=['GET'])
+def get_jobs():
+    jobs = scheduler.getJobs()
+    if jobs:
+        return jsonify(jobs), 200
+    else:
+        return jsonify({'error': 'Jobs not found'}), 404
+
+
 @app.route('/jobs/<job_id>', methods=['GET'])
-def read_job(job_id):
+def get_job(job_id):
     pass
     # job = jobs.get(job_id)
     # if job:

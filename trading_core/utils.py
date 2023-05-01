@@ -1,4 +1,5 @@
 from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.schedulers.base import JobLookupError
 from apscheduler.triggers.cron import CronTrigger
 import asyncio
 import requests
@@ -7,57 +8,132 @@ from dotenv import load_dotenv
 import logging
 
 import trading_core.mongodb as db
+from .model import config
+from .simulator import Simulator
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 load_dotenv()
 
-async def send_bot_notification(interval):
-    bot_token = os.getenv("BOT_TOKEN")
 
-    try:
-        if not bot_token:
-            logging.error(
-                'Bot token is not maintained in the environment values')
-    except KeyError:
+async def send_bot_notification(interval):
+    responses = {}
+
+    bot_token = os.getenv("BOT_TOKEN")
+    bot_url = f'https://api.telegram.org/bot{bot_token}/sendMessage'
+
+    if not bot_token:
         logging.error('Bot token is not maintained in the environment values')
 
-    url = f'https://api.telegram.org/bot{bot_token}/sendMessage'
-    params = {'chat_id': '1658698044', 'text': 'Ping'}
-    response = requests.post(url, data=params)
-    if not response.ok:
-        logging.error(f"Failed to send message: {response.text}")
+    dbAlerts = db.get_alerts(interval)
+
+    symbols = set(map(lambda x: x['symbol'], dbAlerts))
+
+    signals = Simulator().determineSignals(list(symbols), [interval])
+
+    for alert in dbAlerts:
+        for signal in signals:
+            if alert['symbol'] == signal['symbol'] and alert['interval'] == signal['interval']:
+                signal_text = f'{signal["dateTime"]}  -  <b>{signal["symbol"]}</b>: ({signal["strategy"]}) - <b>{signal["signal"]}</b>\n'
+                if alert['chatId'] in responses:
+                    responses[alert['chatId']] += signal_text
+                else:
+                    responses[alert['chatId']] = signal_text
+
+    for chatId, message in responses.items():
+        params = {'chat_id': chatId, 'text': message, 'parse_mode': 'HTML'}
+        response = requests.post(bot_url, data=params)
+        if response.ok:
+            logging.info(f"Send message: {response.text} to chat: {chatId}")
+        else:
+            logging.error(f"Failed to send message: {response.text}")
 
 
-class Scheduler:
+class JobScheduler:
     def __init__(self) -> None:
         self.__scheduler = BackgroundScheduler()
+        self.__scheduler.start()
+        self.__localJobs = {}
         self.__initJobs()
 
     def __initJobs(self):
-        # self.addJob()
-        pass
+        dbJobs = db.get_jobs()
 
-    def addJob(self, interval):
-        job = self.__scheduler.add_job(lambda: asyncio.run(send_bot_notification(interval)),
-                                       CronTrigger(
-                                           hour='0,4,8,12,16,20', minute='2', jitter=60, timezone='UTC')
-                                       )
-        
-        return job
-    
+        for job in dbJobs:
+            jobId = str(job['_id'])
+            interval = job['interval']
+
+            job = self.__scheduler.add_job(lambda: asyncio.run(send_bot_notification(
+                interval)), self.__generateCronTrigger(interval), id=jobId)
+
+            self.__localJobs[jobId] = job
+
+    def __generateCronTrigger(self, interval) -> CronTrigger:
+        day_of_week = None
+        hour = None
+        minute = None
+        second = None
+
+        day_of_week = 'mon-fri'
+
+        if interval == config.TA_INTERVAL_5M:
+            minute = '*/5'
+            second = '30'
+        elif interval == config.TA_INTERVAL_15M:
+            minute = '*/15'
+            second = '30'
+        elif interval == config.TA_INTERVAL_30M:
+            minute = '*/30'
+            second = '59'
+        elif interval == config.TA_INTERVAL_1H:
+            hour = '*'
+            minute = '1'
+        elif interval == config.TA_INTERVAL_4H:
+            hour = '0,4,8,12,16,20'
+            minute = '2'
+        elif interval == config.TA_INTERVAL_1D:
+            hour = '10'
+        elif interval == config.TA_INTERVAL_1WK:
+            day_of_week = 'mon'
+            hour = '10'
+        else:
+            Exception('Incorrect interval for subscription')
+
+        return CronTrigger(day_of_week=day_of_week, hour=hour, minute=minute, second=second, jitter=60, timezone='UTC')
+
     def createJob(self, interval):
-        job = self.addJob(interval)
+        job = self.__scheduler.add_job(lambda: asyncio.run(
+            send_bot_notification(interval)), self.__generateCronTrigger(interval))
         db.create_job(job, interval)
+        self.__localJobs[job.id] = job
         return job
-    
+
     def removeJob(self, jobId):
-        self.__scheduler.remove_job(jobId)
+        try:
+            self.__scheduler.remove_job(jobId)
+        except JobLookupError as error:
+            logging.error(error)
+
         return db.delete_job(jobId)
 
     def get(self):
         return self.__scheduler
 
-    def start(self):
-        self.__scheduler.start()
+    def getJobs(self):
+        jobs = []
+        dbJobs = db.get_jobs()
+
+        for dbJob in dbJobs:
+            job_id = dbJob['_id']
+
+            job = {'job_id': job_id,
+                   'interval': dbJob['interval'],
+                   'isActive': dbJob['isActive']}
+
+            if job_id in self.__localJobs:
+                job['nextRunTime'] = self.__localJobs[job_id].next_run_time
+
+            jobs.append(job)
+
+        return jobs

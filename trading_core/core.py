@@ -33,6 +33,7 @@ class Symbol:
     def __init__(self, code: str, name: str, status: str, type: str, tradingTime: TradingTime):
         self.code = code
         self.name = name
+        self.descr = f'{name} ({code})'
         self.status = status
         self.tradingTime = tradingTime
         self.type = type

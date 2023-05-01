@@ -8,7 +8,8 @@ mongodb_uri = os.getenv("MONGO_CONFIG")
 
 try:
     if not mongodb_uri:
-        raise Exception('Mongo Config is not maintained in the environment values')
+        raise Exception(
+            'Mongo Config is not maintained in the environment values')
 except KeyError:
     raise Exception('Mongo Config is not maintained in the environment values')
 
@@ -17,10 +18,11 @@ client = pymongo.MongoClient(mongodb_uri)
 database = client['ClusterShared']
 
 jobsCollection = database['jobs']
+alertsCollection = database['alerts']
 
 # Create new job details
 def create_job(job, interval):
-    result = jobsCollection.insert_one({'_id': job.id, 'interval': interval})
+    result = jobsCollection.insert_one({'_id': job.id, 'interval': interval, 'isActive': True})
     return str(result.inserted_id)
 
 # Update job details
@@ -36,15 +38,23 @@ def delete_job(job_id):
     result = jobsCollection.delete_one(query)
     return result.deleted_count > 0
 
+
 def get_job(job_id):
     query = {"_id": job_id}
     result = jobsCollection.find_one(query)
     return result
 
+
 def get_jobs():
     result = jobsCollection.find()
     return result
 
+def get_alerts(interval):
+    result = list(alertsCollection.find({'interval': interval}))
+    return result
+
+
 if __name__ == "__main__":
-    x = jobsCollection.insert_one({"id": "1", "symbol": "EPAM", "hour": "1,5,8"})
+    x = jobsCollection.insert_one(
+        {"id": "1", "symbol": "EPAM", "hour": "1,5,8"})
     print(x)
