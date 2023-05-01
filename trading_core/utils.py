@@ -35,7 +35,7 @@ async def send_bot_notification(interval):
     for alert in dbAlerts:
         for signal in signals:
             if alert['symbol'] == signal['symbol'] and alert['interval'] == signal['interval']:
-                signal_text = f'{signal["dateTime"]}  -  <b>{signal["symbol"]}</b>: ({signal["strategy"]}) - <b>{signal["signal"]}</b>\n'
+                signal_text = f'{signal["dateTime"]}  -  <b>{signal["symbol"]} - signal["interval"]</b>: ({signal["strategy"]}) - <b>{signal["signal"]}</b>\n'
                 if alert['chatId'] in responses:
                     responses[alert['chatId']] += signal_text
                 else:
@@ -51,7 +51,15 @@ async def send_bot_notification(interval):
 
 
 class JobScheduler:
-    def __init__(self) -> None:
+    _instance = None
+
+    def __new__(class_, *args, **kwargs):
+        if not isinstance(class_._instance, class_):
+            class_._instance = object.__new__(class_, *args, **kwargs)
+            class_._instance.init()
+        return class_._instance
+
+    def init(self) -> None:
         self.__scheduler = BackgroundScheduler()
         self.__scheduler.start()
         self.__localJobs = {}
@@ -126,14 +134,13 @@ class JobScheduler:
 
         for dbJob in dbJobs:
             job_id = dbJob['_id']
+            for job in self.__localJobs.values():
+                if job_id == job.id:
+                    job = {'job_id': job_id,
+                           'interval': dbJob['interval'],
+                           'isActive': dbJob['isActive'],
+                           'nextRunTime': self.__localJobs[job_id].next_run_time }
 
-            job = {'job_id': job_id,
-                   'interval': dbJob['interval'],
-                   'isActive': dbJob['isActive']}
-
-            if job_id in self.__localJobs:
-                job['nextRunTime'] = self.__localJobs[job_id].next_run_time
-
-            jobs.append(job)
+                    jobs.append(job)
 
         return jobs

@@ -8,6 +8,8 @@ app = Flask(__name__)
 
 scheduler = utils.JobScheduler()
 
+scheduler1 = utils.JobScheduler()
+
 
 @app.route("/")
 def index():
