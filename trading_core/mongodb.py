@@ -1,6 +1,7 @@
 import pymongo
 import os
 from dotenv import load_dotenv
+from datetime import datetime
 
 load_dotenv()
 
@@ -21,8 +22,8 @@ jobsCollection = database['jobs']
 alertsCollection = database['alerts']
 
 # Create new job details
-def create_job(job, interval):
-    result = jobsCollection.insert_one({'_id': job.id, 'interval': interval, 'isActive': True})
+def create_job(interval):
+    result = jobsCollection.insert_one({'interval': interval, 'isActive': True, 'created_at': datetime.utcnow()})
     return str(result.inserted_id)
 
 # Update job details
