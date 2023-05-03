@@ -113,7 +113,7 @@ class JobScheduler:
     def createJob(self, interval):
         job = self.__scheduler.add_job(lambda: asyncio.run(
             send_bot_notification(interval)), self.__generateCronTrigger(interval))
-        db.create_job(job, interval)
+        db.create_job(job.id, interval)
         self.__localJobs[job.id] = job
         return job
 

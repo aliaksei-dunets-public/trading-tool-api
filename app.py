@@ -1,12 +1,12 @@
 from flask import Flask, jsonify, request
 
 import trading_core.responser as resp
-import trading_core.mongodb as db
+import trading_core.utils as utils
 
 app = Flask(__name__)
 # api = Api(app, version='1.0', title='Trading Tool API', description='Trading Tool API for getting symbols, history data, indicators, signals, simulations')
 
-# scheduler = utils.JobScheduler()
+scheduler = utils.JobScheduler()
 
 @app.route("/")
 def index():
@@ -118,18 +118,17 @@ def getSignalsBySimulation():
 @app.route('/jobs', methods=['POST'])
 def create_job():
     interval = request.json.get('interval')
-    id = db.create_job(interval)
-    return jsonify({'job_id': id}), 201
+    job = scheduler.createJob(interval)
+    return jsonify({'job_id': job.id}), 201
 
 
 @app.route('/jobs', methods=['GET'])
 def get_jobs():
-    pass
-    # jobs = scheduler.getJobs()
-    # if jobs:
-    #     return jsonify(jobs), 200
-    # else:
-    #     return jsonify({'error': 'Jobs not found'}), 404
+    jobs = scheduler.getJobs()
+    if jobs:
+        return jsonify(jobs), 200
+    else:
+        return jsonify({'error': 'Jobs not found'}), 404
 
 
 @app.route('/jobs/<job_id>', methods=['GET'])
@@ -156,8 +155,7 @@ def update_job(job_id):
 
 @app.route('/jobs/<job_id>', methods=['DELETE'])
 def delete_job(job_id):
-    pass
-    # if scheduler.removeJob(job_id):
-    #     return jsonify({'message': 'Job deleted'}), 200
-    # else:
-    #     return jsonify({'error': 'Job not found'}), 404
+    if scheduler.removeJob(job_id):
+        return jsonify({'message': 'Job deleted'}), 200
+    else:
+        return jsonify({'error': 'Job not found'}), 404
