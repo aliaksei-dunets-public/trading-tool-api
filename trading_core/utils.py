@@ -17,7 +17,7 @@ logging.basicConfig(
 load_dotenv()
 
 
-async def send_bot_notification(interval):
+def send_bot_notification(interval):
 
     logging.info(f"Bot notification Job is triggered for interval - {interval}")
 
@@ -75,7 +75,7 @@ class JobScheduler:
             jobId = str(job['_id'])
             interval = job['interval']
 
-            job = self.__scheduler.add_job(lambda: asyncio.run(send_bot_notification()), self.__generateCronTrigger(interval), id=jobId, args=(interval))
+            job = self.__scheduler.add_job(send_bot_notification, self.__generateCronTrigger(interval), id=jobId, args=(interval,))
 
             self.__localJobs[jobId] = job
 
