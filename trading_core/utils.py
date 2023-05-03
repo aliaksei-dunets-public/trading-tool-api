@@ -113,8 +113,7 @@ class JobScheduler:
         return CronTrigger(day_of_week=day_of_week, hour=hour, minute=minute, second=second, jitter=60, timezone='UTC')
 
     def createJob(self, interval):
-        job = self.__scheduler.add_job(lambda: asyncio.run(
-            send_bot_notification(interval)), self.__generateCronTrigger(interval))
+        job = self.__scheduler.add_job(send_bot_notification, self.__generateCronTrigger(interval), args=(interval,))
         db.create_job(job.id, interval)
         self.__localJobs[job.id] = job
         return job
