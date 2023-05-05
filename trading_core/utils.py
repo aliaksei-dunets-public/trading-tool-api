@@ -118,11 +118,14 @@ class JobScheduler:
             minute = '0'
         elif interval == config.TA_INTERVAL_4H:
             hour = '0,4,8,12,16,20'
+            minute = '0'
         elif interval == config.TA_INTERVAL_1D:
             hour = '0'
+            minute = '0'
         elif interval == config.TA_INTERVAL_1WK:
             day_of_week = 'mon'
             hour = '0'
+            minute = '0'
         else:
             Exception('Incorrect interval for subscription')
 
