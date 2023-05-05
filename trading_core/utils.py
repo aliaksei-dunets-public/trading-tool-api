@@ -42,7 +42,7 @@ def send_bot_notification(interval):
     for alert in dbAlerts:
         symbolCode = alert['symbol']
 
-        if symbolCode in dictSymbols and config.isTradingOpen(dictSymbols[symbolCode]['tradingTime']):
+        if symbolCode in dictSymbols and interval not in [config.TA_INTERVAL_1D, config.TA_INTERVAL_1WK] and config.isTradingOpen(dictSymbols[symbolCode]['tradingTime']):
             signals = Simulator().determineSignals([symbolCode], [interval])
 
             for signal in signals:
@@ -103,40 +103,30 @@ class JobScheduler:
         day_of_week = None
         hour = None
         minute = None
-        second = None
-        jitter = None
+        second = '5'
 
         day_of_week = 'mon-fri'
 
         if interval == config.TA_INTERVAL_5M:
             minute = '*/5'
-            second = '5'
         elif interval == config.TA_INTERVAL_15M:
             minute = '*/15'
-            second = '10'
         elif interval == config.TA_INTERVAL_30M:
             minute = '*/30'
-            minute = '1'
-            jitter = 60
         elif interval == config.TA_INTERVAL_1H:
             hour = '*'
-            minute = '2'
-            jitter = 60
+            minute = '0'
         elif interval == config.TA_INTERVAL_4H:
             hour = '0,4,8,12,16,20'
-            minute = '3'
-            jitter = 60
         elif interval == config.TA_INTERVAL_1D:
-            hour = '10'
-            jitter = 60
+            hour = '0'
         elif interval == config.TA_INTERVAL_1WK:
             day_of_week = 'mon'
-            hour = '10'
-            jitter = 60
+            hour = '0'
         else:
             Exception('Incorrect interval for subscription')
 
-        return CronTrigger(day_of_week=day_of_week, hour=hour, minute=minute, second=second, jitter=jitter, timezone='UTC')
+        return CronTrigger(day_of_week=day_of_week, hour=hour, minute=minute, second=second, timezone='UTC')
 
     def createJob(self, interval):
         job = self.__scheduler.add_job(

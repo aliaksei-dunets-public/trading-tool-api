@@ -69,10 +69,10 @@ class Config:
         return [item['code'] for item in self.getStrategies()]
     
     def isTradingOpen(self, tradingTime: str) -> bool:
-        if tradingTime in self.__tradingTimeframes:
-            oTimeframe = self.__tradingTimeframes[tradingTime]
-        else:
-            oTimeframe = TradingTimeframe(tradingTime)
+        if not tradingTime in self.__tradingTimeframes:
+           self.__tradingTimeframes[tradingTime] = TradingTimeframe(tradingTime)
+        
+        oTimeframe = self.__tradingTimeframes[tradingTime]
 
         return oTimeframe.isTradingOpen()
 
