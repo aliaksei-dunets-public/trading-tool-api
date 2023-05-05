@@ -1,4 +1,4 @@
-from .core import Symbol
+from .core import Symbol, TradingTimeframe
 from .handler import HandlerBase, HandlerCurrencyCom
 
 
@@ -12,11 +12,16 @@ class Config:
     TA_INTERVAL_1WK = "1w"
 
     INTERVALS = [{"interval": TA_INTERVAL_5M,  "name": "5 minutes", "order": 10, "importance": 'LOW'},
-                 {"interval": TA_INTERVAL_15M, "name": "15 minutes", "order": 20, "importance": 'LOW'},
-                 {"interval": TA_INTERVAL_30M, "name": "30 minutes", "order": 30, "importance": 'MEDIUM'},
-                 {"interval": TA_INTERVAL_1H, "name": "1 hour", "order": 40, "importance": 'MEDIUM'},
-                 {"interval": TA_INTERVAL_4H, "name": "4 hours", "order": 50, "importance": 'HIGH'},
-                 {"interval": TA_INTERVAL_1D, "name": "1 day", "order": 60, "importance": 'HIGH'},
+                 {"interval": TA_INTERVAL_15M, "name": "15 minutes",
+                     "order": 20, "importance": 'LOW'},
+                 {"interval": TA_INTERVAL_30M, "name": "30 minutes",
+                     "order": 30, "importance": 'MEDIUM'},
+                 {"interval": TA_INTERVAL_1H, "name": "1 hour",
+                     "order": 40, "importance": 'MEDIUM'},
+                 {"interval": TA_INTERVAL_4H, "name": "4 hours",
+                     "order": 50, "importance": 'HIGH'},
+                 {"interval": TA_INTERVAL_1D, "name": "1 day",
+                     "order": 60, "importance": 'HIGH'},
                  {"interval": TA_INTERVAL_1WK, "name": "1 week", "order": 70, "importance": 'HIGH'}]
 
     _instance = None
@@ -25,6 +30,7 @@ class Config:
         if not isinstance(class_._instance, class_):
             class_._instance = object.__new__(class_, *args, **kwargs)
             class_.__handler = None
+            class_.__tradingTimeframes = {}
         return class_._instance
 
     def getHandler(self) -> HandlerBase:
@@ -61,7 +67,14 @@ class Config:
 
     def getStrategyCodes(self):
         return [item['code'] for item in self.getStrategies()]
+    
+    def isTradingOpen(self, tradingTime: str) -> bool:
+        if tradingTime in self.__tradingTimeframes:
+            oTimeframe = self.__tradingTimeframes[tradingTime]
+        else:
+            oTimeframe = TradingTimeframe(tradingTime)
 
+        return oTimeframe.isTradingOpen()
 
 class SymbolList:
     def checkSymbol(self, code: str) -> bool:
@@ -72,14 +85,19 @@ class SymbolList:
             return False
 
     def getSymbol(self, code: str) -> Symbol:
-        symbols = self.getSymbols(code=code)
-        if len(symbols) == 0:
+        symbols = self.getSymbolsDictionary()
+        if code not in symbols:
             raise Exception('Symbol with code {code} could not be found')
-        return symbols[0]
+        symbol = symbols[code]
+        return Symbol(code=symbol['code'], name=symbol['name'], status=symbol['status'], tradingTime=symbol['tradingTime'], type=symbol['type'])
 
     def getSymbols(self, code: str = None, name: str = None, status: str = None, type: str = None, isBuffer: bool = True) -> list:
         symbols = Config().getHandler().getSymbols(
             code=code, name=name, status=status, type=type, isBuffer=isBuffer)
+        return symbols
+
+    def getSymbolsDictionary(self, isBuffer: bool = True) -> dict:
+        symbols = Config().getHandler().getSymbolsDictionary(isBuffer=isBuffer)
         return symbols
 
     def getSymbolCodes(self, code: str = None, name: str = None, status: str = None, type: str = None) -> list:

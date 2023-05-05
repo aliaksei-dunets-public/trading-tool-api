@@ -27,6 +27,7 @@ def getSymbols():
     status = request.args.get('status')
     type = request.args.get('type')
     isBuffer = request.args.get('isBuffer')
+    isBuffer = True if isBuffer == None else isBuffer
 
     return resp.getSymbols(code=code, name=name, status=status, type=type, isBuffer=isBuffer)
 

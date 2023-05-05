@@ -16,6 +16,28 @@ class HandlerBase:
     def getSymbols(self, code: str = None, name: str = None, status: str = None, type: str = None, isBuffer: bool = True) -> list:
         pass
 
+    def getSymbolsDictionary(self, isBuffer: bool = True) -> dict:
+        
+        dictSymbols = {}
+        listSymbols = []
+
+        file_path = f'{os.getcwd()}/static/symbolsDictionary.json'
+
+        if isBuffer and os.path.exists(file_path):
+            with open(file_path, 'r') as reader:
+                dictSymbols = json.load(reader)
+
+        if not dictSymbols:
+            listSymbols = self.getSymbols(isBuffer=isBuffer)
+
+            for symbol in listSymbols:
+                dictSymbols[symbol.code] = symbol.__dict__
+            
+            with open(file_path, 'w') as writer:
+                    writer.write(json.dumps(dictSymbols))
+        
+        return dictSymbols
+
     def getIntervalsDetails(self) -> list:
         return []
 
@@ -41,8 +63,6 @@ class HandlerCurrencyCom(HandlerBase):
         return HistoryData(symbol, interval, limit, df)
 
     def getSymbols(self, code: str = None, name: str = None, status: str = None, type: str = None, isBuffer: bool = True) -> list:
-        
-        logging.info(f'getSymbols(code={code}, name={name}, status={status}, type={type}, isBuffer={isBuffer})')
 
         symbols = []
         tempSymbols = []
@@ -54,6 +74,9 @@ class HandlerCurrencyCom(HandlerBase):
                 tempSymbols = json.load(reader)
 
         if not tempSymbols:
+        
+            logging.info(f'getSymbols(code={code}, name={name}, status={status}, type={type}, isBuffer={isBuffer})')
+
             response = requests.get(
                 "https://api-adapter.backend.currency.com/api/v2/exchangeInfo")
 
