@@ -1,12 +1,13 @@
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.schedulers.base import JobLookupError
 from apscheduler.triggers.cron import CronTrigger
+from dotenv import load_dotenv
 import requests
 import os
-from dotenv import load_dotenv
 import logging
 
 import trading_core.mongodb as db
+from .core import Const
 from .model import config, SymbolList
 from .simulator import Simulator
 
@@ -35,22 +36,29 @@ def send_bot_notification(interval):
     if not bot_token:
         logging.error('Bot token is not maintained in the environment values')
 
-    dbAlerts = db.get_alerts(interval) 
+    dbAlerts = db.get_alerts(interval)
 
     dictSymbols = SymbolList().getSymbolsDictionary()
 
     for alert in dbAlerts:
         symbolCode = alert['symbol']
+        comments = alert['comments'] if 'comments' in alert else None
+        strategies = alert['strategies'] if 'strategies' in alert else None
 
         if symbolCode in dictSymbols and interval not in [config.TA_INTERVAL_1D, config.TA_INTERVAL_1WK] and config.isTradingOpen(dictSymbols[symbolCode]['tradingTime']):
-            signals = Simulator().determineSignals([symbolCode], [interval])
+            signals = Simulator().determineSignals([symbolCode], [interval], strategies)
 
             for signal in signals:
-                signal_text = f'{signal["dateTime"]}  -  <b>{signal["symbol"]} - {signal["interval"]}</b>: ({signal["strategy"]}) - <b>{signal["signal"]}</b>\n'
+
+                signal_text = f'<b>{signal["signal"]}</b>'
+                comments_text = f' | {comments}' if comments else ''
+
+                message_text = f'{signal["dateTime"]}  -  <b>{signal["symbol"]} - {signal["interval"]}</b>: ({signal["strategy"]}) - {signal_text}{comments_text}\n'
+                
                 if alert['chatId'] in responses:
-                    responses[alert['chatId']] += signal_text
+                    responses[alert['chatId']] += message_text
                 else:
-                    responses[alert['chatId']] = signal_text
+                    responses[alert['chatId']] = message_text
 
     for chatId, message in responses.items():
         params = {'chat_id': chatId, 'text': message, 'parse_mode': 'HTML'}
@@ -91,21 +99,21 @@ class JobScheduler:
 
             self.__localJobs[jobId] = job
 
-            logging.info(f"Bot notification Job for interval - {interval} is scheduled firstly at {job.next_run_time}")
+            logging.info(
+                f"Bot notification Job for interval - {interval} is scheduled firstly at {job.next_run_time}")
 
         # Update master data every day
         job = self.__scheduler.add_job(initialise_master_data, CronTrigger(
             day_of_week='mon-fri', hour='2', jitter=60, timezone='UTC'))
-        
-        logging.info(f"Init master data Job is scheduled firstly at {job.next_run_time}")
+
+        logging.info(
+            f"Init master data Job is scheduled firstly at {job.next_run_time}")
 
     def __generateCronTrigger(self, interval) -> CronTrigger:
-        day_of_week = None
+        day_of_week = '*'
         hour = None
-        minute = None
+        minute = '0'
         second = '5'
-
-        day_of_week = 'mon-fri'
 
         if interval == config.TA_INTERVAL_5M:
             minute = '*/5'
@@ -115,23 +123,21 @@ class JobScheduler:
             minute = '*/30'
         elif interval == config.TA_INTERVAL_1H:
             hour = '*'
-            minute = '0'
         elif interval == config.TA_INTERVAL_4H:
             hour = '0,4,8,12,16,20'
-            minute = '0'
         elif interval == config.TA_INTERVAL_1D:
             hour = '0'
-            minute = '0'
         elif interval == config.TA_INTERVAL_1WK:
             day_of_week = 'mon'
             hour = '0'
-            minute = '0'
         else:
             Exception('Incorrect interval for subscription')
 
         return CronTrigger(day_of_week=day_of_week, hour=hour, minute=minute, second=second, timezone='UTC')
 
     def createJob(self, interval):
+        logging.info(
+            f"Bot notification Job for interval - {interval} is scheduled at {job.next_run_time}")
         job = self.__scheduler.add_job(
             send_bot_notification, self.__generateCronTrigger(interval), args=(interval,))
         db.create_job(job.id, interval)

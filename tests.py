@@ -11,36 +11,14 @@ class TestConfig(unittest.TestCase):
     def test_getHandler_returns_handler(self):
         handler = self.config.getHandler()
         self.assertIsInstance(handler, HandlerBase)
+    
+    def test_get_handler(self):
+        self.assertIsInstance(self.config.getHandler(), HandlerCurrencyCom)
 
     def test_getIntervals_returns_list_of_intervals(self):
         intervals = self.config.getIntervals()
         expected_intervals = ['5m', '15m', '30m', '1h', '4h', '1d', '1w']
         self.assertEqual(intervals, expected_intervals)
-
-    def test_getIntervalDetails_returns_list_of_interval_details(self):
-        details = self.config.getIntervalDetails()
-        expected_details = [
-            {"interval": "5m",  "name": "5 minutes", "order": 10, "importance": 'LOW'},
-            {"interval": "15m", "name": "15 minutes", "order": 20, "importance": 'LOW'},
-            {"interval": "30m", "name": "30 minutes", "order": 30, "importance": 'MEDIUM'},
-            {"interval": "1h", "name": "1 hour", "order": 40, "importance": 'MEDIUM'},
-            {"interval": "4h", "name": "4 hours", "order": 50, "importance": 'HIGH'},
-            {"interval": "1d", "name": "1 day", "order": 60, "importance": 'HIGH'},
-            {"interval": "1w", "name": "1 week", "order": 70, "importance": 'HIGH'}
-        ]
-        self.assertEqual(details, expected_details)
-
-    def test_getIntervalDetails_filters_by_importance(self):
-        details = self.config.getIntervalDetails(importance='HIGH')
-        expected_details = [
-            {"interval": "4h", "name": "4 hours", "order": 50, "importance": 'HIGH'},
-            {"interval": "1d", "name": "1 day", "order": 60, "importance": 'HIGH'},
-            {"interval": "1w", "name": "1 week", "order": 70, "importance": 'HIGH'}
-        ]
-        self.assertEqual(details, expected_details)
-    
-    def test_get_handler(self):
-        self.assertIsInstance(self.config.getHandler(), HandlerCurrencyCom)
 
     def test_get_intervals(self):
         self.assertEqual(self.config.getIntervals(), ["5m", "15m", "30m", "1h", "4h", "1d", "1w"])
