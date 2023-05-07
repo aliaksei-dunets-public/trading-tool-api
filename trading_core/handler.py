@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import requests
 import json
 import pandas as pd
@@ -7,17 +7,19 @@ import logging
 
 from .core import Symbol, HistoryData
 
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+
 
 class HandlerBase:
-    def getHistoryData(self, symbol, interval, limit) -> HistoryData:
+    def getHistoryData(self, symbol, interval, limit, closedBar: bool = False) -> HistoryData:
         pass
 
     def getSymbols(self, code: str = None, name: str = None, status: str = None, type: str = None, isBuffer: bool = True) -> list:
         pass
 
     def getSymbolsDictionary(self, isBuffer: bool = True) -> dict:
-        
+
         dictSymbols = {}
         listSymbols = []
 
@@ -32,10 +34,10 @@ class HandlerBase:
 
             for symbol in listSymbols:
                 dictSymbols[symbol.code] = symbol.__dict__
-            
+
             with open(file_path, 'w') as writer:
-                    writer.write(json.dumps(dictSymbols))
-        
+                writer.write(json.dumps(dictSymbols))
+
         return dictSymbols
 
     def getIntervalsDetails(self) -> list:
@@ -46,11 +48,13 @@ class HandlerBase:
 
 
 class HandlerCurrencyCom(HandlerBase):
-    def getHistoryData(self, symbol, interval, limit) -> HistoryData:
+    def getHistoryData(self, symbol, interval, limit, completedBars: bool = False) -> HistoryData:
 
-        logging.info(f'getHistoryData(symbol={symbol}, interval={interval}, limit={limit})')
+        logging.info(
+            f'getHistoryData(symbol={symbol}, interval={interval}, limit={limit})')
 
-        response = self.__getKlines(symbol, self._mapInterval(interval), limit)
+        response = self.__getKlines(
+            symbol, self._mapInterval(interval), limit, completedBars)
 
         df = pd.DataFrame(response, columns=[
                           'DatetimeFloat', 'Open', 'High', 'Low', 'Close', 'Volume'])
@@ -74,8 +78,9 @@ class HandlerCurrencyCom(HandlerBase):
                 tempSymbols = json.load(reader)
 
         if not tempSymbols:
-        
-            logging.info(f'getSymbols(code={code}, name={name}, status={status}, type={type}, isBuffer={isBuffer})')
+
+            logging.info(
+                f'getSymbols(code={code}, name={name}, status={status}, type={type}, isBuffer={isBuffer})')
 
             response = requests.get(
                 "https://api-adapter.backend.currency.com/api/v2/exchangeInfo")
@@ -112,8 +117,12 @@ class HandlerCurrencyCom(HandlerBase):
 
         return symbols
 
-    def __getKlines(self, symbol, interval, limit):
+    def __getKlines(self, symbol, interval, limit, closedBar: bool):
         params = {"symbol": symbol, "interval": interval, "limit": limit}
+
+        if closedBar:
+            params["endTime"] = self.__getCompletedUnixTimeMs(interval)
+
         response = requests.get(
             "https://api-adapter.backend.currency.com/api/v2/klines", params=params)
 
@@ -125,3 +134,35 @@ class HandlerCurrencyCom(HandlerBase):
             return json.loads(response.text)
         else:
             raise Exception(response.text)
+
+    def __getCompletedUnixTimeMs(self, interval):
+
+        current_date_time = datetime.now().replace(second=0, microsecond=0)
+        current_minute = current_date_time.minute
+
+        if interval == '5m':
+            offset_minutes = 5
+        elif interval == '15m':
+            offset_minutes = 15
+        elif interval == '30m':
+            offset_minutes = 30
+        elif interval == '1h':
+            offset_minutes = 60
+        elif interval == '4h':
+            offset_minutes = 240
+        elif interval == '1d':
+            offset_minutes = 24 * 60
+        elif interval == '1w':
+            offset_minutes = 7 * 24 * 60
+
+        if current_minute % offset_minutes != 0:
+            delta_minutes = current_minute % offset_minutes + offset_minutes   
+        
+        if delta_minutes:
+            offset_date_time = current_date_time - timedelta(minutes=delta_minutes)
+        else:
+            offset_date_time = current_date_time
+        
+        logging.info(offset_date_time)
+
+        return int(offset_date_time.timestamp() * 1000)

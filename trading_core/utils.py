@@ -136,12 +136,14 @@ class JobScheduler:
         return CronTrigger(day_of_week=day_of_week, hour=hour, minute=minute, second=second, timezone='UTC')
 
     def createJob(self, interval):
-        logging.info(
-            f"Bot notification Job for interval - {interval} is scheduled at {job.next_run_time}")
         job = self.__scheduler.add_job(
             send_bot_notification, self.__generateCronTrigger(interval), args=(interval,))
         db.create_job(job.id, interval)
         self.__localJobs[job.id] = job
+
+        logging.info(
+            f"Bot notification Job for interval - {interval} is scheduled at {job.next_run_time}")
+
         return job
 
     def removeJob(self, jobId):
