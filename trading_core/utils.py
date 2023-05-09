@@ -45,26 +45,31 @@ def send_bot_notification(interval):
         comments = alert['comments'] if 'comments' in alert else None
         strategies = alert['strategies'] if 'strategies' in alert else None
 
-        if symbolCode in dictSymbols and interval not in [config.TA_INTERVAL_1D, config.TA_INTERVAL_1WK] and config.isTradingOpen(dictSymbols[symbolCode]['tradingTime']):
-            signals = Simulator().determineSignals([symbolCode], [interval], strategies)
+        if symbolCode not in dictSymbols:
+            continue
+            
+        if interval not in [config.TA_INTERVAL_1D, config.TA_INTERVAL_1WK] and config.isTradingOpen(dictSymbols[symbolCode]['tradingTime']):
+            continue
+        
+        signals = Simulator().determineSignals([symbolCode], [interval], strategies)
 
-            for signal in signals:
+        for signal in signals:
 
-                signal_text = f'<b>{signal["signal"]}</b>'
-                comments_text = f' | {comments}' if comments else ''
+            signal_text = f'<b>{signal["signal"]}</b>'
+            comments_text = f' | {comments}' if comments else ''
 
-                message_text = f'{signal["dateTime"]}  -  <b>{signal["symbol"]} - {signal["interval"]}</b>: ({signal["strategy"]}) - {signal_text}{comments_text}\n'
+            message_text = f'{signal["dateTime"]}  -  <b>{signal["symbol"]} - {signal["interval"]}</b>: ({signal["strategy"]}) - {signal_text}{comments_text}\n'
                 
-                if alert['chatId'] in responses:
-                    responses[alert['chatId']] += message_text
-                else:
-                    responses[alert['chatId']] = message_text
+            if alert['chatId'] in responses:
+                responses[alert['chatId']] += message_text
+            else:
+                responses[alert['chatId']] = message_text
 
     for chatId, message in responses.items():
         params = {'chat_id': chatId, 'text': message, 'parse_mode': 'HTML'}
         response = requests.post(bot_url, data=params)
         if response.ok:
-            logging.info(f"Send message: {message} to chat: {chatId}")
+            logging.info(f"Send message to chat bot: {chatId}")
         else:
             logging.error(f"Failed to send message: {response.text}")
 
