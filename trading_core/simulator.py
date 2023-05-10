@@ -12,9 +12,9 @@ logging.basicConfig(
 
 class Simulator():
 
-    def determineSignal(self, symbol, interval, strategyCode):
+    def determineSignal(self, symbol, interval, strategyCode, closedBar: bool):
 
-        strategy_df = StrategyFactory(strategyCode).getStrategy(symbol, interval, closedBar=True).tail(1)
+        strategy_df = StrategyFactory(strategyCode).getStrategy(symbol, interval, closedBar=closedBar).tail(1)
 
         for index, strategy_row in strategy_df.iterrows():
             signal_value = strategy_row[Const.SIGNAL]
@@ -27,7 +27,7 @@ class Simulator():
             else:
                 return None
 
-    def determineSignals(self, symbols=[], intervals=[], strategyCodes=[]):
+    def determineSignals(self, symbols=[], intervals=[], strategyCodes=[], closedBar: bool=False):
 
         signals = []
 
@@ -44,7 +44,7 @@ class Simulator():
             for interval in intervals:
                 for code in strategyCodes:
                     try:
-                        signal = self.determineSignal(symbol, interval, code)
+                        signal = self.determineSignal(symbol, interval, code, closedBar)
                         if signal:
                             signals.append(signal)
                         else:

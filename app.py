@@ -77,11 +77,12 @@ def getSignals():
     symbols = request.args.getlist('symbol', None)
     intervals = request.args.getlist('interval', None)
     codes = request.args.getlist('code', None)
+    closedBar = request.args.get('closedBar')
 
     if symbols == []:
         return jsonify({"error": "Symbol is missed", }), 500
 
-    return resp.getSignals(symbols, intervals, codes)
+    return resp.getSignals(symbols, intervals, codes, closedBar)
 
 
 @app.route('/simulate', methods=['GET'])

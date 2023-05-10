@@ -32,7 +32,8 @@ class Indicator_CCI(IndicatorBase):
         return self.__length
     
     def getIndicator(self, symbol: str, interval: str, limit: int):
-        limit = limit if limit > self.__length else self.__length
+        default_length = self.__length + 2
+        limit = limit if limit > default_length else default_length
         historyData = super().getIndicator(symbol=symbol, interval=interval, limit=limit)
 
         return self.getIndicatorByHistoryData(historyData)

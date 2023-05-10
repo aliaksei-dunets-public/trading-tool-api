@@ -49,7 +49,7 @@ class HandlerBase:
 
 
 class HandlerCurrencyCom(HandlerBase):
-    def getHistoryData(self, symbol, interval, limit, closedBar: bool = False) -> HistoryData:
+    def getHistoryData(self, symbol, interval, limit, closedBar) -> HistoryData:
 
         logging.info(
             f'getHistoryData(symbol={symbol}, interval={interval}, limit={limit})')
@@ -143,7 +143,6 @@ class HandlerCurrencyCom(HandlerBase):
         
         if interval in ['5m', '15m', '30m']:
             current_minute = current_datetime.minute
-            current_datetime = current_datetime.replace(second=0, microsecond=0)
             
             if interval == '5m':
                 offset_value = 5
@@ -151,12 +150,11 @@ class HandlerCurrencyCom(HandlerBase):
                 offset_value = 15
             elif interval == '30m':
                 offset_value = 30
+
+            delta_minutes = current_minute % offset_value + offset_value
             
-            if current_minute % offset_value != 0:
-                delta_minutes = current_minute % offset_value + offset_value   
-                offset_date_time = current_datetime - timedelta(minutes=delta_minutes)
-            else:
-                offset_date_time = current_datetime
+            offset_date_time = current_datetime - timedelta(minutes=delta_minutes)
+            offset_date_time = offset_date_time.replace(second=0, microsecond=0)
 
         elif interval == '1h':
 
@@ -178,19 +176,21 @@ class HandlerCurrencyCom(HandlerBase):
             hours_difference = math.ceil( delta.total_seconds() / 3600 )
 
             current_hour = current_datetime.hour - hours_difference
-            current_datetime = current_datetime.replace(minute=0, second=0, microsecond=0)
             
             offset_value = 4
             
-            if current_hour % offset_value != 0:
-                delta_hours = current_hour % offset_value + offset_value - hours_difference
-                offset_date_time = current_datetime - timedelta(hours=delta_hours)
-            else:
-                offset_date_time = current_datetime
+            delta_hours = current_hour % offset_value + offset_value
+            offset_date_time = current_datetime - timedelta(hours=delta_hours)
             
             offset_date_time = offset_date_time.replace(minute=0, second=0, microsecond=0)
 
         elif interval == '1d':
+
+            local_time = datetime.now()
+            utc_time = datetime.utcnow() 
+
+            delta = local_time - utc_time
+            hours_difference = math.ceil( delta.total_seconds() / 3600 )
 
             compared_datetime = current_datetime.replace(hour=0, minute=0, second=30, microsecond=0)
 
@@ -199,21 +199,20 @@ class HandlerCurrencyCom(HandlerBase):
             else:
                 offset_date_time = current_datetime
             
-            offset_date_time = offset_date_time.replace(minute=0, second=0, microsecond=0)
+            offset_date_time = offset_date_time.replace(hour=hours_difference, minute=0, second=0, microsecond=0)
 
         elif interval == '1w':
 
             compared_datetime = current_datetime.replace(hour=0, minute=0, second=30, microsecond=0)
             
-            if current_datetime.weekday() != 0 and current_datetime > compared_datetime:
-                delta_days_until_monday = current_datetime.weekday() % 7
-                offset_date_time = current_datetime - timedelta(days=delta_days_until_monday)
-            else:
-                offset_date_time = current_datetime
+            offset_value = 7
+
+            delta_days_until_monday = current_datetime.weekday() % 7 + offset_value
+            offset_date_time = current_datetime - timedelta(days=delta_days_until_monday)
             
             offset_date_time = offset_date_time.replace(hour=0, minute=0, second=0, microsecond=0)
- 
-        logging.info(offset_date_time)
+
+        logging.info(f'Closed Bar time - {offset_date_time} for Current Time - {current_datetime}, interval - {interval}')
 
         return offset_date_time
 

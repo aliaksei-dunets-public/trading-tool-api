@@ -67,8 +67,8 @@ def getStrategyData(code: str, symbol: str, interval: str, limit: int):
 
 
 @decorator_json
-def getSignals(symbols: list, intervals: list, strategyCodes: list):
-    return Simulator().determineSignals(symbols, intervals, strategyCodes)
+def getSignals(symbols: list, intervals: list, strategyCodes: list, closedBar: bool):
+    return Simulator().determineSignals(symbols, intervals, strategyCodes, closedBar)
 
 
 @decorator_json

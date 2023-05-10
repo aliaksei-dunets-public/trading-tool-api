@@ -48,10 +48,10 @@ def send_bot_notification(interval):
         if symbolCode not in dictSymbols:
             continue
             
-        if interval not in [config.TA_INTERVAL_1D, config.TA_INTERVAL_1WK] and config.isTradingOpen(dictSymbols[symbolCode]['tradingTime']):
+        if interval not in [config.TA_INTERVAL_1D, config.TA_INTERVAL_1WK] and not config.isTradingOpen(dictSymbols[symbolCode]['tradingTime']):
             continue
         
-        signals = Simulator().determineSignals([symbolCode], [interval], strategies)
+        signals = Simulator().determineSignals([symbolCode], [interval], strategies, closedBar=True)
 
         for signal in signals:
 
