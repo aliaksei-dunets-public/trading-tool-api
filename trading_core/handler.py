@@ -4,6 +4,7 @@ import json
 import pandas as pd
 import os
 import logging
+import math
 
 from .core import Symbol, HistoryData
 
@@ -48,13 +49,13 @@ class HandlerBase:
 
 
 class HandlerCurrencyCom(HandlerBase):
-    def getHistoryData(self, symbol, interval, limit, completedBars: bool = False) -> HistoryData:
+    def getHistoryData(self, symbol, interval, limit, closedBar: bool = False) -> HistoryData:
 
         logging.info(
             f'getHistoryData(symbol={symbol}, interval={interval}, limit={limit})')
 
         response = self.__getKlines(
-            symbol, self._mapInterval(interval), limit, completedBars)
+            symbol, self._mapInterval(interval), limit, closedBar)
 
         df = pd.DataFrame(response, columns=[
                           'DatetimeFloat', 'Open', 'High', 'Low', 'Close', 'Volume'])
@@ -134,35 +135,88 @@ class HandlerCurrencyCom(HandlerBase):
             return json.loads(response.text)
         else:
             raise Exception(response.text)
+    
+    def getOffsetDateTimeByInterval(self, interval, current_datetime: datetime = datetime.now()):
 
-    def __getCompletedUnixTimeMs(self, interval):
+        if not isinstance(current_datetime, datetime):
+            raise ValueError("Input parameter must be a datetime.datetime object.")
+        
+        if interval in ['5m', '15m', '30m']:
+            current_minute = current_datetime.minute
+            current_datetime = current_datetime.replace(second=0, microsecond=0)
+            
+            if interval == '5m':
+                offset_value = 5
+            elif interval == '15m':
+                offset_value = 15
+            elif interval == '30m':
+                offset_value = 30
+            
+            if current_minute % offset_value != 0:
+                delta_minutes = current_minute % offset_value + offset_value   
+                offset_date_time = current_datetime - timedelta(minutes=delta_minutes)
+            else:
+                offset_date_time = current_datetime
 
-        current_date_time = datetime.now().replace(second=0, microsecond=0)
-        current_minute = current_date_time.minute
-
-        if interval == '5m':
-            offset_minutes = 5
-        elif interval == '15m':
-            offset_minutes = 15
-        elif interval == '30m':
-            offset_minutes = 30
         elif interval == '1h':
-            offset_minutes = 60
-        elif interval == '4h':
-            offset_minutes = 240
-        elif interval == '1d':
-            offset_minutes = 24 * 60
-        elif interval == '1w':
-            offset_minutes = 7 * 24 * 60
 
-        if current_minute % offset_minutes != 0:
-            delta_minutes = current_minute % offset_minutes + offset_minutes   
-        
-        if delta_minutes:
-            offset_date_time = current_date_time - timedelta(minutes=delta_minutes)
-        else:
-            offset_date_time = current_date_time
-        
+            compared_datetime = current_datetime.replace(hour=0, minute=0, second=30, microsecond=0)
+            
+            if current_datetime > compared_datetime:
+                offset_date_time = current_datetime - timedelta(hours=1)
+            else:
+                offset_date_time = current_datetime
+            
+            offset_date_time = offset_date_time.replace(minute=0, second=0, microsecond=0)
+
+        elif interval == '4h':
+            
+            local_time = datetime.now()
+            utc_time = datetime.utcnow() 
+
+            delta = local_time - utc_time
+            hours_difference = math.ceil( delta.total_seconds() / 3600 )
+
+            current_hour = current_datetime.hour - hours_difference
+            current_datetime = current_datetime.replace(minute=0, second=0, microsecond=0)
+            
+            offset_value = 4
+            
+            if current_hour % offset_value != 0:
+                delta_hours = current_hour % offset_value + offset_value - hours_difference
+                offset_date_time = current_datetime - timedelta(hours=delta_hours)
+            else:
+                offset_date_time = current_datetime
+            
+            offset_date_time = offset_date_time.replace(minute=0, second=0, microsecond=0)
+
+        elif interval == '1d':
+
+            compared_datetime = current_datetime.replace(hour=0, minute=0, second=30, microsecond=0)
+
+            if current_datetime > compared_datetime:
+                offset_date_time = current_datetime - timedelta(days=1)
+            else:
+                offset_date_time = current_datetime
+            
+            offset_date_time = offset_date_time.replace(minute=0, second=0, microsecond=0)
+
+        elif interval == '1w':
+
+            compared_datetime = current_datetime.replace(hour=0, minute=0, second=30, microsecond=0)
+            
+            if current_datetime.weekday() != 0 and current_datetime > compared_datetime:
+                delta_days_until_monday = current_datetime.weekday() % 7
+                offset_date_time = current_datetime - timedelta(days=delta_days_until_monday)
+            else:
+                offset_date_time = current_datetime
+            
+            offset_date_time = offset_date_time.replace(hour=0, minute=0, second=0, microsecond=0)
+ 
         logging.info(offset_date_time)
 
+        return offset_date_time
+
+    def __getCompletedUnixTimeMs(self, interval):
+        offset_date_time = self.getOffsetDateTimeByInterval(interval)
         return int(offset_date_time.timestamp() * 1000)

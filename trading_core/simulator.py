@@ -14,8 +14,7 @@ class Simulator():
 
     def determineSignal(self, symbol, interval, strategyCode):
 
-        strategy_df = StrategyFactory(
-            strategyCode).getStrategy(symbol, interval).tail(1)
+        strategy_df = StrategyFactory(strategyCode).getStrategy(symbol, interval, closedBar=True).tail(1)
 
         for index, strategy_row in strategy_df.iterrows():
             signal_value = strategy_row[Const.SIGNAL]
@@ -80,8 +79,7 @@ class Simulator():
                 for options in optionsList:
                     if limit == 0 or limit < options.limit:
                         limit = options.limit
-                        historyData = config.getHandler().getHistoryData(
-                            symbol=symbol, interval=interval, limit=options.limit)
+                        historyData = config.getHandler().getHistoryData(symbol=symbol, interval=interval, limit=options.limit)
                     for code in strategyCodes:
                         try:
                             simulation = self.__simulateStragy(

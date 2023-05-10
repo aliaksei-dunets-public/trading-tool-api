@@ -1,5 +1,6 @@
 import unittest
 from unittest.mock import MagicMock
+from datetime import datetime
 from trading_core.handler import HandlerBase, HandlerCurrencyCom
 from trading_core.model import Config
 
@@ -44,6 +45,42 @@ class TestConfig(unittest.TestCase):
         self.config._Config__tradingTimeframes[trading_time] = MagicMock()
         self.config._Config__tradingTimeframes[trading_time].isTradingOpen.return_value = True
         self.assertTrue(self.config.isTradingOpen(trading_timeframe))
+    
+    def test_get_completed_unix_time_ms_5m(self):
+        test_time = datetime(2023, 5, 9, 13, 16, 34) # 2023-05-09 13:16:34
+        expected_result = datetime(2023, 5, 9, 13, 10, 0) # 2023-05-09 13:10:00
+        self.assertEqual(self.config.getHandler().getOffsetDateTimeByInterval('5m', test_time), expected_result)
+
+    def test_get_completed_unix_time_ms_15m(self):
+        test_time = datetime(2023, 5, 9, 14, 22, 47) # 2023-05-09 14:22:47
+        expected_result = datetime(2023, 5, 9, 14, 0, 0) # 2023-05-09 14:00:00
+        self.assertEqual(self.config.getHandler().getOffsetDateTimeByInterval('15m', test_time), expected_result)
+
+    def test_get_completed_unix_time_ms_30m(self):
+        test_time = datetime(2023, 5, 9, 18, 43, 51) # 2023-05-09 18:43:51
+        expected_result = datetime(2023, 5, 9, 18, 00, 0) # 2023-05-09 18:00:00
+        self.assertEqual(self.config.getHandler().getOffsetDateTimeByInterval('30m', test_time), expected_result)
+
+    def test_get_completed_unix_time_ms_1h(self):
+        test_time = datetime(2023, 5, 9, 21, 57, 23) # 2023-05-09 21:57:23
+        expected_result = datetime(2023, 5, 9, 20, 0, 0) # 2023-05-09 20:00:00
+        self.assertEqual(self.config.getHandler().getOffsetDateTimeByInterval('1h', test_time), expected_result)
+
+    def test_get_completed_unix_time_ms_4h(self):
+        self.assertEqual(self.config.getHandler().getOffsetDateTimeByInterval('4h', datetime(2023, 5, 10, 7, 40, 13)), datetime(2023, 5, 10, 4, 0, 0))
+        self.assertEqual(self.config.getHandler().getOffsetDateTimeByInterval('4h', datetime(2023, 5, 10, 0, 40, 13)), datetime(2023, 5, 9, 20, 0, 0))
+        self.assertEqual(self.config.getHandler().getOffsetDateTimeByInterval('4h', datetime(2023, 5, 10, 3, 40, 13)), datetime(2023, 5, 10, 0, 0, 0))
+        self.assertEqual(self.config.getHandler().getOffsetDateTimeByInterval('4h', datetime(2023, 5, 10, 20, 40, 13)), datetime(2023, 5, 10, 16, 0, 0))
+
+    def test_get_completed_unix_time_ms_1d(self):
+        test_time = datetime(2023, 5, 10, 0, 31, 44) # 2023-05-10 00:31:44
+        expected_result = datetime(2023, 5, 9, 0, 0, 0) # 2023-05-09 00:00:00
+        self.assertEqual(self.config.getHandler().getOffsetDateTimeByInterval('1d', test_time), expected_result)
+
+    def test_get_completed_unix_time_ms_1w(self):
+        test_time = datetime(2023, 5, 12, 18, 13, 27) # 2023-05-12 18:13:27
+        expected_result = datetime(2023, 5, 8, 0, 0 ) # 2023-05-08 00:00:00
+        self.assertEqual(self.config.getHandler().getOffsetDateTimeByInterval('1w', test_time), expected_result)
 
 if __name__ == '__main__':
     unittest.main()
