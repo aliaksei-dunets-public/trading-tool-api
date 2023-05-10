@@ -49,7 +49,7 @@ class HandlerBase:
 
 
 class HandlerCurrencyCom(HandlerBase):
-    def getHistoryData(self, symbol, interval, limit, closedBar) -> HistoryData:
+    def getHistoryData(self, symbol, interval, limit, closedBar: bool = False) -> HistoryData:
 
         logging.info(
             f'getHistoryData(symbol={symbol}, interval={interval}, limit={limit})')
