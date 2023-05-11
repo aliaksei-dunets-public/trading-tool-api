@@ -103,8 +103,9 @@ class TradingTimeframe:
                 start_time = '00:00' if start_time == '' else start_time
                 start_time = datetime.strptime(start_time.strip(), '%H:%M')
 
+                end_time = end_time.strip()
                 end_time = '23:59' if end_time in ['', '00:00'] else end_time
-                end_time = datetime.strptime(end_time.strip(), '%H:%M')
+                end_time = datetime.strptime(end_time, '%H:%M')
 
                 time_frames.append({Const.START_TIME: start_time,
                                     Const.END_TIME: end_time})

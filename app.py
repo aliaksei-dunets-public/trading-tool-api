@@ -77,7 +77,7 @@ def getSignals():
     symbols = request.args.getlist('symbol', None)
     intervals = request.args.getlist('interval', None)
     codes = request.args.getlist('code', None)
-    closedBar = request.args.get('closedBar')
+    closedBar = bool(request.args.get('closedBar', '').lower() == 'true')
 
     if symbols == []:
         return jsonify({"error": "Symbol is missed", }), 500
