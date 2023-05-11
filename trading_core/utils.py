@@ -47,11 +47,12 @@ def send_bot_notification(interval):
 
         if symbolCode not in dictSymbols:
             continue
-            
+
         if interval not in [config.TA_INTERVAL_1D, config.TA_INTERVAL_1WK] and not config.isTradingOpen(dictSymbols[symbolCode]['tradingTime']):
             continue
-        
-        signals = Simulator().determineSignals([symbolCode], [interval], strategies, closedBar=True)
+
+        signals = Simulator().determineSignals(
+            [symbolCode], [interval], strategies, closedBar=True)
 
         for signal in signals:
 
@@ -59,7 +60,7 @@ def send_bot_notification(interval):
             comments_text = f' | {comments}' if comments else ''
 
             message_text = f'{signal["dateTime"]}  -  <b>{signal["symbol"]} - {signal["interval"]}</b>: ({signal["strategy"]}) - {signal_text}{comments_text}\n'
-                
+
             if alert['chatId'] in responses:
                 responses[alert['chatId']] += message_text
             else:
@@ -118,7 +119,7 @@ class JobScheduler:
         day_of_week = '*'
         hour = None
         minute = '0'
-        second = '5'
+        second = '40'
 
         if interval == config.TA_INTERVAL_5M:
             minute = '*/5'
@@ -128,13 +129,17 @@ class JobScheduler:
             minute = '*/30'
         elif interval == config.TA_INTERVAL_1H:
             hour = '*'
+            minute = '1'
         elif interval == config.TA_INTERVAL_4H:
             hour = '0,4,8,12,16,20'
+            minute = '1'
         elif interval == config.TA_INTERVAL_1D:
             hour = '8'
+            minute = '1'
         elif interval == config.TA_INTERVAL_1WK:
             day_of_week = 'mon'
             hour = '8'
+            minute = '1'
         else:
             Exception('Incorrect interval for subscription')
 

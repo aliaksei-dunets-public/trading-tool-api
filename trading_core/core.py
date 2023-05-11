@@ -1,5 +1,24 @@
-import datetime
+import os
+from datetime import datetime
+import logging
+from logging.handlers import TimedRotatingFileHandler
 
+# Set up logging
+log_file_prefix = f"{os.getcwd()}/static/logs/"
+log_file_suffix = ".log"
+date_format = "%Y-%m-%d"
+current_date = datetime.utcnow().strftime(date_format)
+log_file_name = log_file_prefix + current_date + log_file_suffix
+
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                    handlers=[
+                        # TimedRotatingFileHandler(log_file_name, when='midnight', backupCount=7),
+                        logging.StreamHandler()
+                    ])
+
+logger = logging.getLogger("trading_core")
+# logger.info(f"Log file created at {datetime.now()}")
 
 class Const:
     # Signal Values
@@ -13,7 +32,18 @@ class Const:
     SHORT = 'SHORT'
 
     # Column Names
-    SIGNAL = 'Signal'
+    SIGNAL = 'signal'
+    SYMBOL = 'symbol'
+    CODE = 'code'
+    INTERVAL = 'interval'
+    STRATEGY = 'strategy'
+    NAME = 'name'
+    DESCR = 'descr'
+    STATUS = 'status'
+    START_TIME = 'start_time'
+    END_TIME = 'end_time'
+    START_DATE = 'start_date'
+    END_DATE = 'end_date'
 
     # Order Statuses
     ORDER_STATUS_OPEN = 'Open'
@@ -24,16 +54,33 @@ class Const:
     ORDER_CLOSE_REASON_TAKE_PROFIT = 'Take Profit'
     ORDER_CLOSE_REASON_SIGNAL = 'Signal'
 
-
-class ExhangeInfo:
-    pass
+    #Importance
+    IMPORTANCE_LOW = 'LOW'
+    IMPORTANCE_MEDIUM = 'MEDIUM'
+    IMPORTANCE_HIGH = 'HIGH'
 
 
 class TradingTimeframe:
     def __init__(self, tradingTime: str):
         self.__tradingTime = tradingTime
-        self.__timeFrames = {}
+        self.__time_frames = {}
         self.__decodeTimeframe()
+
+    def isTradingOpen(self) -> bool:
+        # Get current time in UTC
+        current_datetime_utc = datetime.utcnow()
+        # Get name of a day in lower case
+        current_day = current_datetime_utc.strftime('%a').lower()
+        current_time = current_datetime_utc.time()
+
+        # Check if today matches the day in the timeframes
+        if current_day in self.__time_frames:
+            time_frames = self.__time_frames[current_day]
+            for time_frame in time_frames:
+                if time_frame[Const.START_TIME].time() <= current_time and current_time <= time_frame[Const.END_TIME].time():
+                    return True
+
+        return False
 
     def __decodeTimeframe(self):
 
@@ -42,7 +89,7 @@ class TradingTimeframe:
 
         # Loop through each time entry and check if the current time aligns
         for entry in time_entries[1:]:
-            timeFrames = []
+            time_frames = []
 
             # Split the time entry into day and time ranges
             day, time_ranges = entry.split(' ', 1)
@@ -54,30 +101,15 @@ class TradingTimeframe:
                 # Split the time period into start and end times
                 start_time, end_time = time_period.split('-')
                 start_time = '00:00' if start_time == '' else start_time
-                start_time = datetime.datetime.strptime(
-                    start_time.strip(), '%H:%M')
+                start_time = datetime.strptime(start_time.strip(), '%H:%M')
 
                 end_time = '23:59' if end_time in ['', '00:00'] else end_time
-                end_time = datetime.datetime.strptime(
-                    end_time.strip(), '%H:%M')
+                end_time = datetime.strptime(end_time.strip(), '%H:%M')
 
-                timeFrames.append({'start_time': start_time, 'end_time': end_time})
+                time_frames.append({Const.START_TIME: start_time,
+                                    Const.END_TIME: end_time})
 
-            self.__timeFrames[day.lower()] = timeFrames
-
-    def isTradingOpen(self) -> bool:
-        # Convert the current time to UTC
-        current_time_utc = datetime.datetime.utcnow()
-        current_day = current_time_utc.strftime('%a').lower()
-
-        # Check if today matches the day in the timeframes
-        if current_day in self.__timeFrames:
-            timeframes = self.__timeFrames[current_day]
-            for timeframe in timeframes:
-                if timeframe['start_time'].time() <= current_time_utc.time() and current_time_utc.time() <= timeframe['end_time'].time():
-                    return True
-
-        return False
+            self.__time_frames[day.lower()] = time_frames
 
 
 class Symbol:
@@ -88,6 +120,9 @@ class Symbol:
         self.status = status
         self.tradingTime = tradingTime
         self.type = type
+
+    def isTradingOpen(self) -> bool:
+        return TradingTimeframe(self.tradingTime).isTradingOpen()
 
 
 class HistoryData:

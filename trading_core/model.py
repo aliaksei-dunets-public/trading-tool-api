@@ -1,4 +1,4 @@
-from .core import Symbol, TradingTimeframe
+from .core import Const, Symbol, TradingTimeframe
 from .handler import HandlerBase, HandlerCurrencyCom
 
 
@@ -11,18 +11,18 @@ class Config:
     TA_INTERVAL_1D = "1d"
     TA_INTERVAL_1WK = "1w"
 
-    INTERVALS = [{"interval": TA_INTERVAL_5M,  "name": "5 minutes", "order": 10, "importance": 'LOW'},
+    INTERVALS = [{"interval": TA_INTERVAL_5M,  "name": "5 minutes", "order": 10, "importance": Const.IMPORTANCE_LOW},
                  {"interval": TA_INTERVAL_15M, "name": "15 minutes",
-                     "order": 20, "importance": 'LOW'},
+                     "order": 20, "importance": Const.IMPORTANCE_LOW},
                  {"interval": TA_INTERVAL_30M, "name": "30 minutes",
-                     "order": 30, "importance": 'MEDIUM'},
+                     "order": 30, "importance": Const.IMPORTANCE_MEDIUM},
                  {"interval": TA_INTERVAL_1H, "name": "1 hour",
-                     "order": 40, "importance": 'MEDIUM'},
+                     "order": 40, "importance": Const.IMPORTANCE_MEDIUM},
                  {"interval": TA_INTERVAL_4H, "name": "4 hours",
-                     "order": 50, "importance": 'HIGH'},
+                     "order": 50, "importance": Const.IMPORTANCE_HIGH},
                  {"interval": TA_INTERVAL_1D, "name": "1 day",
-                     "order": 60, "importance": 'HIGH'},
-                 {"interval": TA_INTERVAL_1WK, "name": "1 week", "order": 70, "importance": 'HIGH'}]
+                     "order": 60, "importance": Const.IMPORTANCE_HIGH},
+                 {"interval": TA_INTERVAL_1WK, "name": "1 week", "order": 70, "importance": Const.IMPORTANCE_HIGH}]
 
     _instance = None
 
@@ -67,14 +67,16 @@ class Config:
 
     def getStrategyCodes(self):
         return [item['code'] for item in self.getStrategies()]
-    
+
     def isTradingOpen(self, tradingTime: str) -> bool:
         if not tradingTime in self.__tradingTimeframes:
-           self.__tradingTimeframes[tradingTime] = TradingTimeframe(tradingTime)
-        
+            self.__tradingTimeframes[tradingTime] = TradingTimeframe(
+                tradingTime)
+
         oTimeframe = self.__tradingTimeframes[tradingTime]
 
         return oTimeframe.isTradingOpen()
+
 
 class SymbolList:
     def checkSymbol(self, code: str) -> bool:

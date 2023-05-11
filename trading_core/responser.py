@@ -1,6 +1,8 @@
 import json
 import pandas as pd
+from datetime import datetime 
 
+from .core import log_file_name
 from .model import Config, SymbolList
 from .indicator import Indicator_CCI
 from .strategy import StrategyFactory
@@ -84,3 +86,21 @@ def getSimulations(symbols: list, intervals: list, strategyCodes: list):
 @decorator_json
 def getSignalsBySimulation(symbols: list, intervals: list, strategyCodes: list):
     return Simulator().getSignalsBySimulation(symbols, intervals, strategyCodes)
+
+def getLogs(start_date, end_date):
+    # date_format = "%Y-%m-%d"
+    # start_date = datetime.strptime(start_date, date_format)
+    # end_date = datetime.strptime(end_date, date_format) + datetime.timedelta(days=1)
+    # logs = []
+    # current_date = start_date
+    # while current_date < end_date:
+    try:
+        with open(log_file_name, "r") as log_file:
+            logs = log_file.read()
+    except FileNotFoundError:
+        pass
+        # current_date += datetime.timedelta(days=1)
+    
+    logs = logs.replace('\n', '<br>')
+
+    return logs

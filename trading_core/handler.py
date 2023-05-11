@@ -3,13 +3,13 @@ import requests
 import json
 import pandas as pd
 import os
-import logging
+# import logging
 import math
 
-from .core import Symbol, HistoryData
+from .core import logger, Symbol, HistoryData
 
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+# logging.basicConfig(
+#     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 
 class HandlerBase:
@@ -51,7 +51,7 @@ class HandlerBase:
 class HandlerCurrencyCom(HandlerBase):
     def getHistoryData(self, symbol, interval, limit, closedBar: bool = False) -> HistoryData:
 
-        logging.info(
+        logger.info(
             f'getHistoryData(symbol={symbol}, interval={interval}, limit={limit})')
 
         response = self.__getKlines(
@@ -80,7 +80,7 @@ class HandlerCurrencyCom(HandlerBase):
 
         if not tempSymbols:
 
-            logging.info(
+            logger.info(
                 f'getSymbols(code={code}, name={name}, status={status}, type={type}, isBuffer={isBuffer})')
 
             response = requests.get(
@@ -128,15 +128,15 @@ class HandlerCurrencyCom(HandlerBase):
             "https://api-adapter.backend.currency.com/api/v2/klines", params=params)
 
         if response.status_code == 200:
-            # if constant.WRITE_REQUEST_TO_FILE == True:
-            #     with open(getFileName(self._symbol, tfId), 'w') as writer:
-            #         writer.write(response.text)
+            # file_path = f'{os.getcwd()}/static/tests/{symbol}_{interval}.json'
+            # with open(file_path, 'w') as writer:
+            #     writer.write(response.text)
 
             return json.loads(response.text)
         else:
             raise Exception(response.text)
     
-    def getOffsetDateTimeByInterval(self, interval, current_datetime: datetime = datetime.now()):
+    def getOffsetDateTimeByInterval(self, interval, current_datetime: datetime):
 
         if not isinstance(current_datetime, datetime):
             raise ValueError("Input parameter must be a datetime.datetime object.")
@@ -158,7 +158,7 @@ class HandlerCurrencyCom(HandlerBase):
 
         elif interval == '1h':
 
-            compared_datetime = current_datetime.replace(hour=0, minute=0, second=30, microsecond=0)
+            compared_datetime = current_datetime.replace(minute=0, second=30, microsecond=0)
             
             if current_datetime > compared_datetime:
                 offset_date_time = current_datetime - timedelta(hours=1)
@@ -169,15 +169,9 @@ class HandlerCurrencyCom(HandlerBase):
 
         elif interval == '4h':
             
-            local_time = datetime.now()
-            utc_time = datetime.utcnow() 
-
-            delta = local_time - utc_time
-            hours_difference = math.ceil( delta.total_seconds() / 3600 )
-
-            current_hour = current_datetime.hour - hours_difference
-            
             offset_value = 4
+            hours_difference = self._getTimezoneDifference()
+            current_hour = current_datetime.hour - hours_difference
             
             delta_hours = current_hour % offset_value + offset_value
             offset_date_time = current_datetime - timedelta(hours=delta_hours)
@@ -186,12 +180,6 @@ class HandlerCurrencyCom(HandlerBase):
 
         elif interval == '1d':
 
-            local_time = datetime.now()
-            utc_time = datetime.utcnow() 
-
-            delta = local_time - utc_time
-            hours_difference = math.ceil( delta.total_seconds() / 3600 )
-
             compared_datetime = current_datetime.replace(hour=0, minute=0, second=30, microsecond=0)
 
             if current_datetime > compared_datetime:
@@ -199,7 +187,7 @@ class HandlerCurrencyCom(HandlerBase):
             else:
                 offset_date_time = current_datetime
             
-            offset_date_time = offset_date_time.replace(hour=hours_difference, minute=0, second=0, microsecond=0)
+            offset_date_time = offset_date_time.replace(hour=self._getTimezoneDifference(), minute=0, second=0, microsecond=0)
 
         elif interval == '1w':
 
@@ -210,12 +198,22 @@ class HandlerCurrencyCom(HandlerBase):
             delta_days_until_monday = current_datetime.weekday() % 7 + offset_value
             offset_date_time = current_datetime - timedelta(days=delta_days_until_monday)
             
-            offset_date_time = offset_date_time.replace(hour=0, minute=0, second=0, microsecond=0)
+            offset_date_time = offset_date_time.replace(hour=self._getTimezoneDifference(), minute=0, second=0, microsecond=0)
 
-        logging.info(f'Closed Bar time - {offset_date_time} for Current Time - {current_datetime}, interval - {interval}')
+        logger.info(f'Closed Bar time - {offset_date_time} for Current Time - {current_datetime}, interval - {interval}')
 
         return offset_date_time
 
     def __getCompletedUnixTimeMs(self, interval):
-        offset_date_time = self.getOffsetDateTimeByInterval(interval)
+        offset_date_time = self.getOffsetDateTimeByInterval(interval, datetime.now())
         return int(offset_date_time.timestamp() * 1000)
+    
+    def _getTimezoneDifference(self):
+        local_time = datetime.now()
+        utc_time = datetime.utcnow() 
+        delta = local_time - utc_time
+
+        return math.ceil( delta.total_seconds() / 3600 )
+
+
+         

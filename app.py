@@ -161,3 +161,9 @@ def delete_job(job_id):
         return jsonify({'message': 'Job deleted'}), 200
     else:
         return jsonify({'error': 'Job not found'}), 404
+
+@app.route("/logs")
+def get_logs():
+    start_date_str = request.args.get("start_date")
+    end_date_str = request.args.get("end_date")
+    return resp.getLogs(start_date_str, end_date_str)
