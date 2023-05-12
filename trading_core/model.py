@@ -79,6 +79,9 @@ class Config:
 
 
 class SymbolList:
+    def __init__(self):
+        self.__symbolsDictionary = {}
+
     def checkSymbol(self, code: str) -> bool:
         try:
             self.getSymbol(code)
@@ -99,11 +102,12 @@ class SymbolList:
         return symbols
 
     def getSymbolsDictionary(self, isBuffer: bool = True) -> dict:
-        symbols = Config().getHandler().getSymbolsDictionary(isBuffer=isBuffer)
-        return symbols
+        if not self.__symbolsDictionary:
+            self.__symbolsDictionary = Config().getHandler().getSymbolsDictionary(isBuffer=isBuffer)
+        return self.__symbolsDictionary
 
     def getSymbolCodes(self, code: str = None, name: str = None, status: str = None, type: str = None) -> list:
-        return [item.code for item in self.getSymbols(code, name, status, type)]
+        return [item['code'] for item in self.getSymbols(code, name, status, type)]
 
 
 config = Config()

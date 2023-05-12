@@ -38,26 +38,31 @@ def send_bot_notification(interval):
 
     dbAlerts = db.get_alerts(interval)
 
-    dictSymbols = SymbolList().getSymbolsDictionary()
+    # dictSymbols = SymbolList().getSymbolsDictionary()
+
+    oSymbolList = SymbolList()
 
     for alert in dbAlerts:
-        symbolCode = alert['symbol']
-        comments = alert['comments'] if 'comments' in alert else None
-        strategies = alert['strategies'] if 'strategies' in alert else None
+        dbSymbolCode = alert['symbol']
+        dbComments = alert['comments'] if 'comments' in alert else None
+        dbStrategies = alert['strategies'] if 'strategies' in alert else None
+        dbSignals = alert['signals'] if 'signals' in alert else None
+        
+        oSymbol = oSymbolList.getSymbol(dbSymbolCode)
 
-        if symbolCode not in dictSymbols:
+        if not oSymbol:
             continue
 
-        if interval not in [config.TA_INTERVAL_1D, config.TA_INTERVAL_1WK] and not config.isTradingOpen(dictSymbols[symbolCode]['tradingTime']):
+        if interval not in [config.TA_INTERVAL_1D, config.TA_INTERVAL_1WK] and not config.isTradingOpen(oSymbol.tradingTime):
             continue
 
         signals = Simulator().determineSignals(
-            [symbolCode], [interval], strategies, closedBar=True)
+            [dbSymbolCode], [interval], dbStrategies, dbSignals, closedBar=True)
 
         for signal in signals:
 
             signal_text = f'<b>{signal["signal"]}</b>'
-            comments_text = f' | {comments}' if comments else ''
+            comments_text = f' | {dbComments}' if dbComments else ''
 
             message_text = f'{signal["dateTime"]}  -  <b>{signal["symbol"]} - {signal["interval"]}</b>: ({signal["strategy"]}) - {signal_text}{comments_text}\n'
 

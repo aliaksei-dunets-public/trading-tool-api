@@ -4,10 +4,11 @@ from datetime import datetime
 import pandas as pd
 import os
 
-from app import app
 from trading_core.core import Const, TradingTimeframe, Symbol, HistoryData, SimulateOptions
 from trading_core.handler import HandlerBase, HandlerCurrencyCom
-from trading_core.model import Config
+from trading_core.model import Config, SymbolList
+
+from app import app
 
 class ConstTestCase(unittest.TestCase):
 
@@ -110,7 +111,7 @@ class TestConfig(unittest.TestCase):
     def test_getHandler_returns_handler(self):
         handler = self.config.getHandler()
         self.assertIsInstance(handler, HandlerBase)
-    
+
     def test_get_handler(self):
         self.assertIsInstance(self.config.getHandler(), HandlerCurrencyCom)
 
@@ -143,7 +144,7 @@ class TestConfig(unittest.TestCase):
         self.config._Config__tradingTimeframes[trading_time] = MagicMock()
         self.config._Config__tradingTimeframes[trading_time].isTradingOpen.return_value = True
         self.assertTrue(self.config.isTradingOpen(trading_timeframe))
-    
+
     def test_get_completed_unix_time_ms_5m(self):
         test_time = datetime(2023, 5, 9, 13, 16, 34) # 2023-05-09 13:16:34
         expected_result = datetime(2023, 5, 9, 13, 10, 0) # 2023-05-09 13:10:00
@@ -181,7 +182,7 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(self.config.getHandler().getOffsetDateTimeByInterval('1w', test_time), expected_result)
 
 class FlaskAPITestCase(unittest.TestCase):
-    
+
     def setUp(self):
         app.config['TESTING'] = True
         self.client = app.test_client()
@@ -236,6 +237,74 @@ class FlaskAPITestCase(unittest.TestCase):
     #     job_id = response.json['job_id']
     #     response = self.client.delete(f'/jobs/{job_id}')
     #     self.assertEqual(response.status_code, 200)
+
+
+class TestSymbolList(unittest.TestCase):
+
+    def setUp(self):
+        self.symbol_list = SymbolList()
+        self.config = Config()
+
+    def test_checkSymbol(self):
+        # Test that checkSymbol returns True when a symbol exists
+        symbol_code = "BTC/USD"
+        result = self.symbol_list.checkSymbol(symbol_code)
+        self.assertTrue(result)
+
+        # Test that checkSymbol returns False when a symbol does not exist
+        symbol_code = "NONEXISTENT"
+        result = self.symbol_list.checkSymbol(symbol_code)
+        self.assertFalse(result)
+
+    def test_getSymbol(self):
+        # Test that getSymbol returns a Symbol object when a symbol exists
+        symbol_code = "BTC/USD"
+        result = self.symbol_list.getSymbol(symbol_code)
+        self.assertIsInstance(result, Symbol)
+
+        # Test that getSymbol raises an exception when a symbol does not exist
+        symbol_code = "NONEXISTENT"
+        with self.assertRaises(Exception):
+            self.symbol_list.getSymbol(symbol_code)
+
+    def test_getSymbols(self):
+        # Mock the getSymbols method of the handler to return a list of symbols
+        symbol = {"code": "BTC/USD", "name": "Bitcoin/USD",
+                  "status": "ACTIVE", "tradingTime": "24/7", "type": "CRYPTO"}
+        symbols = [Symbol(code=symbol['code'], name=symbol['name'], status=symbol['status'],
+                          tradingTime=symbol['tradingTime'], type=symbol['type'])]
+
+        self.config.getHandler().getSymbols = MagicMock(return_value=symbols)
+
+        # Test that getSymbols returns a list of Symbol objects
+        result = self.symbol_list.getSymbols()
+        self.assertIsInstance(result, list)
+        self.assertIsInstance(result[0], Symbol)
+
+    def test_getSymbolsDictionary(self):
+        # Mock the getSymbolsDictionary method of the handler to return a dictionary of symbols
+        symbol = {"code": "BTC/USD", "name": "Bitcoin/USD",
+                  "status": "ACTIVE", "tradingTime": "24/7", "type": "CRYPTO"}
+        symbols = {symbol['code']: symbol}
+
+        self.config.getHandler().getSymbolsDictionary = MagicMock(return_value=symbols)
+
+        # Test that getSymbolsDictionary returns a dictionary of Symbol objects
+        result = self.symbol_list.getSymbolsDictionary()
+        self.assertIsInstance(result, dict)
+        self.assertIsInstance(result["BTC/USD"], dict)
+
+    def test_getSymbolCodes(self):
+        # Mock the getSymbols method of the handler to return a list of symbols
+        symbols = [{"code": "BTC/USD", "name": "Bitcoin/USD",
+                    "status": "ACTIVE", "tradingTime": "24/7", "type": "CRYPTO"}]
+        self.config.getHandler().getSymbols = MagicMock(return_value=symbols)
+
+        # Test that getSymbolCodes returns a list of symbol codes
+        result = self.symbol_list.getSymbolCodes()
+        self.assertIsInstance(result, list)
+        self.assertEqual(result, ["BTC/USD"])
+
 
 if __name__ == '__main__':
     unittest.main()

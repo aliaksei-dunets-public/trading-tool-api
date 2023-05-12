@@ -12,13 +12,14 @@ logging.basicConfig(
 
 class Simulator():
 
-    def determineSignal(self, symbol, interval, strategyCode, closedBar: bool):
+    def determineSignal(self, symbol: str, interval: str, strategyCode: str, signals: list, closedBar: bool):
 
         strategy_df = StrategyFactory(strategyCode).getStrategy(symbol, interval, closedBar=closedBar).tail(1)
 
         for index, strategy_row in strategy_df.iterrows():
             signal_value = strategy_row[Const.SIGNAL]
-            if signal_value:
+            
+            if ( not signals and signal_value ) or ( signals and ( signal_value in signals or Const.DEBUG_SIGNAL in signals ) ):
                 return {'dateTime': index.isoformat(),
                         'symbol': symbol,
                         'interval': interval,
@@ -26,10 +27,11 @@ class Simulator():
                         'signal': signal_value}
             else:
                 return None
+            
 
-    def determineSignals(self, symbols=[], intervals=[], strategyCodes=[], closedBar: bool=False):
+    def determineSignals(self, symbols: list = None, intervals: list = None, strategyCodes: list = None, signals: list = None, closedBar: bool=False):
 
-        signals = []
+        strategySignals = []
 
         # if not symbols:
         #     symbols = SymbolList().getSymbolCodes()
@@ -44,9 +46,9 @@ class Simulator():
             for interval in intervals:
                 for code in strategyCodes:
                     try:
-                        signal = self.determineSignal(symbol, interval, code, closedBar)
+                        signal = self.determineSignal(symbol, interval, code, signals, closedBar)
                         if signal:
-                            signals.append(signal)
+                            strategySignals.append(signal)
                         else:
                             continue
                     except Exception as error:
@@ -54,7 +56,7 @@ class Simulator():
                             f'For symbol={symbol}, interval={interval}, code={code} - {error}')
                         continue
 
-        return signals
+        return strategySignals
 
     def simulateTrading(self, symbols=[], intervals=[], strategyCodes=[], optionsList=[]):
 
@@ -210,9 +212,9 @@ class OrderHandler:
     def __createOrder(self, interval):
         direction = ''
 
-        if interval.Signal == Const.STRONG_BUY:
+        if interval.signal == Const.STRONG_BUY:
             direction = Const.LONG
-        elif interval.Signal == Const.STRONG_SELL:
+        elif interval.signal == Const.STRONG_SELL:
             direction = Const.SHORT
         else:
             return
@@ -236,7 +238,7 @@ class OrderHandler:
             if order.stopLossPrice != 0 and interval.Low <= order.stopLossPrice:
                 closePrice = order.stopLossPrice
                 closeReason = Const.ORDER_CLOSE_REASON_STOP_LOSS
-            elif interval.Signal == Const.STRONG_SELL or interval.Signal == Const.SELL:
+            elif interval.signal == Const.STRONG_SELL or interval.signal == Const.SELL:
                 closePrice = interval.Close
                 closeReason = Const.ORDER_CLOSE_REASON_SIGNAL
             elif order.takeProfitPrice != 0 and interval.High >= order.takeProfitPrice:
@@ -246,7 +248,7 @@ class OrderHandler:
             if order.takeProfitPrice != 0 and interval.Low <= order.takeProfitPrice:
                 closePrice = order.takeProfitPrice
                 closeReason = Const.ORDER_CLOSE_REASON_TAKE_PROFIT
-            elif interval.Signal == Const.STRONG_BUY or interval.Signal == Const.BUY:
+            elif interval.signal == Const.STRONG_BUY or interval.signal == Const.BUY:
                 closePrice = interval.Close
                 closeReason = Const.ORDER_CLOSE_REASON_SIGNAL
             elif order.stopLossPrice != 0 and interval.High >= order.stopLossPrice:

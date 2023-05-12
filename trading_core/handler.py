@@ -3,14 +3,9 @@ import requests
 import json
 import pandas as pd
 import os
-# import logging
 import math
 
 from .core import logger, Symbol, HistoryData
-
-# logging.basicConfig(
-#     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
-
 
 class HandlerBase:
     def getHistoryData(self, symbol, interval, limit, closedBar: bool = False) -> HistoryData:
@@ -23,6 +18,9 @@ class HandlerBase:
 
         dictSymbols = {}
         listSymbols = []
+
+        logger.info(
+                f'getSymbolsDictionary(isBuffer={isBuffer})')
 
         file_path = f'{os.getcwd()}/static/symbolsDictionary.json'
 
@@ -200,7 +198,7 @@ class HandlerCurrencyCom(HandlerBase):
             
             offset_date_time = offset_date_time.replace(hour=self._getTimezoneDifference(), minute=0, second=0, microsecond=0)
 
-        logger.info(f'Closed Bar time - {offset_date_time} for Current Time - {current_datetime}, interval - {interval}')
+        # logger.info(f'Closed Bar time - {offset_date_time} for Current Time - {current_datetime}, interval - {interval}')
 
         return offset_date_time
 

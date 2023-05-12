@@ -4,7 +4,6 @@ import trading_core.responser as resp
 import trading_core.utils as utils
 
 app = Flask(__name__)
-# api = Api(app, version='1.0', title='Trading Tool API', description='Trading Tool API for getting symbols, history data, indicators, signals, simulations')
 
 scheduler = utils.JobScheduler()
 

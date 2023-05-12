@@ -26,6 +26,7 @@ class Const:
     BUY = 'Buy'
     STRONG_SELL = 'Strong Sell'
     SELL = 'Sell'
+    DEBUG_SIGNAL = 'Debug'
 
     # Direction Values
     LONG = 'LONG'
