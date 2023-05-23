@@ -114,8 +114,6 @@ def getSignalsBySimulation():
     return resp.getSignalsBySimulation(symbols, intervals, codes)
 
 # Define endpoints for creating, reading, updating, and deleting background jobs
-
-
 @app.route('/jobs', methods=['POST'])
 def create_job():
     interval = request.json.get('interval')

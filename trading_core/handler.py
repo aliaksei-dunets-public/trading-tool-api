@@ -7,6 +7,7 @@ import math
 
 from .core import logger, Symbol, HistoryData
 
+
 class HandlerBase:
     def getHistoryData(self, symbol, interval, limit, closedBar: bool = False) -> HistoryData:
         pass
@@ -20,7 +21,7 @@ class HandlerBase:
         listSymbols = []
 
         logger.info(
-                f'getSymbolsDictionary(isBuffer={isBuffer})')
+            f'getSymbolsDictionary(isBuffer={isBuffer})')
 
         file_path = f'{os.getcwd()}/static/symbolsDictionary.json'
 
@@ -52,7 +53,7 @@ class HandlerCurrencyCom(HandlerBase):
         logger.info(
             f'getHistoryData(symbol={symbol}, interval={interval}, limit={limit})')
 
-        response = self.__getKlines(
+        response = self.getKlines(
             symbol, self._mapInterval(interval), limit, closedBar)
 
         df = pd.DataFrame(response, columns=[
@@ -70,6 +71,9 @@ class HandlerCurrencyCom(HandlerBase):
         symbols = []
         tempSymbols = []
 
+        logger.info(
+            f'getSymbols(code={code}, name={name}, status={status}, type={type}, isBuffer={isBuffer})')
+
         file_path = f'{os.getcwd()}/static/symbols.json'
 
         if isBuffer and os.path.exists(file_path):
@@ -77,9 +81,6 @@ class HandlerCurrencyCom(HandlerBase):
                 tempSymbols = json.load(reader)
 
         if not tempSymbols:
-
-            logger.info(
-                f'getSymbols(code={code}, name={name}, status={status}, type={type}, isBuffer={isBuffer})')
 
             response = requests.get(
                 "https://api-adapter.backend.currency.com/api/v2/exchangeInfo")
@@ -116,11 +117,11 @@ class HandlerCurrencyCom(HandlerBase):
 
         return symbols
 
-    def __getKlines(self, symbol, interval, limit, closedBar: bool):
+    def getKlines(self, symbol, interval, limit, closedBar: bool):
         params = {"symbol": symbol, "interval": interval, "limit": limit}
 
         if closedBar:
-            params["endTime"] = self.__getCompletedUnixTimeMs(interval)
+            params["endTime"] = self.getCompletedUnixTimeMs(interval)
 
         response = requests.get(
             "https://api-adapter.backend.currency.com/api/v2/klines", params=params)
@@ -133,15 +134,16 @@ class HandlerCurrencyCom(HandlerBase):
             return json.loads(response.text)
         else:
             raise Exception(response.text)
-    
+
     def getOffsetDateTimeByInterval(self, interval, current_datetime: datetime):
 
         if not isinstance(current_datetime, datetime):
-            raise ValueError("Input parameter must be a datetime.datetime object.")
-        
+            raise ValueError(
+                "Input parameter must be a datetime.datetime object.")
+
         if interval in ['5m', '15m', '30m']:
             current_minute = current_datetime.minute
-            
+
             if interval == '5m':
                 offset_value = 5
             elif interval == '15m':
@@ -150,68 +152,76 @@ class HandlerCurrencyCom(HandlerBase):
                 offset_value = 30
 
             delta_minutes = current_minute % offset_value + offset_value
-            
-            offset_date_time = current_datetime - timedelta(minutes=delta_minutes)
-            offset_date_time = offset_date_time.replace(second=0, microsecond=0)
+
+            offset_date_time = current_datetime - \
+                timedelta(minutes=delta_minutes)
+            offset_date_time = offset_date_time.replace(
+                second=0, microsecond=0)
 
         elif interval == '1h':
 
-            compared_datetime = current_datetime.replace(minute=0, second=30, microsecond=0)
-            
+            compared_datetime = current_datetime.replace(
+                minute=0, second=30, microsecond=0)
+
             if current_datetime > compared_datetime:
                 offset_date_time = current_datetime - timedelta(hours=1)
             else:
                 offset_date_time = current_datetime
-            
-            offset_date_time = offset_date_time.replace(minute=0, second=0, microsecond=0)
+
+            offset_date_time = offset_date_time.replace(
+                minute=0, second=0, microsecond=0)
 
         elif interval == '4h':
-            
+
             offset_value = 4
-            hours_difference = self._getTimezoneDifference()
+            hours_difference = self.getTimezoneDifference()
             current_hour = current_datetime.hour - hours_difference
-            
+
             delta_hours = current_hour % offset_value + offset_value
             offset_date_time = current_datetime - timedelta(hours=delta_hours)
-            
-            offset_date_time = offset_date_time.replace(minute=0, second=0, microsecond=0)
+
+            offset_date_time = offset_date_time.replace(
+                minute=0, second=0, microsecond=0)
 
         elif interval == '1d':
 
-            compared_datetime = current_datetime.replace(hour=0, minute=0, second=30, microsecond=0)
+            compared_datetime = current_datetime.replace(
+                hour=0, minute=0, second=30, microsecond=0)
 
             if current_datetime > compared_datetime:
                 offset_date_time = current_datetime - timedelta(days=1)
             else:
                 offset_date_time = current_datetime
-            
-            offset_date_time = offset_date_time.replace(hour=self._getTimezoneDifference(), minute=0, second=0, microsecond=0)
+
+            offset_date_time = offset_date_time.replace(
+                hour=self.getTimezoneDifference(), minute=0, second=0, microsecond=0)
 
         elif interval == '1w':
 
-            compared_datetime = current_datetime.replace(hour=0, minute=0, second=30, microsecond=0)
-            
+            compared_datetime = current_datetime.replace(
+                hour=0, minute=0, second=30, microsecond=0)
+
             offset_value = 7
 
             delta_days_until_monday = current_datetime.weekday() % 7 + offset_value
-            offset_date_time = current_datetime - timedelta(days=delta_days_until_monday)
-            
-            offset_date_time = offset_date_time.replace(hour=self._getTimezoneDifference(), minute=0, second=0, microsecond=0)
+            offset_date_time = current_datetime - \
+                timedelta(days=delta_days_until_monday)
+
+            offset_date_time = offset_date_time.replace(
+                hour=self.getTimezoneDifference(), minute=0, second=0, microsecond=0)
 
         # logger.info(f'Closed Bar time - {offset_date_time} for Current Time - {current_datetime}, interval - {interval}')
 
         return offset_date_time
 
-    def __getCompletedUnixTimeMs(self, interval):
-        offset_date_time = self.getOffsetDateTimeByInterval(interval, datetime.now())
+    def getCompletedUnixTimeMs(self, interval):
+        offset_date_time = self.getOffsetDateTimeByInterval(
+            interval, datetime.now())
         return int(offset_date_time.timestamp() * 1000)
-    
-    def _getTimezoneDifference(self):
+
+    def getTimezoneDifference(self):
         local_time = datetime.now()
-        utc_time = datetime.utcnow() 
+        utc_time = datetime.utcnow()
         delta = local_time - utc_time
 
-        return math.ceil( delta.total_seconds() / 3600 )
-
-
-         
+        return math.ceil(delta.total_seconds() / 3600)

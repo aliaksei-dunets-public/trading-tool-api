@@ -48,7 +48,11 @@ def send_bot_notification(interval):
         dbStrategies = alert['strategies'] if 'strategies' in alert else None
         dbSignals = alert['signals'] if 'signals' in alert else None
         
-        oSymbol = oSymbolList.getSymbol(dbSymbolCode)
+        try:
+            oSymbol = oSymbolList.getSymbol(dbSymbolCode)
+        except Exception as SymbolError:
+            logging.error(f'Symbol code - {dbSymbolCode}: {SymbolError}')
+            continue
 
         if not oSymbol:
             continue
