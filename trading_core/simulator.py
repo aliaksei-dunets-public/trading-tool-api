@@ -12,24 +12,40 @@ logging.basicConfig(
 
 class Simulator():
 
+    def __init__(self) -> None:
+        self._buffer_signals = {}
+
     def determineSignal(self, symbol: str, interval: str, strategyCode: str, signals: list, closedBar: bool):
 
-        strategy_df = StrategyFactory(strategyCode).getStrategy(symbol, interval, closedBar=closedBar).tail(1)
+        key = (symbol, interval, strategyCode)
 
-        for index, strategy_row in strategy_df.iterrows():
-            signal_value = strategy_row[Const.SIGNAL]
-            
-            if ( not signals and signal_value ) or ( signals and ( signal_value in signals or Const.DEBUG_SIGNAL in signals ) ):
-                return {'dateTime': index.isoformat(),
-                        'symbol': symbol,
-                        'interval': interval,
-                        'strategy': strategyCode,
-                        'signal': signal_value}
-            else:
-                return None
-            
+        # Check buffer first. If key doesn't exist in the buffer -> run signal determination
+        if key not in self._buffer_signals:
+            strategy_df = StrategyFactory(strategyCode).getStrategy(
+                symbol, interval, closedBar=closedBar).tail(1)
 
-    def determineSignals(self, symbols: list = None, intervals: list = None, strategyCodes: list = None, signals: list = None, closedBar: bool=False):
+            for index, strategy_row in strategy_df.iterrows():
+                self._buffer_signals[key] = {'dateTime': index.isoformat(),
+                                             'symbol': symbol,
+                                             'interval': interval,
+                                             'strategy': strategyCode,
+                                             'signal': strategy_row[Const.SIGNAL]}
+
+        signal_result = self._buffer_signals[key]
+        signal_value = signal_result[Const.SIGNAL]
+
+        if self.isCompatibleSignal(signal_value, signals): 
+            return signal_result
+        else:
+            return None
+
+    def isCompatibleSignal(self, signalValue, signalList):
+        if (not signalList and signalValue) or (signalList and (signalValue in signalList or Const.DEBUG_SIGNAL in signalList)):
+            return True
+        else:
+            return False
+
+    def determineSignals(self, symbols: list = None, intervals: list = None, strategyCodes: list = None, signals: list = None, closedBar: bool = False):
 
         strategySignals = []
 
@@ -46,7 +62,8 @@ class Simulator():
             for interval in intervals:
                 for code in strategyCodes:
                     try:
-                        signal = self.determineSignal(symbol, interval, code, signals, closedBar)
+                        signal = self.determineSignal(
+                            symbol, interval, code, signals, closedBar)
                         if signal:
                             strategySignals.append(signal)
                         else:
@@ -81,7 +98,8 @@ class Simulator():
                 for options in optionsList:
                     if limit == 0 or limit < options.limit:
                         limit = options.limit
-                        historyData = config.getHandler().getHistoryData(symbol=symbol, interval=interval, limit=options.limit)
+                        historyData = config.getHandler().getHistoryData(
+                            symbol=symbol, interval=interval, limit=options.limit)
                     for code in strategyCodes:
                         try:
                             simulation = self.__simulateStragy(
@@ -125,25 +143,28 @@ class Simulator():
         simulations = self.getSimulations(symbols, intervals, strategyCodes)
 
         # Detect unique entries for symbol, interval, strategy from simulations
-        uniqueSignalParams = set((d['symbol'], d['interval'], d['strategy']) for d in simulations)
+        uniqueSignalParams = set(
+            (d['symbol'], d['interval'], d['strategy']) for d in simulations)
 
         for symbol, interval, strategy in uniqueSignalParams:
             try:
-                signal = self.determineSignal(symbol, interval, strategy)
+                signal = self.determineSignal(
+                    symbol, interval, strategy, None, closedBar=True)
 
                 for simulation in simulations:
                     if signal and simulation['symbol'] == symbol and simulation['interval'] == interval and simulation['strategy'] == strategy:
 
                         simulation['dateTime'] = signal['dateTime']
-                        simulation['signal'] = signal['signal'] 
+                        simulation['signal'] = signal['signal']
 
-                        simulationsWithSignal.append(simulation)       
+                        simulationsWithSignal.append(simulation)
                     else:
                         continue
             except Exception as error:
-                logging.error( f'For symbol={symbol}, interval={interval}, code={strategy} - {error}')
+                logging.error(
+                    f'For symbol={symbol}, interval={interval}, code={strategy} - {error}')
                 continue
-        
+
         return simulationsWithSignal
 
     def __simulateStragy(self, historyData: HistoryData, strategyCode, options: SimulateOptions):
@@ -165,6 +186,7 @@ class Simulator():
                 "feeRate": options.feeRate
                 # "orders": orderHandler.getOrders4Json()
                 }
+
 
 class OrderHandler:
     def __init__(self, balance, stopLossRate, takeProfitRate, feeRate):

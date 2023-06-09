@@ -20,10 +20,12 @@ database = client['ClusterShared']
 
 jobsCollection = database['jobs']
 alertsCollection = database['alerts']
+ordersCollection = database['orders']
 
 # Create new job details
 def create_job(jobId, interval):
-    result = jobsCollection.insert_one({'_id': jobId, 'interval': interval, 'isActive': True, 'created_at': datetime.utcnow()})
+    result = jobsCollection.insert_one(
+        {'_id': jobId, 'interval': interval, 'isActive': True, 'created_at': datetime.utcnow()})
     return str(result.inserted_id)
 
 # Update job details
@@ -50,12 +52,18 @@ def get_jobs():
     result = jobsCollection.find()
     return result
 
+
 def get_alerts(interval):
     result = list(alertsCollection.find({'interval': interval}))
     return result
 
+def get_orders(interval):
+    result = list(ordersCollection.find({'interval': interval}))
+    return result
+
 
 if __name__ == "__main__":
-    x = jobsCollection.insert_one(
-        {"id": "1", "symbol": "EPAM", "hour": "1,5,8"})
-    print(x)
+    pass
+    # x = jobsCollection.insert_one(
+    #     {"id": "1", "symbol": "EPAM", "hour": "1,5,8"})
+    # print(x)

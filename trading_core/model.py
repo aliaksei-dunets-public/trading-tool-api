@@ -92,7 +92,7 @@ class SymbolList:
     def getSymbol(self, code: str) -> Symbol:
         symbols = self.getSymbolsDictionary()
         if code not in symbols:
-            raise Exception('Symbol with code {code} could not be found')
+            raise Exception(f'Symbol with code {code} could not be found')
         symbol = symbols[code]
         return Symbol(code=symbol['code'], name=symbol['name'], status=symbol['status'], tradingTime=symbol['tradingTime'], type=symbol['type'])
 
