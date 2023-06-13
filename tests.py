@@ -228,7 +228,7 @@ class FlaskAPITestCase(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
 
     def test_create_delete_job(self):
-        response = self.client.post('/jobs', json={'interval': {'minutes': 5}})
+        response = self.client.post('/jobs', json={'jobType': 'JOB_TYPE_BOT', 'interval': {'minutes': 5}})
         self.assertEqual(response.status_code, 201)
         job_id = response.json['job_id']
         response = self.client.delete(f'/jobs/{job_id}')
@@ -295,8 +295,10 @@ class TestSymbolList(unittest.TestCase):
 
     def test_getSymbolCodes(self):
         # Mock the getSymbols method of the handler to return a list of symbols
-        symbols = [{"code": "BTC/USD", "name": "Bitcoin/USD",
-                    "status": "ACTIVE", "tradingTime": "24/7", "type": "CRYPTO"}]
+        symbol = {"code": "BTC/USD", "name": "Bitcoin/USD",
+                    "status": "ACTIVE", "tradingTime": "24/7", "type": "CRYPTO"}
+        symbols = [Symbol(code=symbol['code'], name=symbol['name'], status=symbol['status'],
+                          tradingTime=symbol['tradingTime'], type=symbol['type'])]
         self.config.getHandler().getSymbols = MagicMock(return_value=symbols)
 
         # Test that getSymbolCodes returns a list of symbol codes

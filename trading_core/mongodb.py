@@ -23,9 +23,9 @@ alertsCollection = database['alerts']
 ordersCollection = database['orders']
 
 # Create new job details
-def create_job(jobId, interval):
+def create_job(jobId, jobType, interval):
     result = jobsCollection.insert_one(
-        {'_id': jobId, 'interval': interval, 'isActive': True, 'created_at': datetime.utcnow()})
+        {'_id': jobId, 'jobType': jobType,'interval': interval, 'isActive': True, 'created_at': datetime.utcnow()})
     return str(result.inserted_id)
 
 # Update job details

@@ -116,8 +116,9 @@ def getSignalsBySimulation():
 # Define endpoints for creating, reading, updating, and deleting background jobs
 @app.route('/jobs', methods=['POST'])
 def create_job():
+    jobType = request.json.get('jobType')
     interval = request.json.get('interval')
-    job = scheduler.createJob(interval)
+    job = scheduler.createJob(jobType, interval)
     return jsonify({'job_id': job.id}), 201
 
 

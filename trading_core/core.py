@@ -60,6 +60,11 @@ class Const:
     IMPORTANCE_MEDIUM = 'MEDIUM'
     IMPORTANCE_HIGH = 'HIGH'
 
+    #Job types
+    JOB_TYPE_INIT = 'JOB_TYPE_INIT'
+    JOB_TYPE_BOT = 'JOB_TYPE_BOT'
+    JOB_TYPE_EMAIL = 'JOB_TYPE_EMAIL'
+
 
 class TradingTimeframe:
     def __init__(self, tradingTime: str):
@@ -154,3 +159,4 @@ class SimulateOptions:
         self.stopLossRate = stopLossRate
         self.takeProfitRate = takeProfitRate
         self.feeRate = feeRate
+

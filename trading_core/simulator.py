@@ -3,7 +3,7 @@ import os
 import json
 
 from .core import Const, HistoryData, SimulateOptions
-from .model import config, SymbolList
+from .model import config, buffer, SymbolList
 from .strategy import StrategyFactory
 
 logging.basicConfig(
@@ -12,26 +12,23 @@ logging.basicConfig(
 
 class Simulator():
 
-    def __init__(self) -> None:
-        self._buffer_signals = {}
-
     def determineSignal(self, symbol: str, interval: str, strategyCode: str, signals: list, closedBar: bool):
 
         key = (symbol, interval, strategyCode)
 
         # Check buffer first. If key doesn't exist in the buffer -> run signal determination
-        if key not in self._buffer_signals:
+        if key not in buffer.buffer_signals:
             strategy_df = StrategyFactory(strategyCode).getStrategy(
                 symbol, interval, closedBar=closedBar).tail(1)
 
             for index, strategy_row in strategy_df.iterrows():
-                self._buffer_signals[key] = {'dateTime': index.isoformat(),
+                buffer.buffer_signals[key] = {'dateTime': index.isoformat(),
                                              'symbol': symbol,
                                              'interval': interval,
                                              'strategy': strategyCode,
                                              'signal': strategy_row[Const.SIGNAL]}
 
-        signal_result = self._buffer_signals[key]
+        signal_result = buffer.buffer_signals[key]
         signal_value = signal_result[Const.SIGNAL]
 
         if self.isCompatibleSignal(signal_value, signals): 

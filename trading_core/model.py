@@ -79,9 +79,6 @@ class Config:
 
 
 class SymbolList:
-    def __init__(self):
-        self.__symbolsDictionary = {}
-
     def checkSymbol(self, code: str) -> bool:
         try:
             self.getSymbol(code)
@@ -102,12 +99,23 @@ class SymbolList:
         return symbols
 
     def getSymbolsDictionary(self, isBuffer: bool = True) -> dict:
-        if not self.__symbolsDictionary:
-            self.__symbolsDictionary = Config().getHandler().getSymbolsDictionary(isBuffer=isBuffer)
-        return self.__symbolsDictionary
+        if not buffer.buffer_symbols_dict:
+            buffer.buffer_symbols_dict = Config().getHandler().getSymbolsDictionary(isBuffer=isBuffer)
+        return buffer.buffer_symbols_dict
 
     def getSymbolCodes(self, code: str = None, name: str = None, status: str = None, type: str = None) -> list:
-        return [item['code'] for item in self.getSymbols(code, name, status, type)]
+        return [item.code for item in self.getSymbols(code, name, status, type)]
 
+class RuntimeBuffer:
+    _instance = None
+
+    def __new__(class_, *args, **kwargs):
+        if not isinstance(class_._instance, class_):
+            class_._instance = object.__new__(class_, *args, **kwargs)
+            class_.buffer_oSymbolList = SymbolList()
+            class_.buffer_symbols_dict = {}
+            class_.buffer_signals = {}
+        return class_._instance
 
 config = Config()
+buffer = RuntimeBuffer()
