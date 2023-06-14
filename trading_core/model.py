@@ -99,7 +99,7 @@ class SymbolList:
         return symbols
 
     def getSymbolsDictionary(self, isBuffer: bool = True) -> dict:
-        if not buffer.buffer_symbols_dict:
+        if not buffer.buffer_symbols_dict or isBuffer == False:
             buffer.buffer_symbols_dict = Config().getHandler().getSymbolsDictionary(isBuffer=isBuffer)
         return buffer.buffer_symbols_dict
 

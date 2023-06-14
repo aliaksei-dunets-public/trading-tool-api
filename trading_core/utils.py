@@ -84,8 +84,8 @@ class JobScheduler:
     def __generateCronTrigger(self, interval) -> CronTrigger:
         day_of_week = '*'
         hour = None
-        minute = '0'
-        second = '30'
+        minute = '2'
+        second = '60'
         jitter = 30
 
         if interval == config.TA_INTERVAL_5M:
@@ -98,17 +98,13 @@ class JobScheduler:
             minute = '*/30'
         elif interval == config.TA_INTERVAL_1H:
             hour = '*'
-            minute = '1'
         elif interval == config.TA_INTERVAL_4H:
             hour = '0,4,8,12,16,20'
-            minute = '1'
         elif interval == config.TA_INTERVAL_1D:
             hour = '8'
-            minute = '1'
         elif interval == config.TA_INTERVAL_1WK:
             day_of_week = 'mon'
             hour = '8'
-            minute = '1'
         else:
             Exception('Incorrect interval for subscription')
 
