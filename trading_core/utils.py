@@ -85,8 +85,8 @@ class JobScheduler:
         day_of_week = '*'
         hour = None
         minute = '2'
-        second = '60'
-        jitter = 30
+        second = '40'
+        jitter = 60
 
         if interval == config.TA_INTERVAL_5M:
             minute = '*/5'
