@@ -84,31 +84,32 @@ class JobScheduler:
     def __generateCronTrigger(self, interval) -> CronTrigger:
         day_of_week = '*'
         hour = None
-        minute = '2'
+        minute = '0'
         second = '40'
-        jitter = 60
 
         if interval == config.TA_INTERVAL_5M:
             minute = '*/5'
-            jitter = 5
         elif interval == config.TA_INTERVAL_15M:
             minute = '*/15'
-            jitter = 10
         elif interval == config.TA_INTERVAL_30M:
             minute = '*/30'
         elif interval == config.TA_INTERVAL_1H:
             hour = '*'
+            minute = '1'
         elif interval == config.TA_INTERVAL_4H:
             hour = '0,4,8,12,16,20'
+            minute = '1'
         elif interval == config.TA_INTERVAL_1D:
             hour = '8'
+            minute = '1'
         elif interval == config.TA_INTERVAL_1WK:
             day_of_week = 'mon'
             hour = '8'
+            minute = '1'
         else:
             Exception('Incorrect interval for subscription')
 
-        return CronTrigger(day_of_week=day_of_week, hour=hour, minute=minute, second=second, jitter=jitter, timezone='UTC')
+        return CronTrigger(day_of_week=day_of_week, hour=hour, minute=minute, second=second, timezone='UTC')
 
     def createJob(self, jobType, interval):
         if jobType == Const.JOB_TYPE_BOT:

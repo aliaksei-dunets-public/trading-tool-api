@@ -33,6 +33,14 @@ class Const:
     SHORT = 'SHORT'
 
     # Column Names
+    COLUMN_DATETIME = 'Datetime'
+    COLUMN_OPEN = 'Open'
+    COLUMN_HIGH = 'High'
+    COLUMN_LOW = 'Low'
+    COLUMN_CLOSE = 'Close'
+    COLUMN_VOLUME ='Volume'
+
+    # Parameters
     SIGNAL = 'signal'
     SYMBOL = 'symbol'
     CODE = 'code'
@@ -45,6 +53,14 @@ class Const:
     END_TIME = 'end_time'
     START_DATE = 'start_date'
     END_DATE = 'end_date'
+    LIMIT='limit'
+    CLOSED_BARS='closed_bars'
+
+    #API fields
+    SYMBOL = 'symbol'
+    INTERVAL = 'interval'
+    LIMIT = 'limit'
+    END_TIME = 'endTime'
 
     # Order Statuses
     ORDER_STATUS_OPEN = 'Open'
@@ -130,7 +146,6 @@ class Symbol:
 
     def isTradingOpen(self) -> bool:
         return TradingTimeframe(self.tradingTime).isTradingOpen()
-
 
 class HistoryData:
     def __init__(self, symbol: str, interval: str, limit: int, dataFrame):
