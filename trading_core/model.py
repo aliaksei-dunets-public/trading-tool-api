@@ -65,6 +65,13 @@ class Config:
 
         return strategies
 
+    def getStrategyConfig(self, code):
+        strategies = {"CCI_14_TREND_100": {"code": "CCI_14_TREND_100", "name": "CCI(14): Indicator value +/- 100", "length": 14, "value": 100},
+                      "CCI_20_TREND_100": {"code": "CCI_20_TREND_100", "name": "CCI(20): Indicator value +/- 100", "length": 20, "value": 100},
+                      "CCI_50_TREND_0":   {"code": "CCI_50_TREND_0",   "name": "CCI(50): Indicator value 0",       "length": 50, "value": 0}}
+
+        return strategies[code]
+
     def getStrategyCodes(self):
         return [item['code'] for item in self.getStrategies()]
 
@@ -99,12 +106,15 @@ class SymbolList:
         return symbols
 
     def getSymbolsDictionary(self, isBuffer: bool = True) -> dict:
+        buffer = RuntimeBuffer()
         if not buffer.buffer_symbols_dict or isBuffer == False:
-            buffer.buffer_symbols_dict = Config().getHandler().getSymbolsDictionary(isBuffer=isBuffer)
+            buffer.buffer_symbols_dict = Config().getHandler(
+            ).getSymbolsDictionary(isBuffer=isBuffer)
         return buffer.buffer_symbols_dict
 
     def getSymbolCodes(self, code: str = None, name: str = None, status: str = None, type: str = None) -> list:
         return [item.code for item in self.getSymbols(code, name, status, type)]
+
 
 class RuntimeBuffer:
     _instance = None
@@ -117,5 +127,5 @@ class RuntimeBuffer:
             class_.buffer_signals = {}
         return class_._instance
 
-config = Config()
 buffer = RuntimeBuffer()
+config = Config()

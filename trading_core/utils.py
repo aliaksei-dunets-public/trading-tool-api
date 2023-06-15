@@ -12,7 +12,7 @@ from email.mime.text import MIMEText
 
 import trading_core.mongodb as db
 from .core import Const
-from .model import config, buffer, SymbolList
+from .model import config, RuntimeBuffer, SymbolList
 from .simulator import Simulator
 
 logging.basicConfig(
@@ -32,12 +32,14 @@ def send_bot_notification(interval):
         f"Bot notification Job is triggered for interval - {interval}")
     NotifyTelegramBotOrders().send(interval)
     NotifyTelegramBotAlerts().send(interval)
+    RuntimeBuffer().buffer_signals.clear()
 
 
 def send_email_notification(interval):
     logging.info(
         f"Email notification Job is triggered for interval - {interval}")
     NotificationEmail().send(interval)
+    RuntimeBuffer().buffer_signals.clear()
 
 
 class JobScheduler:
@@ -162,6 +164,7 @@ class JobScheduler:
 class NotificationBase:
     def __init__(self) -> None:
         self.messages = {}
+        self.buffer = RuntimeBuffer()
 
     def send(self):
         pass
@@ -169,7 +172,7 @@ class NotificationBase:
     def getSignals(self, symbol, interval, strategies, signalCodes):
 
         try:
-            oSymbol = buffer.buffer_oSymbolList.getSymbol(symbol)
+            oSymbol = self.buffer.buffer_oSymbolList.getSymbol(symbol)
         except Exception as SymbolError:
             logging.error(SymbolError)
             return []
@@ -202,7 +205,7 @@ class NotificationEmail(NotificationBase):
         receiver_email = os.getenv("RECEIVER_EMAIL").split(';')
         subject = f'[TradingTool]: Alert signals for {interval}'
 
-        oSymbols = buffer.buffer_oSymbolList.getSymbols()
+        oSymbols = self.buffer.buffer_oSymbolList.getSymbols()
 
         for oSymbol in oSymbols:
             if interval in [config.TA_INTERVAL_1D, config.TA_INTERVAL_1WK] or config.isTradingOpen(oSymbol.tradingTime):

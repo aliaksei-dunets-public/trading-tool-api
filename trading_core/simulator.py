@@ -3,7 +3,7 @@ import os
 import json
 
 from .core import Const, HistoryData, SimulateOptions
-from .model import config, buffer, SymbolList
+from .model import config, RuntimeBuffer, SymbolList
 from .strategy import StrategyFactory
 
 logging.basicConfig(
@@ -15,6 +15,8 @@ class Simulator():
     def determineSignal(self, symbol: str, interval: str, strategyCode: str, signals: list, closedBar: bool):
 
         key = (symbol, interval, strategyCode)
+
+        buffer = RuntimeBuffer()
 
         # Check buffer first. If key doesn't exist in the buffer -> run signal determination
         if key not in buffer.buffer_signals:

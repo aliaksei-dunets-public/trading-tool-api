@@ -294,8 +294,7 @@ class CurrencyComApi(StockExchangeApiBase):
             offset_date_time = offset_date_time.replace(
                 hour=self.getTimezoneDifference(), minute=0, second=0, microsecond=0)
 
-        logger.info(
-            f'Closed Bar time - {offset_date_time} for Current Time - {original_datetime}, interval - {interval}')
+        logger.info(f'{self.getStockExchangeName()}: getOffsetDateTimeByInterval({interval}) -> Original: {original_datetime} | Closed: {offset_date_time}')
 
         return offset_date_time
 

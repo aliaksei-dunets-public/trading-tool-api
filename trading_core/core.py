@@ -153,6 +153,7 @@ class HistoryData:
         self.__interval = interval
         self.__limit = limit
         self.__dataFrame = dataFrame
+        self.__lastDateTime = self.__dataFrame.index[-1]
 
     def getSymbol(self):
         return self.__symbol
@@ -165,6 +166,9 @@ class HistoryData:
 
     def getDataFrame(self):
         return self.__dataFrame
+    
+    def getLastDateTime(self):
+        return self.__lastDateTime
 
 
 class SimulateOptions:
