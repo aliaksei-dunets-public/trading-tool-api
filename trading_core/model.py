@@ -1,119 +1,122 @@
-from .core import Const, Symbol, TradingTimeframe
-from .handler import HandlerBase, HandlerCurrencyCom
+from .core import Const, Symbol
+from .handler import HandlerBase, HandlerCurrencyCom, StockExchangeHandler
 
 
 class Config:
-    TA_INTERVAL_5M = "5m"
-    TA_INTERVAL_15M = "15m"
-    TA_INTERVAL_30M = "30m"
-    TA_INTERVAL_1H = "1h"
-    TA_INTERVAL_4H = "4h"
-    TA_INTERVAL_1D = "1d"
-    TA_INTERVAL_1WK = "1w"
-
-    INTERVALS = [{"interval": TA_INTERVAL_5M,  "name": "5 minutes", "order": 10, "importance": Const.IMPORTANCE_LOW},
-                 {"interval": TA_INTERVAL_15M, "name": "15 minutes",
-                     "order": 20, "importance": Const.IMPORTANCE_LOW},
-                 {"interval": TA_INTERVAL_30M, "name": "30 minutes",
-                     "order": 30, "importance": Const.IMPORTANCE_MEDIUM},
-                 {"interval": TA_INTERVAL_1H, "name": "1 hour",
-                     "order": 40, "importance": Const.IMPORTANCE_MEDIUM},
-                 {"interval": TA_INTERVAL_4H, "name": "4 hours",
-                     "order": 50, "importance": Const.IMPORTANCE_HIGH},
-                 {"interval": TA_INTERVAL_1D, "name": "1 day",
-                     "order": 60, "importance": Const.IMPORTANCE_HIGH},
-                 {"interval": TA_INTERVAL_1WK, "name": "1 week", "order": 70, "importance": Const.IMPORTANCE_HIGH}]
-
     _instance = None
 
     def __new__(class_, *args, **kwargs):
         if not isinstance(class_._instance, class_):
             class_._instance = object.__new__(class_, *args, **kwargs)
             class_.__handler = None
-            class_.__tradingTimeframes = {}
+            class_.__stock_exchange_handler = None
         return class_._instance
+
+    def get_stock_exchange_id(self) -> str:
+        return Const.STOCK_EXCH_CURRENCY_COM
+
+    def get_stock_exchange_handler(self) -> StockExchangeHandler:
+        if self.__stock_exchange_handler == None:
+            self.__stock_exchange_handler = StockExchangeHandler(
+                self.get_stock_exchange_id())
+        return self.__stock_exchange_handler
+
+    def is_trading_open(self, interval: str, trading_time: str) -> bool:
+        return self.__stock_exchange_handler.is_trading_open(interval, trading_time)
+
+    def get_intervals(self, importances: list = None) -> list:
+        return [x[Const.INTERVAL] for x in self.get_intervals_config(importances)]
+
+    def get_intervals_config(self, importances: list = None) -> list:
+        intervals = []
+        interval_details = self.get_stock_exchange_handler().get_intervals()
+
+        for item in interval_details:
+            if importances and item[Const.IMPORTANCE] not in importances:
+                continue
+            else:
+                intervals.append(item)
+
+        return intervals
+
+    def get_indicators(self) -> list:
+        return [{Const.CODE: Const.TA_INDICATOR_CCI, Const.NAME: "Commodity Channel Index"}]
+
+    def get_strategies_config(self):
+        strategies = {Const.TA_STRATEGY_CCI_14_TREND_100: {Const.CODE: Const.TA_STRATEGY_CCI_14_TREND_100,
+                                                           Const.NAME: "CCI(14): Indicator value +/- 100",
+                                                           Const.LENGTH: 14,
+                                                           Const.VALUE: 100},
+                      Const.TA_STRATEGY_CCI_20_TREND_100: {Const.CODE: Const.TA_STRATEGY_CCI_20_TREND_100,
+                                                           Const.NAME: "CCI(20): Indicator value +/- 100",
+                                                           Const.LENGTH: 20,
+                                                           Const.VALUE: 100},
+                      Const.TA_STRATEGY_CCI_50_TREND_0: {Const.CODE: Const.TA_STRATEGY_CCI_50_TREND_0,
+                                                         Const.NAME: "CCI(50): Indicator value 0",
+                                                         Const.LENGTH: 50,
+                                                         Const.VALUE: 0}}
+
+        return strategies
+
+    def get_strategy(self, code: str) -> dict:
+        strategies = self.get_strategies_config()
+        if code in strategies:
+            return strategies[code]
+        else:
+            None
+
+    def get_strategies(self):
+        return [{Const.CODE: item[Const.CODE], Const.NAME: item[Const.NAME]} for item in self.get_strategies_config().values()]
+
+    def get_strategy_codes(self):
+        return [item for item in self.get_strategies_config().keys()]
 
     def getHandler(self) -> HandlerBase:
         if self.__handler == None:
             self.__handler = HandlerCurrencyCom()
         return self.__handler
 
-    def getIntervals(self, importance=None):
-        return [x["interval"] for x in self.getIntervalDetails(importance)]
 
-    def getIntervalDetails(self, importance=None):
-        intervals = []
+class Symbols:
+    def __init__(self, from_buffer: bool = False):
+        self.__from_buffer = from_buffer
+        self.__symbols = {}
 
-        for x in self.INTERVALS:
-            if importance and importance != x['importance']:
+    def __get_symbols(self):
+        if not self.__symbols:
+            self.__symbols = config.get_stock_exchange_handler().getSymbols(self.__from_buffer)
+
+        return self.__symbols
+
+    def check_symbol(self, code: str) -> bool:
+        return code in self.__get_symbols()
+
+    def get_symbol(self, code: str) -> Symbol:
+        if self.check_symbol(code):
+            return self.__get_symbols()[code]
+        else:
+            return None
+
+    def get_symbols(self):
+        return self.__get_symbols()
+
+    def get_symbol_list(self, code: str, name: str, status: str, type: str) -> list[Symbol]:
+        symbols_list = []
+        symbols_dict = self.__get_symbols()
+
+        for symbol in symbols_dict.values():
+            if code and symbol.code != code:
+                continue
+            elif name and name.lower() not in symbol.name.lower():
+                continue
+            elif status and symbol.status != status:
+                continue
+            elif type and symbol.type != type:
                 continue
             else:
-                intervals.append(x)
+                symbols_list.append(symbol)
 
-        return intervals
-
-    def getIndicators(self):
-
-        return [{"code": "CCI", "name": "Commodity Channel Index"}]
-
-    def getStrategies(self):
-
-        strategies = [{"code": "CCI_14_TREND_100", "name": "CCI(14): Indicator value +/- 100"},
-                      {"code": "CCI_20_TREND_100",
-                          "name": "CCI(20): Indicator value +/- 100"},
-                      {"code": "CCI_50_TREND_0", "name": "CCI(50): Indicator value 0"}]
-
-        return strategies
-
-    def getStrategyConfig(self, code):
-        strategies = {"CCI_14_TREND_100": {"code": "CCI_14_TREND_100", "name": "CCI(14): Indicator value +/- 100", "length": 14, "value": 100},
-                      "CCI_20_TREND_100": {"code": "CCI_20_TREND_100", "name": "CCI(20): Indicator value +/- 100", "length": 20, "value": 100},
-                      "CCI_50_TREND_0":   {"code": "CCI_50_TREND_0",   "name": "CCI(50): Indicator value 0",       "length": 50, "value": 0}}
-
-        return strategies[code]
-
-    def getStrategyCodes(self):
-        return [item['code'] for item in self.getStrategies()]
-
-    def isTradingOpen(self, tradingTime: str) -> bool:
-        if not tradingTime in self.__tradingTimeframes:
-            self.__tradingTimeframes[tradingTime] = TradingTimeframe(
-                tradingTime)
-
-        oTimeframe = self.__tradingTimeframes[tradingTime]
-
-        return oTimeframe.isTradingOpen()
-
-
-class SymbolList:
-    def checkSymbol(self, code: str) -> bool:
-        try:
-            self.getSymbol(code)
-            return True
-        except:
-            return False
-
-    def getSymbol(self, code: str) -> Symbol:
-        symbols = self.getSymbolsDictionary()
-        if code not in symbols:
-            raise Exception(f'Symbol with code {code} could not be found')
-        symbol = symbols[code]
-        return Symbol(code=symbol['code'], name=symbol['name'], status=symbol['status'], tradingTime=symbol['tradingTime'], type=symbol['type'])
-
-    def getSymbols(self, code: str = None, name: str = None, status: str = None, type: str = None, isBuffer: bool = True) -> list:
-        symbols = Config().getHandler().getSymbols(
-            code=code, name=name, status=status, type=type, isBuffer=isBuffer)
-        return symbols
-
-    def getSymbolsDictionary(self, isBuffer: bool = True) -> dict:
-        buffer = RuntimeBuffer()
-        if not buffer.buffer_symbols_dict or isBuffer == False:
-            buffer.buffer_symbols_dict = Config().getHandler(
-            ).getSymbolsDictionary(isBuffer=isBuffer)
-        return buffer.buffer_symbols_dict
-
-    def getSymbolCodes(self, code: str = None, name: str = None, status: str = None, type: str = None) -> list:
-        return [item.code for item in self.getSymbols(code, name, status, type)]
+        return symbols_list
 
 
 class RuntimeBuffer:
@@ -122,10 +125,12 @@ class RuntimeBuffer:
     def __new__(class_, *args, **kwargs):
         if not isinstance(class_._instance, class_):
             class_._instance = object.__new__(class_, *args, **kwargs)
-            class_.buffer_oSymbolList = SymbolList()
             class_.buffer_symbols_dict = {}
             class_.buffer_signals = {}
         return class_._instance
 
+
 buffer = RuntimeBuffer()
+
+
 config = Config()

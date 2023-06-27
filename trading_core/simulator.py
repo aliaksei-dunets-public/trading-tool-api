@@ -3,7 +3,7 @@ import os
 import json
 
 from .core import Const, HistoryData, SimulateOptions
-from .model import config, RuntimeBuffer, SymbolList
+from .model import config, RuntimeBuffer
 from .strategy import StrategyFactory
 
 logging.basicConfig(
@@ -20,20 +20,20 @@ class Simulator():
 
         # Check buffer first. If key doesn't exist in the buffer -> run signal determination
         if key not in buffer.buffer_signals:
-            strategy_df = StrategyFactory(strategyCode).getStrategy(
+            strategy_df = StrategyFactory(strategyCode).get_strategy_data(
                 symbol, interval, closedBar=closedBar).tail(1)
 
             for index, strategy_row in strategy_df.iterrows():
                 buffer.buffer_signals[key] = {'dateTime': index.isoformat(),
-                                             'symbol': symbol,
-                                             'interval': interval,
-                                             'strategy': strategyCode,
-                                             'signal': strategy_row[Const.SIGNAL]}
+                                              'symbol': symbol,
+                                              'interval': interval,
+                                              'strategy': strategyCode,
+                                              'signal': strategy_row[Const.SIGNAL]}
 
         signal_result = buffer.buffer_signals[key]
         signal_value = signal_result[Const.SIGNAL]
 
-        if self.isCompatibleSignal(signal_value, signals): 
+        if self.isCompatibleSignal(signal_value, signals):
             return signal_result
         else:
             return None
@@ -48,14 +48,11 @@ class Simulator():
 
         strategySignals = []
 
-        # if not symbols:
-        #     symbols = SymbolList().getSymbolCodes()
-
         if not intervals:
-            intervals = config.getIntervals()
+            intervals = config.get_intervals()
 
         if not strategyCodes:
-            strategyCodes = config.getStrategyCodes()
+            strategyCodes = config.get_strategy_codes()
 
         for symbol in symbols:
             for interval in intervals:
@@ -78,14 +75,11 @@ class Simulator():
 
         simulations = []
 
-        # if not symbols:
-        #     symbols = SymbolList().getSymbolCodes()
-
         if not intervals:
-            intervals = config.getIntervals()
+            intervals = config.get_intervals()
 
         if not strategyCodes:
-            strategyCodes = config.getStrategyCodes()
+            strategyCodes = config.get_strategy_codes()
 
         if not optionsList:
             optionsList = [SimulateOptions(
@@ -171,7 +165,7 @@ class Simulator():
         orderHandler = OrderHandler(
             options.balance, options.stopLossRate, options.takeProfitRate, options.feeRate)
 
-        for interval in StrategyFactory(strategyCode).getStrategyByHistoryData(historyData).itertuples():
+        for interval in StrategyFactory(strategyCode).get_strategy_by_history_data(historyData).itertuples():
             orderHandler.processInterval(interval)
 
         return {"symbol": historyData.getSymbol(),

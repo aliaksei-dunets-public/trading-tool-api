@@ -1,7 +1,8 @@
 import os
+import pandas as pd
 from datetime import datetime
 import logging
-from logging.handlers import TimedRotatingFileHandler
+# from logging.handlers import TimedRotatingFileHandler
 
 # Set up logging
 log_file_prefix = f"{os.getcwd()}/static/logs/"
@@ -20,7 +21,25 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger("trading_core")
 # logger.info(f"Log file created at {datetime.now()}")
 
+
 class Const:
+    # Intervals
+    TA_INTERVAL_5M = "5m"
+    TA_INTERVAL_15M = "15m"
+    TA_INTERVAL_30M = "30m"
+    TA_INTERVAL_1H = "1h"
+    TA_INTERVAL_4H = "4h"
+    TA_INTERVAL_1D = "1d"
+    TA_INTERVAL_1WK = "1w"
+
+    # Indicators
+    TA_INDICATOR_CCI = "CCI"
+
+    # Strategies
+    TA_STRATEGY_CCI_14_TREND_100 = "CCI_14_TREND_100"
+    TA_STRATEGY_CCI_20_TREND_100 = "CCI_20_TREND_100"
+    TA_STRATEGY_CCI_50_TREND_0 = "CCI_50_TREND_0"
+
     # Signal Values
     STRONG_BUY = 'Strong Buy'
     BUY = 'Buy'
@@ -38,13 +57,14 @@ class Const:
     COLUMN_HIGH = 'High'
     COLUMN_LOW = 'Low'
     COLUMN_CLOSE = 'Close'
-    COLUMN_VOLUME ='Volume'
+    COLUMN_VOLUME = 'Volume'
 
     # Parameters
     SIGNAL = 'signal'
     SYMBOL = 'symbol'
     CODE = 'code'
     INTERVAL = 'interval'
+    LIMIT = 'limit'
     STRATEGY = 'strategy'
     NAME = 'name'
     DESCR = 'descr'
@@ -53,13 +73,12 @@ class Const:
     END_TIME = 'end_time'
     START_DATE = 'start_date'
     END_DATE = 'end_date'
-    LIMIT='limit'
-    CLOSED_BARS='closed_bars'
+    CLOSED_BARS = 'closed_bars'
+    IMPORTANCE = 'importance'
+    LENGTH = "length"
+    VALUE = "value"
 
-    #API fields
-    SYMBOL = 'symbol'
-    INTERVAL = 'interval'
-    LIMIT = 'limit'
+    # API fields
     END_TIME = 'endTime'
 
     # Order Statuses
@@ -71,68 +90,18 @@ class Const:
     ORDER_CLOSE_REASON_TAKE_PROFIT = 'Take Profit'
     ORDER_CLOSE_REASON_SIGNAL = 'Signal'
 
-    #Importance
+    # Importance
     IMPORTANCE_LOW = 'LOW'
     IMPORTANCE_MEDIUM = 'MEDIUM'
     IMPORTANCE_HIGH = 'HIGH'
 
-    #Job types
+    # Job types
     JOB_TYPE_INIT = 'JOB_TYPE_INIT'
     JOB_TYPE_BOT = 'JOB_TYPE_BOT'
     JOB_TYPE_EMAIL = 'JOB_TYPE_EMAIL'
 
-
-class TradingTimeframe:
-    def __init__(self, tradingTime: str):
-        self.__tradingTime = tradingTime
-        self.__time_frames = {}
-        self.__decodeTimeframe()
-
-    def isTradingOpen(self) -> bool:
-        # Get current time in UTC
-        current_datetime_utc = datetime.utcnow()
-        # Get name of a day in lower case
-        current_day = current_datetime_utc.strftime('%a').lower()
-        current_time = current_datetime_utc.time()
-
-        # Check if today matches the day in the timeframes
-        if current_day in self.__time_frames:
-            time_frames = self.__time_frames[current_day]
-            for time_frame in time_frames:
-                if time_frame[Const.START_TIME].time() <= current_time and current_time <= time_frame[Const.END_TIME].time():
-                    return True
-
-        return False
-
-    def __decodeTimeframe(self):
-
-        # Split the Trading Time string into individual entries
-        time_entries = self.__tradingTime.split('; ')
-
-        # Loop through each time entry and check if the current time aligns
-        for entry in time_entries[1:]:
-            time_frames = []
-
-            # Split the time entry into day and time ranges
-            day, time_ranges = entry.split(' ', 1)
-
-            # Split the time ranges into time period
-            time_periods = time_ranges.split(',')
-
-            for time_period in time_periods:
-                # Split the time period into start and end times
-                start_time, end_time = time_period.split('-')
-                start_time = '00:00' if start_time == '' else start_time
-                start_time = datetime.strptime(start_time.strip(), '%H:%M')
-
-                end_time = end_time.strip()
-                end_time = '23:59' if end_time in ['', '00:00'] else end_time
-                end_time = datetime.strptime(end_time, '%H:%M')
-
-                time_frames.append({Const.START_TIME: start_time,
-                                    Const.END_TIME: end_time})
-
-            self.__time_frames[day.lower()] = time_frames
+    # Stock Exchanges
+    STOCK_EXCH_CURRENCY_COM = 'CURRENCY.COM'
 
 
 class Symbol:
@@ -144,16 +113,14 @@ class Symbol:
         self.tradingTime = tradingTime
         self.type = type
 
-    def isTradingOpen(self) -> bool:
-        return TradingTimeframe(self.tradingTime).isTradingOpen()
 
 class HistoryData:
-    def __init__(self, symbol: str, interval: str, limit: int, dataFrame):
+    def __init__(self, symbol: str, interval: str, limit: int, dataFrame: pd.DataFrame):
         self.__symbol = symbol
         self.__interval = interval
-        self.__limit = limit
+        self.__limit = int(limit)
         self.__dataFrame = dataFrame
-        self.__lastDateTime = self.__dataFrame.index[-1]
+        self.__endDateTime = self.__dataFrame.index[-1]
 
     def getSymbol(self):
         return self.__symbol
@@ -161,14 +128,14 @@ class HistoryData:
     def getInterval(self):
         return self.__interval
 
-    def getLimit(self):
+    def getLimit(self) -> int:
         return self.__limit
 
     def getDataFrame(self):
         return self.__dataFrame
-    
-    def getLastDateTime(self):
-        return self.__lastDateTime
+
+    def getEndDateTime(self):
+        return self.__endDateTime
 
 
 class SimulateOptions:
@@ -179,3 +146,101 @@ class SimulateOptions:
         self.takeProfitRate = takeProfitRate
         self.feeRate = feeRate
 
+
+class RuntimeBufferStore():
+    _instance = None
+
+    def __new__(class_, *args, **kwargs):
+        if not isinstance(class_._instance, class_):
+            class_._instance = object.__new__(class_, *args, **kwargs)
+            class_.__history_data_buffer = {}
+            class_.__symbol_buffer = {}
+            class_.__timeframe_buffer = {}
+        return class_._instance
+
+    def getHistoryDataFromBuffer(self, symbol: str, interval: str, limit: int, endDatetime: datetime) -> HistoryData:
+        buffer_key = self.getHistoryDataBufferKey(
+            symbol=symbol, interval=interval)
+        history_data_buffer = self.__history_data_buffer[buffer_key]
+        df_buffer = history_data_buffer.getDataFrame()
+
+        df_required = df_buffer[df_buffer.index <= endDatetime]
+
+        if limit > len(df_required):
+            return None
+
+        df_required = df_required.tail(limit)
+
+        history_data_required = HistoryData(
+            symbol=symbol, interval=interval, limit=limit, dataFrame=df_required)
+
+        return history_data_required
+
+    def validateHistoryDataInBuffer(self, symbol: str, interval: str, limit: int, endDatetime: datetime) -> bool:
+        buffer_key = self.getHistoryDataBufferKey(
+            symbol=symbol, interval=interval)
+        if self.checkHistoryDataInBuffer(symbol, interval):
+            history_data_buffer = self.__history_data_buffer[buffer_key]
+            if limit <= history_data_buffer.getLimit() and endDatetime <= history_data_buffer.getEndDateTime():
+                return True
+            else:
+                return False
+        else:
+            return False
+
+    def checkHistoryDataInBuffer(self, symbol: str, interval: str) -> bool:
+        buffer_key = self.getHistoryDataBufferKey(
+            symbol=symbol, interval=interval)
+        if buffer_key in self.__history_data_buffer:
+            return True
+        else:
+            return False
+
+    def setHistoryDataToBuffer(self, history_data_inst: HistoryData):
+        if history_data_inst:
+            buffer_key = self.getHistoryDataBufferKey(
+                symbol=history_data_inst.getSymbol(), interval=history_data_inst.getInterval())
+            self.__history_data_buffer[buffer_key] = history_data_inst
+
+    def getHistoryDataBufferKey(self, symbol: str, interval: str) -> tuple:
+        if not symbol or not interval:
+            Exception(
+                f'History Data buffer key is invalid: symbol: {symbol}, interval: {interval}')
+        buffer_key = (symbol, interval)
+        return buffer_key
+
+    def clearHistoryDataBuffer(self):
+        self.__history_data_buffer = {}
+
+    def getSymbolsFromBuffer(self) -> dict[Symbol]:
+        return self.__symbol_buffer
+
+    def checkSymbolsInBuffer(self) -> bool:
+        if self.__symbol_buffer:
+            return True
+        else:
+            return False
+
+    def setSymbolsToBuffer(self, symbols: dict[Symbol]):
+        self.__symbol_buffer = symbols
+
+    def clearSymbolsBuffer(self):
+        self.__symbol_buffer = {}
+
+    def checkTimeframeInBuffer(self, trading_time: str):
+        return trading_time in self.__timeframe_buffer
+
+    def getTimeFrameFromBuffer(self, trading_time: str) -> dict:
+        if self.checkTimeframeInBuffer(trading_time):
+            return self.__timeframe_buffer[trading_time]
+        else:
+            None
+
+    def setTimeFrameToBuffer(self, trading_time: str, timeframe: dict):
+        self.__timeframe_buffer[trading_time] = timeframe
+
+    def clearTimeframeBuffer(self):
+        self.__timeframe_buffer = {}
+
+
+runtime_buffer = RuntimeBufferStore()

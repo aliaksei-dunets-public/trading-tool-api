@@ -9,6 +9,7 @@ import os
 import logging
 
 import trading_core.mongodb as db
+from trading_core.core import Const
 from trading_core.model import config
 from trading_core.simulator import Simulator
 
@@ -101,24 +102,24 @@ class JobScheduler:
 
         day_of_week = 'mon-fri'
 
-        if interval == config.TA_INTERVAL_5M:
+        if interval == Const.TA_INTERVAL_5M:
             minute = '*/5'
             second = '30'
-        elif interval == config.TA_INTERVAL_15M:
+        elif interval == Const.TA_INTERVAL_15M:
             minute = '*/15'
             second = '30'
-        elif interval == config.TA_INTERVAL_30M:
+        elif interval == Const.TA_INTERVAL_30M:
             minute = '*/30'
             second = '59'
-        elif interval == config.TA_INTERVAL_1H:
+        elif interval == Const.TA_INTERVAL_1H:
             hour = '*'
             minute = '1'
-        elif interval == config.TA_INTERVAL_4H:
+        elif interval == Const.TA_INTERVAL_4H:
             hour = '0,4,8,12,16,20'
             minute = '2'
-        elif interval == config.TA_INTERVAL_1D:
+        elif interval == Const.TA_INTERVAL_1D:
             hour = '10'
-        elif interval == config.TA_INTERVAL_1WK:
+        elif interval == Const.TA_INTERVAL_1WK:
             day_of_week = 'mon'
             hour = '10'
         else:

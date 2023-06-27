@@ -1,11 +1,16 @@
 from flask import Flask, jsonify, request
 
+from trading_core.core import Const
 import trading_core.responser as resp
 import trading_core.utils as utils
+
+from trading_core.responser import ResponserWeb
 
 app = Flask(__name__)
 
 scheduler = utils.JobScheduler()
+responser = ResponserWeb()
+
 
 @app.route("/")
 def index():
@@ -13,62 +18,53 @@ def index():
 
 
 @app.route('/intervals', methods=['GET'])
-def getIntervals():
-    importance = request.args.get('importance')
-
-    return resp.getIntervals(importance)
+def get_intervals():
+    importances = request.args.getlist(Const.IMPORTANCE, None)
+    return responser.get_intervals(importances=importances)
 
 
 @app.route('/symbols', methods=['GET'])
-def getSymbols():
+def get_symbols():
     code = request.args.get('code')
     name = request.args.get('name')
     status = request.args.get('status')
     type = request.args.get('type')
-    isBuffer = request.args.get('isBuffer')
-    isBuffer = True if isBuffer == None else isBuffer
+    from_buffer = responser.get_param_bool(request.args.get('from_buffer', 'false'))
 
-    return resp.getSymbols(code=code, name=name, status=status, type=type, isBuffer=isBuffer)
+    return responser.get_symbol_list(code=code, name=name, status=status, type=type, from_buffer=from_buffer)
 
 
 @app.route('/indicators', methods=['GET'])
-def getIndicators():
-    return resp.getIndicators()
+def get_indicators():
+    return responser.get_indicators()
 
 
 @app.route('/strategies', methods=['GET'])
-def getStrategies():
-    return resp.getStrategies()
+def get_strategies():
+    return responser.get_strategies()
 
 
 @app.route('/historyData', methods=['GET'])
-def getHistoryData():
-    symbol = request.args.get('symbol')
-    interval = request.args.get('interval')
-    limit = request.args.get('limit')
-
-    return resp.getHistoryData(symbol=symbol, interval=interval, limit=limit)
-
-
-@app.route('/indicatorData', methods=['GET'])
-def getIndicatorData():
-    code = request.args.get('code')
-    length = int(request.args.get('length'))
+def get_history_data():
     symbol = request.args.get('symbol')
     interval = request.args.get('interval')
     limit = int(request.args.get('limit'))
+    from_buffer = responser.get_param_bool(request.args.get('from_buffer', 'false'))
+    closed_bars = responser.get_param_bool(request.args.get('closed_bars', 'false'))
 
-    return resp.getIndicatorData(code=code, length=length, symbol=symbol, interval=interval, limit=limit)
+    return responser.get_history_data(symbol=symbol, interval=interval, limit=limit, from_buffer=from_buffer, closed_bars=closed_bars)
 
 
 @app.route('/strategyData', methods=['GET'])
-def getStrategyData():
+def get_strategy_data():
     code = request.args.get('code')
     symbol = request.args.get('symbol')
     interval = request.args.get('interval')
     limit = int(request.args.get('limit'))
+    from_buffer = responser.get_param_bool(request.args.get('from_buffer', 'false'))
+    closed_bars = responser.get_param_bool(request.args.get('closed_bars', 'false'))
 
-    return resp.getStrategyData(code=code, symbol=symbol, interval=interval, limit=limit)
+    return responser.get_strategy_data(code=code, symbol=symbol, interval=interval, limit=limit, from_buffer=from_buffer, closed_bars=closed_bars)
 
 
 @app.route('/signals', methods=['GET'])
@@ -114,6 +110,8 @@ def getSignalsBySimulation():
     return resp.getSignalsBySimulation(symbols, intervals, codes)
 
 # Define endpoints for creating, reading, updating, and deleting background jobs
+
+
 @app.route('/jobs', methods=['POST'])
 def create_job():
     jobType = request.json.get('jobType')
@@ -159,6 +157,7 @@ def delete_job(job_id):
         return jsonify({'message': 'Job deleted'}), 200
     else:
         return jsonify({'error': 'Job not found'}), 404
+
 
 @app.route("/logs")
 def get_logs():

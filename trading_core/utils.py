@@ -12,7 +12,7 @@ from email.mime.text import MIMEText
 
 import trading_core.mongodb as db
 from .core import Const
-from .model import config, RuntimeBuffer, SymbolList
+from .model import config, Symbols, RuntimeBuffer
 from .simulator import Simulator
 
 logging.basicConfig(
@@ -22,9 +22,8 @@ load_dotenv()
 
 
 def initialise_master_data():
-    logging.info(f"Init master data Job is triggered")
-    oSymbol = SymbolList()
-    oSymbol.getSymbolsDictionary(isBuffer=False)
+    logging.info(f"JOB: Refresh runtime buffer")
+    config.get_stock_exchange_handler().refresh_runtime_buffer()
 
 
 def send_bot_notification(interval):
@@ -52,6 +51,7 @@ class JobScheduler:
         return class_._instance
 
     def init(self) -> None:
+
         self.__scheduler = BackgroundScheduler()
         self.__scheduler.start()
         self.__localJobs = {}
@@ -89,22 +89,22 @@ class JobScheduler:
         minute = '0'
         second = '40'
 
-        if interval == config.TA_INTERVAL_5M:
+        if interval == Const.TA_INTERVAL_5M:
             minute = '*/5'
-        elif interval == config.TA_INTERVAL_15M:
+        elif interval == Const.TA_INTERVAL_15M:
             minute = '*/15'
-        elif interval == config.TA_INTERVAL_30M:
+        elif interval == Const.TA_INTERVAL_30M:
             minute = '*/30'
-        elif interval == config.TA_INTERVAL_1H:
+        elif interval == Const.TA_INTERVAL_1H:
             hour = '*'
             minute = '1'
-        elif interval == config.TA_INTERVAL_4H:
+        elif interval == Const.TA_INTERVAL_4H:
             hour = '0,4,8,12,16,20'
             minute = '1'
-        elif interval == config.TA_INTERVAL_1D:
+        elif interval == Const.TA_INTERVAL_1D:
             hour = '8'
             minute = '1'
-        elif interval == config.TA_INTERVAL_1WK:
+        elif interval == Const.TA_INTERVAL_1WK:
             day_of_week = 'mon'
             hour = '8'
             minute = '1'
@@ -172,7 +172,7 @@ class NotificationBase:
     def getSignals(self, symbol, interval, strategies, signalCodes):
 
         try:
-            oSymbol = self.buffer.buffer_oSymbolList.getSymbol(symbol)
+            oSymbol = Symbols(from_buffer=True).get_symbol(symbol)
         except Exception as SymbolError:
             logging.error(SymbolError)
             return []
@@ -180,7 +180,7 @@ class NotificationBase:
         if not oSymbol:
             return []
 
-        if interval not in [config.TA_INTERVAL_1D, config.TA_INTERVAL_1WK] and not config.isTradingOpen(oSymbol.tradingTime):
+        if not config.is_trading_open(interval, oSymbol.tradingTime):
             return []
 
         signals = Simulator().determineSignals(
@@ -192,7 +192,7 @@ class NotificationBase:
 class NotificationEmail(NotificationBase):
     def send(self, interval):
 
-        if interval not in [config.TA_INTERVAL_4H, config.TA_INTERVAL_1D, config.TA_INTERVAL_1WK]:
+        if interval not in [Const.TA_INTERVAL_4H, Const.TA_INTERVAL_1D, Const.TA_INTERVAL_1WK]:
             return
 
         logging.info(
@@ -205,10 +205,10 @@ class NotificationEmail(NotificationBase):
         receiver_email = os.getenv("RECEIVER_EMAIL").split(';')
         subject = f'[TradingTool]: Alert signals for {interval}'
 
-        oSymbols = self.buffer.buffer_oSymbolList.getSymbols()
+        oSymbols = Symbols(from_buffer=True).get_symbol_list()
 
         for oSymbol in oSymbols:
-            if interval in [config.TA_INTERVAL_1D, config.TA_INTERVAL_1WK] or config.isTradingOpen(oSymbol.tradingTime):
+            if config.is_trading_open(interval, oSymbol.tradingTime):
                 symbolsCode.append(oSymbol.code)
 
         signals = Simulator().determineSignals(symbols=symbolsCode, intervals=[
