@@ -29,7 +29,8 @@ def get_symbols():
     name = request.args.get('name')
     status = request.args.get('status')
     type = request.args.get('type')
-    from_buffer = responser.get_param_bool(request.args.get('from_buffer', 'false'))
+    from_buffer = responser.get_param_bool(
+        request.args.get('from_buffer', 'false'))
 
     return responser.get_symbol_list(code=code, name=name, status=status, type=type, from_buffer=from_buffer)
 
@@ -49,8 +50,10 @@ def get_history_data():
     symbol = request.args.get('symbol')
     interval = request.args.get('interval')
     limit = int(request.args.get('limit'))
-    from_buffer = responser.get_param_bool(request.args.get('from_buffer', 'false'))
-    closed_bars = responser.get_param_bool(request.args.get('closed_bars', 'false'))
+    from_buffer = responser.get_param_bool(
+        request.args.get('from_buffer', 'false'))
+    closed_bars = responser.get_param_bool(
+        request.args.get('closed_bars', 'false'))
 
     return responser.get_history_data(symbol=symbol, interval=interval, limit=limit, from_buffer=from_buffer, closed_bars=closed_bars)
 
@@ -61,23 +64,24 @@ def get_strategy_data():
     symbol = request.args.get('symbol')
     interval = request.args.get('interval')
     limit = int(request.args.get('limit'))
-    from_buffer = responser.get_param_bool(request.args.get('from_buffer', 'false'))
-    closed_bars = responser.get_param_bool(request.args.get('closed_bars', 'false'))
+    from_buffer = responser.get_param_bool(
+        request.args.get('from_buffer', 'false'))
+    closed_bars = responser.get_param_bool(
+        request.args.get('closed_bars', 'false'))
 
     return responser.get_strategy_data(code=code, symbol=symbol, interval=interval, limit=limit, from_buffer=from_buffer, closed_bars=closed_bars)
 
 
 @app.route('/signals', methods=['GET'])
-def getSignals():
+def get_signals():
     symbols = request.args.getlist('symbol', None)
     intervals = request.args.getlist('interval', None)
-    codes = request.args.getlist('code', None)
-    closedBar = bool(request.args.get('closedBar', '').lower() == 'true')
+    strategies = request.args.getlist('strategy', None)
+    signals_config = request.args.getlist('signal', None)
+    closed_bars = responser.get_param_bool(
+        request.args.get('closed_bars', 'false'))
 
-    if symbols == []:
-        return jsonify({"error": "Symbol is missed", }), 500
-
-    return resp.getSignals(symbols, intervals, codes, closedBar)
+    return responser.get_signals(symbols=symbols, intervals=intervals, strategies=strategies, signals_config=signals_config, closed_bars=closed_bars)
 
 
 @app.route('/simulate', methods=['GET'])

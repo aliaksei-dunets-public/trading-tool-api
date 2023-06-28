@@ -6,11 +6,11 @@ import json
 import os
 from flask import Flask, jsonify, request
 
-from trading_core.core import Symbol, HistoryData, Const, SimulateOptions, RuntimeBufferStore
-from trading_core.model import config, Symbols
+from trading_core.core import config, Symbol, HistoryData, Const, SimulateOptions, Signal, RuntimeBufferStore
+from trading_core.model import model, Symbols
 from trading_core.handler import CurrencyComApi, StockExchangeHandler
 from trading_core.indicator import IndicatorBase, Indicator_CCI
-from trading_core.strategy import StrategyConfig, StrategyFactory, Strategy_CCI
+from trading_core.strategy import StrategyConfig, StrategyFactory, Strategy_CCI, SignalFactory
 
 from app import app
 
@@ -24,7 +24,7 @@ def getHistoryDataTest(symbol, interval, limit, from_buffer, closed_bars):
         mock_response = testHistoryData
         mock_getKlines.return_value = mock_response
 
-        history_data = config.get_stock_exchange_handler().getHistoryData(
+        history_data = model.get_handler().getHistoryData(
             symbol, interval, limit, from_buffer, closed_bars)
         return history_data
 
@@ -68,6 +68,47 @@ class ConstTestCase(unittest.TestCase):
         self.assertEqual(Const.TA_INTERVAL_4H, '4h')
         self.assertEqual(Const.TA_INTERVAL_1D, '1d')
         self.assertEqual(Const.TA_INTERVAL_1WK, '1w')
+
+
+class TestConfig(unittest.TestCase):
+
+    def test_get_config_value(self):
+        self.assertEqual(config.get_config_value(Const.CONFIG_DEBUG_LOG), False)
+        self.assertIsNone(config.get_config_value('Test'))
+
+    def test_get_stock_exchange_id(self):
+        self.assertEqual(config.get_stock_exchange_id(),
+                         Const.STOCK_EXCH_CURRENCY_COM)
+
+    def test_get_indicators_config(self):
+        expected_result = [
+            {Const.CODE: Const.TA_INDICATOR_CCI, Const.NAME: "Commodity Channel Index"}]
+        result = config.get_indicators_config()
+        self.assertEqual(result, expected_result)
+
+    def test_get_strategies_config(self):
+        expected_result = {
+            Const.TA_STRATEGY_CCI_14_TREND_100: {
+                Const.CODE: Const.TA_STRATEGY_CCI_14_TREND_100,
+                Const.NAME: "CCI(14): Indicator value +/- 100",
+                Const.LENGTH: 14,
+                Const.VALUE: 100
+            },
+            Const.TA_STRATEGY_CCI_20_TREND_100: {
+                Const.CODE: Const.TA_STRATEGY_CCI_20_TREND_100,
+                Const.NAME: "CCI(20): Indicator value +/- 100",
+                Const.LENGTH: 20,
+                Const.VALUE: 100
+            },
+            Const.TA_STRATEGY_CCI_50_TREND_0: {
+                Const.CODE: Const.TA_STRATEGY_CCI_50_TREND_0,
+                Const.NAME: "CCI(50): Indicator value 0",
+                Const.LENGTH: 50,
+                Const.VALUE: 0
+            }
+        }
+        result = config.get_strategies_config()
+        self.assertEqual(result, expected_result)
 
 
 class SymbolTestCase(unittest.TestCase):
@@ -130,31 +171,83 @@ class SimulateOptionsTestCase(unittest.TestCase):
         self.assertEqual(simulate_options.feeRate, self.feeRate)
 
 
-class TestConfig(unittest.TestCase):
+class SignalTests(unittest.TestCase):
 
-    def test_get_stock_exchange_handler_returns_handler(self):
-        handler = config.get_stock_exchange_handler()
+    def setUp(self):
+        date_time = datetime(2023, 6, 1, 12, 0, 0)
+        symbol = 'BTC/USD'
+        interval = '1h'
+        strategy = 'CCI_14_TREND_100'
+        signal = 'BUY'
+        self.signal = Signal(date_time, symbol, interval, strategy, signal)
+
+    def test_get_signal(self):
+        expected_signal = {
+            Const.DATETIME: '2023-06-01T12:00:00',
+            Const.SYMBOL: 'BTC/USD',
+            Const.INTERVAL: '1h',
+            Const.STRATEGY: 'CCI_14_TREND_100',
+            Const.SIGNAL: 'BUY'
+        }
+        self.assertEqual(self.signal.get_signal_dict(), expected_signal)
+
+    def test_get_date_time(self):
+        expected_date_time = datetime(2023, 6, 1, 12, 0, 0)
+        self.assertEqual(self.signal.get_date_time(), expected_date_time)
+
+    def test_get_symbol(self):
+        expected_symbol = 'BTC/USD'
+        self.assertEqual(self.signal.get_symbol(), expected_symbol)
+
+    def test_get_interval(self):
+        expected_interval = '1h'
+        self.assertEqual(self.signal.get_interval(), expected_interval)
+
+    def test_get_strategy(self):
+        expected_strategy = 'CCI_14_TREND_100'
+        self.assertEqual(self.signal.get_strategy(), expected_strategy)
+
+    def test_is_compatible_debug_signal(self):
+        signals_config = [Const.DEBUG_SIGNAL]
+        self.assertTrue(self.signal.is_compatible(signals_config))
+
+    def test_is_compatible_no_signals_config(self):
+        self.assertTrue(self.signal.is_compatible())
+
+    def test_is_compatible_matching_signal(self):
+        signals_config = ['BUY']
+        self.assertTrue(self.signal.is_compatible(signals_config))
+
+    def test_is_compatible_non_matching_signal(self):
+        signals_config = ['SELL']
+        self.assertFalse(self.signal.is_compatible(signals_config))
+
+
+class TestModel(unittest.TestCase):
+
+    def test_get_handler_returns_handler(self):
+        handler = model.get_handler()
         self.assertIsInstance(handler, StockExchangeHandler)
         self.assertEqual(config.get_stock_exchange_id(),
                          handler.getStockExchangeName())
 
     def test_getIntervals_returns_list_of_intervals(self):
-        intervals = config.get_intervals()
+        intervals = model.get_intervals()
         expected_intervals = ['5m', '15m', '30m', '1h', '4h', '1d', '1w']
         self.assertEqual(intervals, expected_intervals)
 
     def test_get_intervals(self):
-        self.assertEqual(config.get_intervals(), [
-                         "5m", "15m", "30m", "1h", "4h", "1d", "1w"])
-        self.assertEqual(config.get_intervals(
+        self.assertEqual(model.get_intervals(), [
+            "5m", "15m", "30m", "1h", "4h", "1d", "1w"])
+        self.assertEqual(model.get_intervals(
             importances=['LOW']), ["5m", "15m"])
-        self.assertEqual(config.get_intervals(
+        self.assertEqual(model.get_intervals(
             importances=['MEDIUM']), ["30m", "1h"])
-        self.assertEqual(config.get_intervals(
+        self.assertEqual(model.get_intervals(
             importances=['HIGH']), ["4h", "1d", "1w"])
 
     def test_get_interval_details(self):
-        intervals = config.get_intervals_config()
+        intervals = model.get_intervals_config()
         self.assertEqual(len(intervals), 7)
         self.assertEqual(intervals[0]["interval"], "5m")
         self.assertEqual(intervals[0]["name"], "5 minutes")
@@ -166,67 +259,45 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(intervals[1]["importance"], "LOW")
 
     def test_is_trading_open_true_cases(self):
+        handler = model.get_handler()
         trading_time = 'UTC; Mon 00:01 - 23:59; Tue 00:01 - 23:59; Wed 00:01 - 23:59; Thu 00:01 - 23:59; Fri 00:01 - 23:59'
-        self.assertTrue(config.is_trading_open(
+        self.assertTrue(handler.is_trading_open(
             interval=Const.TA_INTERVAL_5M, trading_time=trading_time))
-        self.assertTrue(config.is_trading_open(
+        self.assertTrue(handler.is_trading_open(
             interval=Const.TA_INTERVAL_15M, trading_time=trading_time))
-        self.assertTrue(config.is_trading_open(
+        self.assertTrue(handler.is_trading_open(
             interval=Const.TA_INTERVAL_30M, trading_time=trading_time))
-        self.assertTrue(config.is_trading_open(
+        self.assertTrue(handler.is_trading_open(
             interval=Const.TA_INTERVAL_1H, trading_time=trading_time))
-        self.assertTrue(config.is_trading_open(
+        self.assertTrue(handler.is_trading_open(
             interval=Const.TA_INTERVAL_4H, trading_time=trading_time))
-        self.assertTrue(config.is_trading_open(
+        self.assertTrue(handler.is_trading_open(
             interval=Const.TA_INTERVAL_1D, trading_time=trading_time))
-        self.assertTrue(config.is_trading_open(
+        self.assertTrue(handler.is_trading_open(
             interval=Const.TA_INTERVAL_1WK, trading_time=trading_time))
 
     def test_is_trading_open_false_cases(self):
+        handler = model.get_handler()
         trading_time = 'UTC; Sun 03:01 - 03:02'
-        self.assertFalse(config.is_trading_open(
+        self.assertFalse(handler.is_trading_open(
             interval=Const.TA_INTERVAL_5M, trading_time=trading_time))
-        self.assertFalse(config.is_trading_open(
+        self.assertFalse(handler.is_trading_open(
             interval=Const.TA_INTERVAL_15M, trading_time=trading_time))
-        self.assertFalse(config.is_trading_open(
+        self.assertFalse(handler.is_trading_open(
             interval=Const.TA_INTERVAL_30M, trading_time=trading_time))
-        self.assertFalse(config.is_trading_open(
+        self.assertFalse(handler.is_trading_open(
             interval=Const.TA_INTERVAL_1H, trading_time=trading_time))
-        self.assertFalse(config.is_trading_open(
+        self.assertFalse(handler.is_trading_open(
             interval=Const.TA_INTERVAL_4H, trading_time=trading_time))
-        self.assertFalse(config.is_trading_open(
+        self.assertFalse(handler.is_trading_open(
             interval=Const.TA_INTERVAL_1D, trading_time=trading_time))
-        self.assertTrue(config.is_trading_open(
+        self.assertTrue(handler.is_trading_open(
             interval=Const.TA_INTERVAL_1WK, trading_time=trading_time))
 
     def test_get_indicators(self):
         expected_result = [
             {Const.CODE: Const.TA_INDICATOR_CCI, Const.NAME: "Commodity Channel Index"}]
-        result = config.get_indicators()
-        self.assertEqual(result, expected_result)
-
-    def test_get_strategies_config(self):
-        expected_result = {
-            Const.TA_STRATEGY_CCI_14_TREND_100: {
-                Const.CODE: Const.TA_STRATEGY_CCI_14_TREND_100,
-                Const.NAME: "CCI(14): Indicator value +/- 100",
-                Const.LENGTH: 14,
-                Const.VALUE: 100
-            },
-            Const.TA_STRATEGY_CCI_20_TREND_100: {
-                Const.CODE: Const.TA_STRATEGY_CCI_20_TREND_100,
-                Const.NAME: "CCI(20): Indicator value +/- 100",
-                Const.LENGTH: 20,
-                Const.VALUE: 100
-            },
-            Const.TA_STRATEGY_CCI_50_TREND_0: {
-                Const.CODE: Const.TA_STRATEGY_CCI_50_TREND_0,
-                Const.NAME: "CCI(50): Indicator value 0",
-                Const.LENGTH: 50,
-                Const.VALUE: 0
-            }
-        }
-        result = config.get_strategies_config()
+        result = model.get_indicators_config()
         self.assertEqual(result, expected_result)
 
     def test_get_strategy(self):
@@ -237,7 +308,7 @@ class TestConfig(unittest.TestCase):
             Const.VALUE: 100
         }
 
-        result = config.get_strategy(Const.TA_STRATEGY_CCI_14_TREND_100)
+        result = model.get_strategy(Const.TA_STRATEGY_CCI_14_TREND_100)
 
         self.assertEqual(expected_result, result)
 
@@ -250,7 +321,7 @@ class TestConfig(unittest.TestCase):
             {Const.CODE: Const.TA_STRATEGY_CCI_50_TREND_0,
                 Const.NAME: "CCI(50): Indicator value 0"}
         ]
-        result = config.get_strategies()
+        result = model.get_strategies()
         self.assertEqual(result, expected_result)
 
     def test_get_strategy_codes(self):
@@ -259,8 +330,41 @@ class TestConfig(unittest.TestCase):
             Const.TA_STRATEGY_CCI_20_TREND_100,
             Const.TA_STRATEGY_CCI_50_TREND_0
         ]
-        result = config.get_strategy_codes()
+        result = model.get_strategy_codes()
         self.assertEqual(result, expected_result)
+
+    def test_get_sorted_strategy_codes_with_default_arguments(self):
+        expected_result = [
+            Const.TA_STRATEGY_CCI_50_TREND_0,
+            Const.TA_STRATEGY_CCI_20_TREND_100,
+            Const.TA_STRATEGY_CCI_14_TREND_100
+        ]
+        self.assertEqual(
+            model.get_sorted_strategy_codes(), expected_result)
+
+    def test_get_sorted_strategy_codes_with_custom_strategies(self):
+        strategies = [
+            Const.TA_STRATEGY_CCI_14_TREND_100,
+            Const.TA_STRATEGY_CCI_50_TREND_0
+        ]
+        expected_result = [
+            Const.TA_STRATEGY_CCI_50_TREND_0,
+            Const.TA_STRATEGY_CCI_14_TREND_100
+        ]
+        self.assertEqual(model.get_sorted_strategy_codes(
+            strategies), expected_result)
+
+    def test_get_sorted_strategy_codes_with_custom_strategies_and_ascending_order(self):
+        strategies = [
+            Const.TA_STRATEGY_CCI_14_TREND_100,
+            Const.TA_STRATEGY_CCI_50_TREND_0
+        ]
+        expected_result = [
+            Const.TA_STRATEGY_CCI_14_TREND_100,
+            Const.TA_STRATEGY_CCI_50_TREND_0
+        ]
+        self.assertEqual(model.get_sorted_strategy_codes(
+            strategies, desc=False), expected_result)
 
 
 class CurrencyComApiTest(unittest.TestCase):
@@ -301,7 +405,8 @@ class CurrencyComApiTest(unittest.TestCase):
         self.assertEqual(history_data_closed_bar.getLimit(), limit)
         self.assertEqual(len(history_data_closed_bar.getDataFrame()), limit)
 
-        self.assertEqual(history_data.getDataFrame().index[limit-2], history_data_closed_bar.getDataFrame().index[limit-1])
+        self.assertEqual(history_data.getDataFrame(
+        ).index[limit-2], history_data_closed_bar.getDataFrame().index[limit-1])
 
     @patch('trading_core.handler.requests.get')
     def test_getHistoryData_success(self, mock_get):
@@ -847,11 +952,37 @@ class RuntimeBufferStoreTests(unittest.TestCase):
             self.buffer_store.getTimeFrameFromBuffer(trading_time))
         self.buffer_store.clearTimeframeBuffer()
 
+    def test_signal_functionality(self):
+        date_time = datetime(2023, 6, 1, 12, 0, 0)
+        symbol = 'BTC/USD'
+        interval = '1h'
+        strategy = 'CCI_14_TREND_100'
+        signal = 'BUY'
+        self.signal = Signal(date_time, symbol, interval, strategy, signal)
+
+        buffer_key = (symbol, interval, strategy)
+
+        self.assertEqual(buffer_key, self.buffer_store.get_signal_buffer_key(
+            symbol=symbol, interval=interval, strategy=strategy))
+
+        self.buffer_store.clear_signal_buffer()
+        self.assertFalse(self.buffer_store.check_signal_in_buffer(
+            symbol=symbol, interval=interval, strategy=strategy))
+        self.assertIsNone(self.buffer_store.get_signal_from_buffer(
+            symbol=symbol, interval=interval, strategy=strategy, date_time=date_time))
+
+        self.buffer_store.set_signal_to_buffer(self.signal)
+        self.assertTrue(self.buffer_store.check_signal_in_buffer(
+            symbol=symbol, interval=interval, strategy=strategy))
+        self.assertIsNotNone(self.buffer_store.get_signal_from_buffer(
+            symbol=symbol, interval=interval, strategy=strategy, date_time=date_time))
+        self.buffer_store.clearTimeframeBuffer()
+
 
 class StockExchangeHandlerTests(unittest.TestCase):
     def setUp(self):
         # Initialize the StockExchangeHandler instance with a mock runtime_buffer and API implementation
-        self.handler = StockExchangeHandler(Const.STOCK_EXCH_CURRENCY_COM)
+        self.handler = StockExchangeHandler()
         self.buffer = RuntimeBufferStore()
 
     def test_getStockExchangeName_returnsCorrectName(self):
@@ -874,7 +1005,7 @@ class StockExchangeHandlerTests(unittest.TestCase):
         end_datetime = self.handler.getEndDatetime(
             interval=interval, closed_bars=closed_bars)
 
-        self.buffer.clearSymbolsBuffer()
+        self.buffer.clearHistoryDataBuffer()
 
         is_buffer = self.buffer.checkHistoryDataInBuffer(
             symbol=symbol, interval=interval)
@@ -946,6 +1077,7 @@ class StockExchangeHandlerTests(unittest.TestCase):
         # Arrange
         from_buffer = True
 
+        self.buffer.clearSymbolsBuffer()
         self.assertFalse(self.buffer.checkSymbolsInBuffer())
 
         # Act
@@ -972,14 +1104,7 @@ class StockExchangeHandlerTests(unittest.TestCase):
         # Assert the symbols returned from the API
 
     def test_getIntervals_returnsCorrectIntervals(self):
-        # Arrange
-
-        # Mock the API call to return intervals
-
-        # Act
         result = self.handler.get_intervals()
-
-        # Assert
         self.assertIsNotNone(result)
 
     def test_is_trading_open_true_cases(self):
@@ -1086,10 +1211,10 @@ class TestIndicatorBase(unittest.TestCase):
         self.symbol = 'BABA'
         self.interval = '1h'
         self.limit = 50
-        self.config = config
+        self.model = model
         self.from_buffer = True
         self.closed_bars = False
-        self.handler = self.config.get_stock_exchange_handler()
+        self.handler = self.model.get_handler()
         self.indicator = IndicatorBase()
 
     def test_getCode(self):
@@ -1131,7 +1256,6 @@ class TestIndicatorCCI(unittest.TestCase):
         self.symbol = 'BABA'
         self.interval = '1h'
         self.limit = 50
-        self.config = config
         self.from_buffer = True
         self.closed_bars = False
 
@@ -1178,9 +1302,9 @@ class TestIndicatorCCI(unittest.TestCase):
 class StrategyConfigTests(unittest.TestCase):
 
     def setUp(self):
-        self.config = config
+        self.model = model
         self.strategy_code = Const.TA_STRATEGY_CCI_14_TREND_100
-        self.strategy_config = self.config.get_strategy(self.strategy_code)
+        self.strategy_config = self.model.get_strategy(self.strategy_code)
         self.strategy = StrategyConfig(self.strategy_code)
 
     def test_init(self):
@@ -1261,6 +1385,96 @@ class StrategyFactoryTests(unittest.TestCase):
         self.assertEqual(strategy_data.tail(1).iloc[0, 6], '')
         self.assertEqual(strategy_data.tail(8).iloc[0, 6], Const.STRONG_SELL)
         self.assertEqual(strategy_data.tail(11).iloc[0, 6], Const.BUY)
+
+
+class SignalFactoryTests(unittest.TestCase):
+
+    def setUp(self):
+        self.signal_factory = SignalFactory()
+        self.runtime_buffer = RuntimeBufferStore()
+
+    def tearDown(self):
+        pass
+
+    def test_get_signal_with_buffer(self):
+        symbol = 'BTC/USD'
+        interval = '1h'
+        strategy_14 = 'CCI_14_TREND_100'
+        strategy_20 = 'CCI_20_TREND_100'
+        signals_config = []
+        closed_bars = False
+
+        # Add a signals to the buffer
+        date_time = model.get_handler().getEndDatetime(
+            interval=interval, closed_bars=closed_bars)
+        self.runtime_buffer.set_signal_to_buffer(
+            Signal(date_time, symbol, interval, strategy_14, Const.BUY))
+        self.runtime_buffer.set_signal_to_buffer(
+            Signal(date_time, symbol, interval, strategy_20, ''))
+
+        # Check signal with signals_config
+        signal_inst = self.signal_factory.get_signal(
+            symbol, interval, strategy_14, signals_config, closed_bars)
+
+        self.assertIsInstance(signal_inst, Signal)
+        self.assertEqual(signal_inst.get_date_time(), date_time)
+        self.assertEqual(signal_inst.get_symbol(), 'BTC/USD')
+        self.assertEqual(signal_inst.get_interval(), '1h')
+        self.assertEqual(signal_inst.get_strategy(), 'CCI_14_TREND_100')
+        self.assertEqual(signal_inst.get_signal(), Const.BUY)
+
+        # Get None because the signal is empty
+        signal_inst_20 = self.signal_factory.get_signal(
+            symbol, interval, strategy_20, [Const.BUY], closed_bars)
+
+        self.assertIsNone(signal_inst_20)
+
+    def test_get_signal_without_buffer(self):
+        symbol = 'BTC/USD'
+        interval = '1h'
+        strategy = 'CCI_14_TREND_100'
+        signals_config = [Const.DEBUG_SIGNAL]
+        closed_bars = True
+
+        # Remove any existing signals from the buffer
+        self.runtime_buffer.clear_signal_buffer()
+
+        date_time = model.get_handler().getEndDatetime(
+            interval=interval, closed_bars=closed_bars)
+
+        signal_inst = self.signal_factory.get_signal(
+            symbol, interval, strategy, signals_config, closed_bars)
+
+        self.assertIsNotNone(signal_inst)
+        self.assertEqual(signal_inst.get_date_time(), date_time)
+        self.assertEqual(signal_inst.get_symbol(), 'BTC/USD')
+        self.assertEqual(signal_inst.get_interval(), '1h')
+        self.assertEqual(signal_inst.get_strategy(), 'CCI_14_TREND_100')
+
+    def test_get_signals(self):
+        symbols = ['AAPL', 'GOOGL']
+        intervals = [Const.TA_INTERVAL_1H, Const.TA_INTERVAL_4H]
+        strategies = [Const.TA_STRATEGY_CCI_14_TREND_100,
+                      Const.TA_STRATEGY_CCI_20_TREND_100]
+        signals_config = [Const.DEBUG_SIGNAL]
+        closed_bars = False
+
+        date_time_1h = model.get_handler().getEndDatetime(
+            interval=Const.TA_INTERVAL_1H, closed_bars=closed_bars)
+
+        date_time_4h = model.get_handler().getEndDatetime(
+            interval=Const.TA_INTERVAL_4H, closed_bars=closed_bars)
+
+        signals_list = self.signal_factory.get_signals(
+            symbols, intervals, strategies, signals_config, closed_bars)
+
+        self.assertEqual(len(signals_list), 8)
+
+        for signal_inst in signals_list:
+            if signal_inst.get_interval() == Const.TA_INTERVAL_1H:
+                self.assertEqual(signal_inst.get_date_time(), date_time_1h)
+            elif signal_inst.get_interval() == Const.TA_INTERVAL_4H:
+                self.assertEqual(signal_inst.get_date_time(), date_time_4h)
 
 
 class FlaskAPITestCase(unittest.TestCase):
@@ -1370,7 +1584,7 @@ class FlaskAPITestCase(unittest.TestCase):
         json_api_response = json.loads(response.text)['data']
         latest_bar = json_api_response[-1]
 
-        end_datetime = config.get_stock_exchange_handler().getEndDatetime(interval)
+        end_datetime = model.get_handler().getEndDatetime(interval)
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(datetime.fromisoformat(
@@ -1381,17 +1595,52 @@ class FlaskAPITestCase(unittest.TestCase):
         interval = '4h'
         limit = 20
         # /strategyData?code=CCI_20_TREND_100&symbol=BTC/USD&interval=4h&limit=20&closed_bars=true&from_buffer=true
-        response = self.client.get(f'/strategyData?code=CCI_20_TREND_100&symbol=BTC/USD&interval={interval}&limit={limit}&closed_bars=true&from_buffer=true')
+        response = self.client.get(
+            f'/strategyData?code=CCI_20_TREND_100&symbol=BTC/USD&interval={interval}&limit={limit}&closed_bars=true&from_buffer=true')
 
         json_api_response = json.loads(response.text)['data']
         latest_bar = json_api_response[-1]
 
-        end_datetime = config.get_stock_exchange_handler().getEndDatetime(interval=interval, closed_bars=True)
+        end_datetime = model.get_handler(
+        ).getEndDatetime(interval=interval, closed_bars=True)
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(datetime.fromisoformat(
             latest_bar["Datetime"][:-1]), end_datetime)
         self.assertEqual(len(json_api_response), 3)
+
+    def test_get_signals(self):
+        symbol = 'BTC/USD'
+        strategy = 'CCI_20_TREND_100'
+        interval_1h = Const.TA_INTERVAL_1H
+        interval_4h = Const.TA_INTERVAL_4H
+        closed_bars = True
+
+        # /signals?symbol=BTC/USD&interval=4h&interval=1h&strategy=CCI_20_TREND_100&signal=Debug&closed_bars=true
+        response = self.client.get(
+            f'/signals?symbol={symbol}&interval={interval_1h}&interval={interval_4h}&strategy={strategy}&signal=Debug&closed_bars={closed_bars}')
+
+        json_api_response = json.loads(response.text)
+        latest_bar = json_api_response[-1]
+
+        end_datetime_1h = model.get_handler().getEndDatetime(
+            interval=interval_1h, closed_bars=closed_bars)
+        end_datetime_4h = model.get_handler().getEndDatetime(
+            interval=interval_4h, closed_bars=closed_bars)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(json_api_response), 2)
+        self.assertEqual(
+            json_api_response[0][Const.DATETIME], end_datetime_1h.isoformat())
+        self.assertEqual(json_api_response[0][Const.SYMBOL], symbol)
+        self.assertEqual(json_api_response[0][Const.INTERVAL], interval_1h)
+        self.assertEqual(json_api_response[0][Const.STRATEGY], strategy)
+
+        self.assertEqual(
+            json_api_response[1][Const.DATETIME], end_datetime_4h.isoformat())
+        self.assertEqual(json_api_response[1][Const.SYMBOL], symbol)
+        self.assertEqual(json_api_response[1][Const.INTERVAL], interval_4h)
+        self.assertEqual(json_api_response[1][Const.STRATEGY], strategy)
 
 
 if __name__ == '__main__':

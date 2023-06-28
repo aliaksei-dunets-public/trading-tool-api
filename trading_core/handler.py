@@ -5,7 +5,7 @@ import pandas as pd
 import os
 import math
 
-from .core import logger, Const, Symbol, HistoryData, RuntimeBufferStore
+from .core import logger, config, Const, Symbol, HistoryData, RuntimeBufferStore
 
 
 class StockExchangeApiBase:
@@ -140,7 +140,8 @@ class CurrencyComApi(StockExchangeApiBase):
 
         # If closed_bars indicator is True -> calculated endTime for the API
         if closed_bars:
-            url_params[Const.END_TIME] = self.getOffseUnixTimeMsByInterval(interval_api)
+            url_params[Const.END_TIME] = self.getOffseUnixTimeMsByInterval(
+                interval_api)
             url_params[Const.LIMIT] = url_params[Const.LIMIT] + 1
 
         logger.info(
@@ -333,8 +334,10 @@ class CurrencyComApi(StockExchangeApiBase):
 
         other_attributes = ", ".join(
             f'{key}={value}' for key, value in kwargs.items())
-        logger.info(
-            f'getEndDatetime(interval:{interval}, {other_attributes}) -> Original: {original_datetime} | Closed: {offset_date_time}')
+
+        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+            logger.info(
+                f'getEndDatetime(interval:{interval}, {other_attributes}) -> Original: {original_datetime} | Closed: {offset_date_time}')
 
         return offset_date_time
 
@@ -469,9 +472,15 @@ class CurrencyComApi(StockExchangeApiBase):
 
 
 class StockExchangeHandler():
-    def __init__(self, stock_exchange_id: str):
+    def __init__(self):
         self.__buffer_inst = RuntimeBufferStore()
         self.__api_inst = None
+
+        stock_exchange_id = config.get_stock_exchange_id()
+
+        if not stock_exchange_id:
+            raise Exception(
+                f'Stock Exchange is not configured')
 
         if stock_exchange_id == Const.STOCK_EXCH_CURRENCY_COM:
             self.__api_inst = CurrencyComApi()

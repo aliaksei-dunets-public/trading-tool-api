@@ -11,8 +11,8 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 import trading_core.mongodb as db
-from .core import Const
-from .model import config, Symbols, RuntimeBuffer
+from .core import config, Const
+from .model import model, Symbols, RuntimeBuffer
 from .simulator import Simulator
 
 logging.basicConfig(
@@ -23,7 +23,7 @@ load_dotenv()
 
 def initialise_master_data():
     logging.info(f"JOB: Refresh runtime buffer")
-    config.get_stock_exchange_handler().refresh_runtime_buffer()
+    model.get_handler().refresh_runtime_buffer()
 
 
 def send_bot_notification(interval):
@@ -180,7 +180,7 @@ class NotificationBase:
         if not oSymbol:
             return []
 
-        if not config.is_trading_open(interval, oSymbol.tradingTime):
+        if not model.get_handler().is_trading_open(interval, oSymbol.tradingTime):
             return []
 
         signals = Simulator().determineSignals(
@@ -208,7 +208,7 @@ class NotificationEmail(NotificationBase):
         oSymbols = Symbols(from_buffer=True).get_symbol_list()
 
         for oSymbol in oSymbols:
-            if config.is_trading_open(interval, oSymbol.tradingTime):
+            if model.get_handler().is_trading_open(interval, oSymbol.tradingTime):
                 symbolsCode.append(oSymbol.code)
 
         signals = Simulator().determineSignals(symbols=symbolsCode, intervals=[

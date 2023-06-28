@@ -1,35 +1,27 @@
-from .core import Const, Symbol
-from .handler import HandlerBase, HandlerCurrencyCom, StockExchangeHandler
+from .core import config, Const, Symbol
+from .handler import StockExchangeHandler
 
 
-class Config:
+class Model:
     _instance = None
 
     def __new__(class_, *args, **kwargs):
         if not isinstance(class_._instance, class_):
             class_._instance = object.__new__(class_, *args, **kwargs)
             class_.__handler = None
-            class_.__stock_exchange_handler = None
         return class_._instance
 
-    def get_stock_exchange_id(self) -> str:
-        return Const.STOCK_EXCH_CURRENCY_COM
-
-    def get_stock_exchange_handler(self) -> StockExchangeHandler:
-        if self.__stock_exchange_handler == None:
-            self.__stock_exchange_handler = StockExchangeHandler(
-                self.get_stock_exchange_id())
-        return self.__stock_exchange_handler
-
-    def is_trading_open(self, interval: str, trading_time: str) -> bool:
-        return self.__stock_exchange_handler.is_trading_open(interval, trading_time)
+    def get_handler(self) -> StockExchangeHandler:
+        if self.__handler == None:
+            self.__handler = StockExchangeHandler()
+        return self.__handler
 
     def get_intervals(self, importances: list = None) -> list:
         return [x[Const.INTERVAL] for x in self.get_intervals_config(importances)]
 
     def get_intervals_config(self, importances: list = None) -> list:
         intervals = []
-        interval_details = self.get_stock_exchange_handler().get_intervals()
+        interval_details = self.get_handler().get_intervals()
 
         for item in interval_details:
             if importances and item[Const.IMPORTANCE] not in importances:
@@ -39,24 +31,11 @@ class Config:
 
         return intervals
 
-    def get_indicators(self) -> list:
-        return [{Const.CODE: Const.TA_INDICATOR_CCI, Const.NAME: "Commodity Channel Index"}]
+    def get_indicators_config(self) -> list:
+        return config.get_indicators_config()
 
     def get_strategies_config(self):
-        strategies = {Const.TA_STRATEGY_CCI_14_TREND_100: {Const.CODE: Const.TA_STRATEGY_CCI_14_TREND_100,
-                                                           Const.NAME: "CCI(14): Indicator value +/- 100",
-                                                           Const.LENGTH: 14,
-                                                           Const.VALUE: 100},
-                      Const.TA_STRATEGY_CCI_20_TREND_100: {Const.CODE: Const.TA_STRATEGY_CCI_20_TREND_100,
-                                                           Const.NAME: "CCI(20): Indicator value +/- 100",
-                                                           Const.LENGTH: 20,
-                                                           Const.VALUE: 100},
-                      Const.TA_STRATEGY_CCI_50_TREND_0: {Const.CODE: Const.TA_STRATEGY_CCI_50_TREND_0,
-                                                         Const.NAME: "CCI(50): Indicator value 0",
-                                                         Const.LENGTH: 50,
-                                                         Const.VALUE: 0}}
-
-        return strategies
+        return config.get_strategies_config()
 
     def get_strategy(self, code: str) -> dict:
         strategies = self.get_strategies_config()
@@ -71,10 +50,24 @@ class Config:
     def get_strategy_codes(self):
         return [item for item in self.get_strategies_config().keys()]
 
-    def getHandler(self) -> HandlerBase:
-        if self.__handler == None:
-            self.__handler = HandlerCurrencyCom()
-        return self.__handler
+    def get_sorted_strategy_codes(self, strategies: list = None, desc: bool = True) -> list:
+        strategies_config = []
+
+        if not strategies:
+            for strategy in self.get_strategies_config().values():
+                strategies_config.append(strategy)
+        else:
+            for code in strategies:
+                strategies_config.append(self.get_strategy(code))
+
+        if desc:
+            sorted_strategies = sorted(
+                strategies_config, key=lambda x: -x[Const.LENGTH])
+        else:
+            sorted_strategies = sorted(
+                strategies_config, key=lambda x: x[Const.LENGTH])
+
+        return [item[Const.CODE] for item in sorted_strategies]
 
 
 class Symbols:
@@ -84,7 +77,7 @@ class Symbols:
 
     def __get_symbols(self):
         if not self.__symbols:
-            self.__symbols = config.get_stock_exchange_handler().getSymbols(self.__from_buffer)
+            self.__symbols = model.get_handler().getSymbols(self.__from_buffer)
 
         return self.__symbols
 
@@ -130,7 +123,5 @@ class RuntimeBuffer:
         return class_._instance
 
 
+model = Model()
 buffer = RuntimeBuffer()
-
-
-config = Config()

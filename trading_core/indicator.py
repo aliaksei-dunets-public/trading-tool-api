@@ -1,8 +1,8 @@
 import pandas_ta as ta
 import pandas as pd
 
-from .core import logger, Const, HistoryData
-from .model import config
+from .core import logger, config, Const, HistoryData
+from .model import model
 
 
 class IndicatorBase():
@@ -35,10 +35,11 @@ class IndicatorBase():
         Returns:
         HistoryData: The historical data for the symbol, interval, and time period.
         """
-        logger.info(
-            f'INDICATOR - {self._code}: get_indicator(symbol={symbol}, interval={interval}, limit={limit}, from_buffer={from_buffer}, closed_bars={closed_bars})')
+        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+            logger.info(
+                f'INDICATOR - {self._code}: get_indicator(symbol={symbol}, interval={interval}, limit={limit}, from_buffer={from_buffer}, closed_bars={closed_bars})')
 
-        return config.get_stock_exchange_handler().getHistoryData(symbol=symbol, interval=interval, limit=limit, from_buffer=from_buffer, closed_bars=closed_bars)
+        return model.get_handler().getHistoryData(symbol=symbol, interval=interval, limit=limit, from_buffer=from_buffer, closed_bars=closed_bars)
 
     def get_indicator_by_history_data(self, history_data_inst: HistoryData) -> pd.DataFrame:
         """
@@ -50,8 +51,9 @@ class IndicatorBase():
         Returns:
         DataFrame: A pandas DataFrame containing the indicator data.
         """
-        logger.info(
-            f'INDICATOR - {self._code}: get_indicator_by_history_data(symbol={history_data_inst.getSymbol()}, interval={history_data_inst.getInterval()}, limit={history_data_inst.getLimit()}, endDatetime={history_data_inst.getEndDateTime()})')
+        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+            logger.info(
+                f'INDICATOR - {self._code}: get_indicator_by_history_data(symbol={history_data_inst.getSymbol()}, interval={history_data_inst.getInterval()}, limit={history_data_inst.getLimit()}, endDatetime={history_data_inst.getEndDateTime()})')
 
         return history_data_inst.getDataFrame()
 

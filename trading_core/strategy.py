@@ -1,7 +1,8 @@
 import pandas as pd
+from datetime import datetime
 
-from .core import logger, Const, HistoryData
-from .model import config
+from .core import logger, config, runtime_buffer, Const, HistoryData, Signal
+from .model import model
 from .indicator import Indicator_CCI
 
 
@@ -17,21 +18,28 @@ class StrategyFactory():
         else:
             raise Exception(f'Strategy with code {code} is missed')
 
-    def get_strategy_data(self, symbol: str, interval: str, limit: int, from_buffer: bool, closed_bars: bool):
-        logger.info(
-            f'STRATEGY - {self.__instance.get_strategy_config().get_code()}: get_strategy_data(symbol={symbol}, interval={interval}, limit={limit}, from_buffer={from_buffer}, closed_bars={closed_bars})')
+    def get_strategy_data(self, symbol: str, interval: str, limit: int = 0, from_buffer: bool = True, closed_bars: bool = True):
+        strategy_data = self.__instance.get_strategy_data(symbol=symbol,
+                                                          interval=interval,
+                                                          limit=limit,
+                                                          from_buffer=from_buffer,
+                                                          closed_bars=closed_bars)
 
-        return self.__instance.get_strategy_data(symbol=symbol,
-                                                 interval=interval,
-                                                 limit=limit,
-                                                 from_buffer=from_buffer,
-                                                 closed_bars=closed_bars)
+        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+            logger.info(
+                f'STRATEGY - {self.__instance.get_strategy_config().get_code()}: get_strategy_data(symbol={symbol}, interval={interval}, limit={limit}, from_buffer={from_buffer}, closed_bars={closed_bars})')
+
+        return strategy_data
 
     def get_strategy_data_by_history_data(self, historyData: HistoryData):
-        logger.info(
-            f'STRATEGY - {self.__instance.get_strategy_config().get_code()}: get_strategy_data_by_history_data(symbol={historyData.getSymbol()}, interval={historyData.getInterval()}, limit={historyData.getLimit()}, endDatetime={historyData.getEndDateTime()})')
+        strategy_data = self.__instance.get_strategy_data_by_history_data(
+            historyData)
 
-        return self.__instance.get_strategy_data_by_history_data(historyData)
+        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+            logger.info(
+                f'STRATEGY - {self.__instance.get_strategy_config().get_code()}: get_strategy_data_by_history_data(symbol={historyData.getSymbol()}, interval={historyData.getInterval()}, limit={historyData.getLimit()}, endDatetime={historyData.getEndDateTime()})')
+
+        return strategy_data
 
 
 class StrategyConfig():
@@ -39,7 +47,7 @@ class StrategyConfig():
         if not code:
             raise Exception(f'Strategy code is missed')
 
-        self._strategy_config = config.get_strategy(code)
+        self._strategy_config = model.get_strategy(code)
 
         if not self._strategy_config:
             raise Exception(f'Strategy Config with code {code} is missed')
@@ -91,11 +99,11 @@ class Strategy_CCI(StrategyBase):
     def get_strategy_data(self, symbol: str, interval: str, limit: int, from_buffer: bool, closed_bars: bool):
         default_limit = self._cci.get_length() + 2
         limit = limit if limit > default_limit else default_limit
-        history_data = config.get_stock_exchange_handler().getHistoryData(symbol=symbol,
-                                                                          interval=interval,
-                                                                          limit=limit,
-                                                                          from_buffer=from_buffer,
-                                                                          closed_bars=closed_bars)
+        history_data = model.get_handler().getHistoryData(symbol=symbol,
+                                                          interval=interval,
+                                                          limit=limit,
+                                                          from_buffer=from_buffer,
+                                                          closed_bars=closed_bars)
 
         return self.get_strategy_data_by_history_data(history_data)
 
@@ -140,5 +148,75 @@ class Strategy_CCI(StrategyBase):
                         decision = Const.STRONG_BUY
 
             signals.append(decision)
+
+        return signals
+
+
+class SignalFactory():
+    def get_signal(self, symbol: str, interval: str, strategy: str, signals_config: list, closed_bars: bool) -> Signal:
+
+        # Get DateTime of the Strategy
+        end_date_time = model.get_handler().getEndDatetime(
+            interval=interval, closed_bars=closed_bars)
+
+        # Get signal from the buffer
+        signal_inst = runtime_buffer.get_signal_from_buffer(
+            symbol=symbol, interval=interval, strategy=strategy, date_time=end_date_time)
+
+        # Check if buffer contains corresponding signal
+        if signal_inst:
+            if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+                logger.info(
+                    f'BUFFER: get_signal(symbol={symbol}, interval={interval}, strategy={strategy}, signals_config={signals_config}, closed_bars={closed_bars})')
+        else:
+
+            # Calculate signal from the API
+            # Get the latest bar from the Strategy Factory
+            strategy_df = StrategyFactory(strategy).get_strategy_data(
+                symbol=symbol, interval=interval, closed_bars=closed_bars).tail(1)
+
+            # Init signal instance
+            for index, strategy_row in strategy_df.iterrows():
+                signal_inst = Signal(date_time=index, symbol=symbol, interval=interval,
+                                     strategy=strategy, signal=strategy_row[Const.SIGNAL])
+
+            # Add signal to the buffer
+            runtime_buffer.set_signal_to_buffer(signal_inst)
+
+            if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+                logger.info(
+                    f'SIGNAL: get_signal(symbol={symbol}, interval={interval}, strategy={strategy}, signals_config={signals_config}, closed_bars={closed_bars})')
+
+        # Return signal data if signal is compatible with signal config, else return None
+        if signal_inst.is_compatible(signals_config):
+            return signal_inst
+        else:
+            return None
+
+    def get_signals(self, symbols: list, intervals: list = None, strategies: list = None, signals_config: list = None, closed_bars: bool = True) -> list[Signal]:
+        signals = []
+
+        if not symbols:
+            raise Exception(f'Symbol is missed')
+
+        if not intervals:
+            intervals = model.get_intervals()
+
+        sorted_strategies = model.get_sorted_strategy_codes(strategies)
+
+        for symbol in symbols:
+            for interval in intervals:
+                for strategy in sorted_strategies:
+                    try:
+                        signal = self.get_signal(
+                            symbol=symbol, interval=interval, strategy=strategy, signals_config=signals_config, closed_bars=closed_bars)
+                        if signal:
+                            signals.append(signal)
+                        else:
+                            continue
+                    except Exception as error:
+                        logger.error(
+                            f'For symbol={symbol}, interval={interval}, strategy={strategy} - {error}')
+                        continue
 
         return signals

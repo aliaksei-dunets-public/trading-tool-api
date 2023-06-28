@@ -2,10 +2,9 @@ import json
 import pandas as pd
 from datetime import datetime
 
-from .core import log_file_name, Symbol
-from .model import config, Symbols, Config
-from .indicator import Indicator_CCI
-from .strategy import StrategyFactory
+from .core import log_file_name, config, Symbol
+from .model import model, Symbols
+from .strategy import StrategyFactory, SignalFactory
 from .simulator import Simulator
 
 
@@ -40,22 +39,25 @@ class ResponserBase():
         return Symbols(from_buffer).get_symbol_list(code=code, name=name, status=status, type=type)
 
     def get_intervals(self, importances: list = None) -> list:
-        return config.get_intervals_config(importances)
+        return model.get_intervals_config(importances)
 
     def get_indicators(self) -> list:
-        return config.get_indicators()
+        return model.get_indicators_config()
 
     def get_strategies(self) -> list:
-        return config.get_strategies()
+        return model.get_strategies()
 
     def get_history_data(self, symbol: str, interval: str, limit: int, from_buffer: bool, closed_bars: bool) -> pd.DataFrame:
-        history_data_inst = config.get_stock_exchange_handler().getHistoryData(
+        history_data_inst = model.get_handler().getHistoryData(
             symbol=symbol, interval=interval, limit=limit, from_buffer=from_buffer, closed_bars=closed_bars)
         return history_data_inst.getDataFrame()
 
     def get_strategy_data(self, code: str, symbol: str, interval: str, limit: int, from_buffer: bool, closed_bars: bool) -> pd.DataFrame:
         strategy_inst = StrategyFactory(code)
         return strategy_inst.get_strategy_data(symbol=symbol, interval=interval, limit=limit, from_buffer=from_buffer, closed_bars=closed_bars)
+
+    def get_signals(self, symbols: list, intervals: list, strategies: list, signals_config: list, closed_bars: bool) -> list:
+        return SignalFactory().get_signals(symbols=symbols, intervals=intervals, strategies=strategies, signals_config=signals_config, closed_bars=closed_bars)
 
 
 class ResponserWeb(ResponserBase):
@@ -91,15 +93,16 @@ class ResponserWeb(ResponserBase):
     def get_strategy_data(self, code: str, symbol: str, interval: str, limit: int, from_buffer: bool, closed_bars: bool) -> json:
         return super().get_strategy_data(code=code, symbol=symbol, interval=interval, limit=limit, from_buffer=from_buffer, closed_bars=closed_bars)
 
+    @decorator_json
+    def get_signals(self, symbols: list, intervals: list, strategies: list, signals_config: list, closed_bars: bool) -> json:
+        signals = []
+        signals_list = super().get_signals(symbols=symbols, intervals=intervals,
+                                           strategies=strategies, signals_config=signals_config, closed_bars=closed_bars)
 
-@decorator_json
-def getStrategyData(code: str, symbol: str, interval: str, limit: int):
-    return StrategyFactory(code).get_strategy_data(symbol, interval, limit)
+        for signal_inst in signals_list:
+            signals.append(signal_inst.get_signal_dict())
 
-
-@decorator_json
-def getSignals(symbols: list, intervals: list, strategyCodes: list, closedBar: bool):
-    return Simulator().determineSignals(symbols, intervals, strategyCodes, [], closedBar)
+        return signals
 
 
 @decorator_json

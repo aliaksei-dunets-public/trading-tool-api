@@ -40,6 +40,9 @@ class Const:
     TA_STRATEGY_CCI_20_TREND_100 = "CCI_20_TREND_100"
     TA_STRATEGY_CCI_50_TREND_0 = "CCI_50_TREND_0"
 
+    # Config properties
+    CONFIG_DEBUG_LOG = 'DEBUG_LOG'
+
     # Signal Values
     STRONG_BUY = 'Strong Buy'
     BUY = 'Buy'
@@ -66,6 +69,7 @@ class Const:
     INTERVAL = 'interval'
     LIMIT = 'limit'
     STRATEGY = 'strategy'
+    DATETIME = 'date_time'
     NAME = 'name'
     DESCR = 'descr'
     STATUS = 'status'
@@ -102,6 +106,44 @@ class Const:
 
     # Stock Exchanges
     STOCK_EXCH_CURRENCY_COM = 'CURRENCY.COM'
+
+
+class Config:
+    _instance = None
+
+    def __new__(class_, *args, **kwargs):
+        if not isinstance(class_._instance, class_):
+            class_._instance = object.__new__(class_, *args, **kwargs)
+            class_.__config_data = {Const.CONFIG_DEBUG_LOG: False}
+        return class_._instance
+
+    def get_config_value(self, property: str):
+        if property and property in self.__config_data:
+            return self.__config_data[property]
+        else:
+            None
+
+    def get_stock_exchange_id(self) -> str:
+        return Const.STOCK_EXCH_CURRENCY_COM
+
+    def get_indicators_config(self) -> list:
+        return [{Const.CODE: Const.TA_INDICATOR_CCI, Const.NAME: "Commodity Channel Index"}]
+
+    def get_strategies_config(self):
+        strategies = {Const.TA_STRATEGY_CCI_14_TREND_100: {Const.CODE: Const.TA_STRATEGY_CCI_14_TREND_100,
+                                                           Const.NAME: "CCI(14): Indicator value +/- 100",
+                                                           Const.LENGTH: 14,
+                                                           Const.VALUE: 100},
+                      Const.TA_STRATEGY_CCI_20_TREND_100: {Const.CODE: Const.TA_STRATEGY_CCI_20_TREND_100,
+                                                           Const.NAME: "CCI(20): Indicator value +/- 100",
+                                                           Const.LENGTH: 20,
+                                                           Const.VALUE: 100},
+                      Const.TA_STRATEGY_CCI_50_TREND_0: {Const.CODE: Const.TA_STRATEGY_CCI_50_TREND_0,
+                                                         Const.NAME: "CCI(50): Indicator value 0",
+                                                         Const.LENGTH: 50,
+                                                         Const.VALUE: 0}}
+
+        return strategies
 
 
 class Symbol:
@@ -147,16 +189,89 @@ class SimulateOptions:
         self.feeRate = feeRate
 
 
+class Signal():
+    def __init__(self, date_time: datetime, symbol: str, interval: str, strategy: str, signal: str):
+        self.__date_time = date_time
+        self.__symbol = symbol
+        self.__interval = interval
+        self.__strategy = strategy
+        self.__signal = signal
+
+    def get_signal_dict(self) -> dict:
+        return {Const.DATETIME: self.__date_time.isoformat(),
+                Const.SYMBOL: self.__symbol,
+                Const.INTERVAL: self.__interval,
+                Const.STRATEGY: self.__strategy,
+                Const.SIGNAL: self.__signal}
+
+    def get_date_time(self) -> datetime:
+        return self.__date_time
+
+    def get_symbol(self) -> str:
+        return self.__symbol
+
+    def get_interval(self) -> str:
+        return self.__interval
+
+    def get_strategy(self) -> str:
+        return self.__strategy
+
+    def get_date_time(self) -> str:
+        return self.__date_time
+
+    def get_signal(self) -> str:
+        return self.__signal
+
+    def is_compatible(self, signals_config: list = []) -> bool:
+        if Const.DEBUG_SIGNAL in signals_config \
+                or not signals_config and self.__signal \
+                or (signals_config and (self.__signal in signals_config)):
+            return True
+        else:
+            return False
+
+
 class RuntimeBufferStore():
     _instance = None
 
     def __new__(class_, *args, **kwargs):
         if not isinstance(class_._instance, class_):
             class_._instance = object.__new__(class_, *args, **kwargs)
-            class_.__history_data_buffer = {}
             class_.__symbol_buffer = {}
             class_.__timeframe_buffer = {}
+            class_.__history_data_buffer = {}
+            class_.__signal_buffer = {}
         return class_._instance
+
+    def getSymbolsFromBuffer(self) -> dict[Symbol]:
+        return self.__symbol_buffer
+
+    def checkSymbolsInBuffer(self) -> bool:
+        if self.__symbol_buffer:
+            return True
+        else:
+            return False
+
+    def setSymbolsToBuffer(self, symbols: dict[Symbol]):
+        self.__symbol_buffer = symbols
+
+    def clearSymbolsBuffer(self):
+        self.__symbol_buffer.clear()
+
+    def checkTimeframeInBuffer(self, trading_time: str):
+        return trading_time in self.__timeframe_buffer
+
+    def getTimeFrameFromBuffer(self, trading_time: str) -> dict:
+        if self.checkTimeframeInBuffer(trading_time):
+            return self.__timeframe_buffer[trading_time]
+        else:
+            None
+
+    def setTimeFrameToBuffer(self, trading_time: str, timeframe: dict):
+        self.__timeframe_buffer[trading_time] = timeframe
+
+    def clearTimeframeBuffer(self):
+        self.__timeframe_buffer.clear()
 
     def getHistoryDataFromBuffer(self, symbol: str, interval: str, limit: int, endDatetime: datetime) -> HistoryData:
         buffer_key = self.getHistoryDataBufferKey(
@@ -210,37 +325,46 @@ class RuntimeBufferStore():
         return buffer_key
 
     def clearHistoryDataBuffer(self):
-        self.__history_data_buffer = {}
+        self.__history_data_buffer.clear()
 
-    def getSymbolsFromBuffer(self) -> dict[Symbol]:
-        return self.__symbol_buffer
+    def get_signal_from_buffer(self, symbol: str, interval: str, strategy: str, date_time: datetime) -> Signal:
+        buffer_key = self.get_signal_buffer_key(
+            symbol=symbol, interval=interval, strategy=strategy)
 
-    def checkSymbolsInBuffer(self) -> bool:
-        if self.__symbol_buffer:
+        if not self.check_signal_in_buffer(symbol=symbol, interval=interval, strategy=strategy):
+            return None
+
+        signal_buffer_inst = self.__signal_buffer[buffer_key]
+
+        if date_time == signal_buffer_inst.get_date_time():
+            return signal_buffer_inst
+        else:
+            return None
+
+    def check_signal_in_buffer(self, symbol: str, interval: str, strategy: str) -> bool:
+        buffer_key = self.get_signal_buffer_key(
+            symbol=symbol, interval=interval, strategy=strategy)
+        if buffer_key in self.__signal_buffer:
             return True
         else:
             return False
 
-    def setSymbolsToBuffer(self, symbols: dict[Symbol]):
-        self.__symbol_buffer = symbols
+    def set_signal_to_buffer(self, signal_inst: Signal):
+        if signal_inst:
+            buffer_key = self.get_signal_buffer_key(
+                symbol=signal_inst.get_symbol(), interval=signal_inst.get_interval(), strategy=signal_inst.get_strategy())
+            self.__signal_buffer[buffer_key] = signal_inst
 
-    def clearSymbolsBuffer(self):
-        self.__symbol_buffer = {}
+    def get_signal_buffer_key(self, symbol: str, interval: str, strategy: str) -> tuple:
+        if not symbol or not interval or not strategy:
+            Exception(
+                f'Signal buffer key is invalid: symbol: {symbol}, interval: {interval}, strategy: {strategy}')
+        buffer_key = (symbol, interval, strategy)
+        return buffer_key
 
-    def checkTimeframeInBuffer(self, trading_time: str):
-        return trading_time in self.__timeframe_buffer
-
-    def getTimeFrameFromBuffer(self, trading_time: str) -> dict:
-        if self.checkTimeframeInBuffer(trading_time):
-            return self.__timeframe_buffer[trading_time]
-        else:
-            None
-
-    def setTimeFrameToBuffer(self, trading_time: str, timeframe: dict):
-        self.__timeframe_buffer[trading_time] = timeframe
-
-    def clearTimeframeBuffer(self):
-        self.__timeframe_buffer = {}
+    def clear_signal_buffer(self):
+        self.__signal_buffer.clear()
 
 
+config = Config()
 runtime_buffer = RuntimeBufferStore()
