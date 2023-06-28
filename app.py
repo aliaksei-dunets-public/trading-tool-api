@@ -8,7 +8,7 @@ from trading_core.responser import ResponserWeb
 
 app = Flask(__name__)
 
-scheduler = utils.JobScheduler()
+# scheduler = utils.JobScheduler()
 responser = ResponserWeb()
 
 
@@ -116,26 +116,26 @@ def getSignalsBySimulation():
 # Define endpoints for creating, reading, updating, and deleting background jobs
 
 
-@app.route('/jobs', methods=['POST'])
-def create_job():
-    jobType = request.json.get('jobType')
-    interval = request.json.get('interval')
-    job = scheduler.createJob(jobType, interval)
-    return jsonify({'job_id': job.id}), 201
+# @app.route('/jobs', methods=['POST'])
+# def create_job():
+#     jobType = request.json.get('jobType')
+#     interval = request.json.get('interval')
+#     job = scheduler.createJob(jobType, interval)
+#     return jsonify({'job_id': job.id}), 201
 
 
-@app.route('/jobs', methods=['GET'])
-def get_jobs():
-    jobs = scheduler.getJobs()
-    if jobs:
-        return jsonify(jobs), 200
-    else:
-        return jsonify({'error': 'Jobs not found'}), 404
+# @app.route('/jobs', methods=['GET'])
+# def get_jobs():
+#     jobs = scheduler.getJobs()
+#     if jobs:
+#         return jsonify(jobs), 200
+#     else:
+#         return jsonify({'error': 'Jobs not found'}), 404
 
 
-@app.route('/jobs/<job_id>', methods=['GET'])
-def get_job(job_id):
-    pass
+# @app.route('/jobs/<job_id>', methods=['GET'])
+# def get_job(job_id):
+#     pass
     # job = jobs.get(job_id)
     # if job:
     #     return jsonify({'job_id': job_id, 'interval': job.trigger.fields_as_string()}), 200
@@ -143,9 +143,9 @@ def get_job(job_id):
     #     return jsonify({'error': 'Job not found'}), 404
 
 
-@app.route('/jobs/<job_id>', methods=['PUT'])
-def update_job(job_id):
-    pass
+# @app.route('/jobs/<job_id>', methods=['PUT'])
+# def update_job(job_id):
+#     pass
     # job = jobs.get(job_id)
     # if job:
     #     interval = request.json.get('interval')
@@ -155,12 +155,12 @@ def update_job(job_id):
     #     return jsonify({'error': 'Job not found'}), 404
 
 
-@app.route('/jobs/<job_id>', methods=['DELETE'])
-def delete_job(job_id):
-    if scheduler.removeJob(job_id):
-        return jsonify({'message': 'Job deleted'}), 200
-    else:
-        return jsonify({'error': 'Job not found'}), 404
+# @app.route('/jobs/<job_id>', methods=['DELETE'])
+# def delete_job(job_id):
+#     if scheduler.removeJob(job_id):
+#         return jsonify({'message': 'Job deleted'}), 200
+#     else:
+#         return jsonify({'error': 'Job not found'}), 404
 
 
 @app.route("/logs")

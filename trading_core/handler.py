@@ -2,10 +2,94 @@ from datetime import datetime, timedelta
 import requests
 import json
 import pandas as pd
-import os
 import math
 
 from .core import logger, config, Const, Symbol, HistoryData, RuntimeBufferStore
+
+
+class StockExchangeHandler():
+    def __init__(self):
+        self.__buffer_inst = RuntimeBufferStore()
+        self.__api_inst = None
+
+        stock_exchange_id = config.get_stock_exchange_id()
+
+        if not stock_exchange_id:
+            raise Exception(
+                f'Stock Exchange is not configured')
+
+        if stock_exchange_id == Const.STOCK_EXCH_CURRENCY_COM:
+            self.__api_inst = CurrencyComApi()
+        else:
+            raise Exception(
+                f'Stock Exchange: {stock_exchange_id} implementation is missed')
+
+    def getStockExchangeName(self) -> str:
+        return self.__api_inst.getStockExchangeName()
+
+    def getHistoryData(self, symbol: str, interval: str, limit: int, from_buffer: bool = True, closed_bars: bool = False, **kwargs) -> HistoryData:
+        history_data_inst = None
+
+        # Get endDatetime for History Data
+        endDatetime = self.getEndDatetime(
+            interval=interval, closed_bars=closed_bars)
+
+        # If it reruires to read from the buffer and buffer data is valid -> get hidtory data from the buffer
+        if from_buffer and self.__buffer_inst.validateHistoryDataInBuffer(symbol=symbol, interval=interval, limit=limit, endDatetime=endDatetime):
+
+            logger.info(
+                f'BUFFER: getHistoryData(symbol={symbol}, interval={interval}, limit={limit}, closed_bars={closed_bars}, endDatetime={endDatetime})')
+
+            # Get history data from the buffer for the parameters
+            history_data_inst = self.__buffer_inst.getHistoryDataFromBuffer(
+                symbol=symbol, interval=interval, limit=limit, endDatetime=endDatetime)
+
+        # If history data from the buffer doesn't exist
+        if not history_data_inst:
+            # Send a request to an API to get history data
+            history_data_inst = self.__api_inst.getHistoryData(
+                symbol=symbol, interval=interval, limit=limit, closed_bars=closed_bars, **kwargs)
+            # Set fetched history data to the buffer
+            self.__buffer_inst.setHistoryDataToBuffer(history_data_inst)
+
+        return history_data_inst
+
+    def getSymbols(self, from_buffer: bool) -> dict[Symbol]:
+
+        symbols = {}
+
+        # If it reruires to read data from the buffer and buffer data is existing -> get symbols from the buffer
+        if from_buffer and self.__buffer_inst.checkSymbolsInBuffer():
+
+            logger.info(
+                f'BUFFER: getSymbols()')
+
+            #  Get symbols from the buffer
+            symbols = self.__buffer_inst.getSymbolsFromBuffer()
+        else:
+            # Send a request to an API to get symbols
+            symbols = self.__api_inst.getSymbols()
+            # Set fetched symbols to the buffer
+            self.__buffer_inst.setSymbolsToBuffer(symbols)
+
+        return symbols
+
+    def get_intervals(self) -> list:
+        return self.__api_inst.get_intervals()
+
+    def getEndDatetime(self, interval: str, **kwargs) -> datetime:
+        original_datetime = datetime.now()
+        return self.__api_inst.getEndDatetime(interval=interval, original_datetime=original_datetime, **kwargs)
+
+    def is_trading_open(self, interval: str, trading_time: str) -> bool:
+        if self.__buffer_inst.checkTimeframeInBuffer(trading_time):
+            timeframes = self.__buffer_inst.getTimeFrameFromBuffer(
+                trading_time)
+        else:
+            timeframes = self.__api_inst.get_trading_timeframes(trading_time)
+            self.__buffer_inst.setTimeFrameToBuffer(trading_time, timeframes)
+
+        return self.__api_inst.is_trading_open(interval=interval, trading_timeframes=timeframes)
 
 
 class StockExchangeApiBase:
@@ -469,315 +553,3 @@ class CurrencyComApi(StockExchangeApiBase):
                         return True
 
         return False
-
-
-class StockExchangeHandler():
-    def __init__(self):
-        self.__buffer_inst = RuntimeBufferStore()
-        self.__api_inst = None
-
-        stock_exchange_id = config.get_stock_exchange_id()
-
-        if not stock_exchange_id:
-            raise Exception(
-                f'Stock Exchange is not configured')
-
-        if stock_exchange_id == Const.STOCK_EXCH_CURRENCY_COM:
-            self.__api_inst = CurrencyComApi()
-        else:
-            raise Exception(
-                f'Stock Exchange: {stock_exchange_id} implementation is missed')
-
-    def refresh_runtime_buffer(self):
-        self.__buffer_inst.clearSymbolsBuffer()
-        self.__buffer_inst.clearTimeframeBuffer()
-        self.__buffer_inst.clearHistoryDataBuffer()
-
-        self.getSymbols(from_buffer=False)
-
-    def getStockExchangeName(self) -> str:
-        return self.__api_inst.getStockExchangeName()
-
-    def getHistoryData(self, symbol: str, interval: str, limit: int, from_buffer: bool = True, closed_bars: bool = False, **kwargs) -> HistoryData:
-        history_data_inst = None
-
-        # Get endDatetime for History Data
-        endDatetime = self.getEndDatetime(
-            interval=interval, closed_bars=closed_bars)
-
-        # If it reruires to read from the buffer and buffer data is valid -> get hidtory data from the buffer
-        if from_buffer and self.__buffer_inst.validateHistoryDataInBuffer(symbol=symbol, interval=interval, limit=limit, endDatetime=endDatetime):
-
-            logger.info(
-                f'BUFFER: getHistoryData(symbol={symbol}, interval={interval}, limit={limit}, closed_bars={closed_bars}, endDatetime={endDatetime})')
-
-            # Get history data from the buffer for the parameters
-            history_data_inst = self.__buffer_inst.getHistoryDataFromBuffer(
-                symbol=symbol, interval=interval, limit=limit, endDatetime=endDatetime)
-
-        # If history data from the buffer doesn't exist
-        if not history_data_inst:
-            # Send a request to an API to get history data
-            history_data_inst = self.__api_inst.getHistoryData(
-                symbol=symbol, interval=interval, limit=limit, closed_bars=closed_bars, **kwargs)
-            # Set fetched history data to the buffer
-            self.__buffer_inst.setHistoryDataToBuffer(history_data_inst)
-
-        return history_data_inst
-
-    def getSymbols(self, from_buffer: bool) -> dict[Symbol]:
-
-        symbols = {}
-
-        # If it reruires to read data from the buffer and buffer data is existing -> get symbols from the buffer
-        if from_buffer and self.__buffer_inst.checkSymbolsInBuffer():
-
-            logger.info(
-                f'BUFFER: getSymbols()')
-
-            #  Get symbols from the buffer
-            symbols = self.__buffer_inst.getSymbolsFromBuffer()
-        else:
-            # Send a request to an API to get symbols
-            symbols = self.__api_inst.getSymbols()
-            # Set fetched symbols to the buffer
-            self.__buffer_inst.setSymbolsToBuffer(symbols)
-
-        return symbols
-
-    def get_intervals(self) -> list:
-        return self.__api_inst.get_intervals()
-
-    def getEndDatetime(self, interval: str, **kwargs) -> datetime:
-        original_datetime = datetime.now()
-        return self.__api_inst.getEndDatetime(interval=interval, original_datetime=original_datetime, **kwargs)
-
-    def is_trading_open(self, interval: str, trading_time: str) -> bool:
-        if self.__buffer_inst.checkTimeframeInBuffer(trading_time):
-            timeframes = self.__buffer_inst.getTimeFrameFromBuffer(
-                trading_time)
-        else:
-            timeframes = self.__api_inst.get_trading_timeframes(trading_time)
-            self.__buffer_inst.setTimeFrameToBuffer(trading_time, timeframes)
-
-        return self.__api_inst.is_trading_open(interval=interval, trading_timeframes=timeframes)
-
-
-class HandlerBase:
-    def getHistoryData(self, symbol, interval, limit, closedBar: bool = False) -> HistoryData:
-        pass
-
-    def getSymbols(self, code: str = None, name: str = None, status: str = None, type: str = None, isBuffer: bool = True) -> list:
-        pass
-
-    def getSymbolsDictionary(self, isBuffer: bool = True) -> dict:
-
-        dictSymbols = {}
-        listSymbols = []
-
-        logger.info(
-            f'getSymbolsDictionary(isBuffer={isBuffer})')
-
-        file_path = f'{os.getcwd()}/static/symbolsDictionary.json'
-
-        if isBuffer and os.path.exists(file_path):
-            with open(file_path, 'r') as reader:
-                dictSymbols = json.load(reader)
-
-        if not dictSymbols:
-            listSymbols = self.getSymbols(isBuffer=isBuffer)
-
-            for symbol in listSymbols:
-                dictSymbols[symbol.code] = symbol.__dict__
-
-            with open(file_path, 'w') as writer:
-                writer.write(json.dumps(dictSymbols))
-
-        return dictSymbols
-
-    def getIntervalsDetails(self) -> list:
-        return []
-
-    def _mapInterval(self, interval) -> str:
-        return interval
-
-
-class HandlerCurrencyCom(HandlerBase):
-    def getHistoryData(self, symbol, interval, limit, closedBar: bool = False) -> HistoryData:
-
-        logger.info(
-            f'getHistoryData(symbol={symbol}, interval={interval}, limit={limit})')
-
-        response = self.getKlines(
-            symbol, self._mapInterval(interval), limit, closedBar)
-
-        df = pd.DataFrame(response, columns=[
-                          'DatetimeFloat', 'Open', 'High', 'Low', 'Close', 'Volume'])
-        df['Datetime'] = df.apply(lambda x: pd.to_datetime(
-            datetime.fromtimestamp(x['DatetimeFloat'] / 1000.0)), axis=1)
-        df.set_index('Datetime', inplace=True)
-        df.drop(["DatetimeFloat"], axis=1, inplace=True)
-        df = df.astype(float)
-
-        return HistoryData(symbol, interval, limit, df)
-
-    def getSymbols(self, code: str = None, name: str = None, status: str = None, type: str = None, isBuffer: bool = True) -> list:
-
-        symbols = []
-        tempSymbols = []
-
-        logger.info(
-            f'getSymbols(code={code}, name={name}, status={status}, type={type}, isBuffer={isBuffer})')
-
-        file_path = f'{os.getcwd()}/static/symbols.json'
-
-        if isBuffer and os.path.exists(file_path):
-            with open(file_path, 'r') as reader:
-                tempSymbols = json.load(reader)
-
-        if not tempSymbols:
-
-            response = requests.get(
-                "https://api-adapter.backend.currency.com/api/v2/exchangeInfo")
-
-            if response.status_code == 200:
-                jsonResponse = json.loads(response.text)
-
-                for obj in jsonResponse['symbols']:
-                    if obj['quoteAssetId'] == 'USD' and obj['assetType'] in ['CRYPTOCURRENCY', 'EQUITY', 'COMMODITY'] and 'REGULAR' in obj['marketModes']:
-                        tempSymbols.append({'code': obj['symbol'],
-                                            'name': obj['name'],
-                                            'status': obj['status'],
-                                            'tradingTime': obj['tradingHours'],
-                                            'type': obj['assetType']})
-                    else:
-                        continue
-
-                with open(file_path, 'w') as writer:
-                    writer.write(json.dumps(
-                        sorted(tempSymbols, key=lambda i: i['code'])))
-
-        for row in tempSymbols:
-            if code and row['code'] != code:
-                continue
-            elif name and name.lower() not in row['name'].lower():
-                continue
-            elif status and row['status'] != status:
-                continue
-            elif type and row['assetType'] != type:
-                continue
-            else:
-                symbols.append(Symbol(
-                    code=row['code'], name=row['name'], status=row['status'], tradingTime=row['tradingTime'], type=row['type']))
-
-        return symbols
-
-    def getKlines(self, symbol, interval, limit, closedBar: bool):
-        params = {"symbol": symbol, "interval": interval, "limit": limit}
-
-        if closedBar:
-            params["endTime"] = self.getCompletedUnixTimeMs(interval)
-
-        response = requests.get(
-            "https://api-adapter.backend.currency.com/api/v2/klines", params=params)
-
-        if response.status_code == 200:
-            # file_path = f'{os.getcwd()}/static/tests/{symbol}_{interval}.json'
-            # with open(file_path, 'w') as writer:
-            #     writer.write(response.text)
-
-            return json.loads(response.text)
-        else:
-            raise Exception(response.text)
-
-    def getOffsetDateTimeByInterval(self, interval, current_datetime: datetime):
-
-        if not isinstance(current_datetime, datetime):
-            raise ValueError(
-                "Input parameter must be a datetime.datetime object.")
-
-        if interval in ['5m', '15m', '30m']:
-            current_minute = current_datetime.minute
-
-            if interval == '5m':
-                offset_value = 5
-            elif interval == '15m':
-                offset_value = 15
-            elif interval == '30m':
-                offset_value = 30
-
-            delta_minutes = current_minute % offset_value + offset_value
-
-            offset_date_time = current_datetime - \
-                timedelta(minutes=delta_minutes)
-            offset_date_time = offset_date_time.replace(
-                second=0, microsecond=0)
-
-        elif interval == '1h':
-
-            compared_datetime = current_datetime.replace(
-                minute=0, second=30, microsecond=0)
-
-            if current_datetime > compared_datetime:
-                offset_date_time = current_datetime - timedelta(hours=1)
-            else:
-                offset_date_time = current_datetime
-
-            offset_date_time = offset_date_time.replace(
-                minute=0, second=0, microsecond=0)
-
-        elif interval == '4h':
-
-            offset_value = 4
-            hours_difference = self.getTimezoneDifference()
-            current_hour = current_datetime.hour - hours_difference
-
-            delta_hours = current_hour % offset_value + offset_value
-            offset_date_time = current_datetime - timedelta(hours=delta_hours)
-
-            offset_date_time = offset_date_time.replace(
-                minute=0, second=0, microsecond=0)
-
-        elif interval == '1d':
-
-            compared_datetime = current_datetime.replace(
-                hour=0, minute=0, second=30, microsecond=0)
-
-            if current_datetime > compared_datetime:
-                offset_date_time = current_datetime - timedelta(days=1)
-            else:
-                offset_date_time = current_datetime
-
-            offset_date_time = offset_date_time.replace(
-                hour=self.getTimezoneDifference(), minute=0, second=0, microsecond=0)
-
-        elif interval == '1w':
-
-            compared_datetime = current_datetime.replace(
-                hour=0, minute=0, second=30, microsecond=0)
-
-            offset_value = 7
-
-            delta_days_until_monday = current_datetime.weekday() % 7 + offset_value
-            offset_date_time = current_datetime - \
-                timedelta(days=delta_days_until_monday)
-
-            offset_date_time = offset_date_time.replace(
-                hour=self.getTimezoneDifference(), minute=0, second=0, microsecond=0)
-
-        logger.info(
-            f'Closed Bar time - {offset_date_time} for Current Time - {current_datetime}, interval - {interval}')
-
-        return offset_date_time
-
-    def getCompletedUnixTimeMs(self, interval):
-        offset_date_time = self.getOffsetDateTimeByInterval(
-            interval, datetime.now())
-        return int(offset_date_time.timestamp() * 1000)
-
-    def getTimezoneDifference(self):
-        local_time = datetime.now()
-        utc_time = datetime.utcnow()
-        delta = local_time - utc_time
-
-        return math.ceil(delta.total_seconds() / 3600)

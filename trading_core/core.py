@@ -2,6 +2,7 @@ import os
 import pandas as pd
 from datetime import datetime
 import logging
+from apscheduler.job import Job
 # from logging.handlers import TimedRotatingFileHandler
 
 # Set up logging
@@ -81,6 +82,17 @@ class Const:
     IMPORTANCE = 'importance'
     LENGTH = "length"
     VALUE = "value"
+    JOB_ID = "job_id"
+
+    # DB fields
+    DB_ID = "_id"
+    DB_JOB_TYPE = 'job_type'
+    DB_INTERVAL = 'interval'
+    DB_IS_ACTIVE = 'is_active'
+    DB_CREATED_AT = "created_at"
+    DB_CREATED_BY = "created_by"
+    DB_CHANGED_AT = "changed_at"
+    DB_CHANGED_BY = "changed_by"
 
     # API fields
     END_TIME = 'endTime'
@@ -216,9 +228,6 @@ class Signal():
     def get_strategy(self) -> str:
         return self.__strategy
 
-    def get_date_time(self) -> str:
-        return self.__date_time
-
     def get_signal(self) -> str:
         return self.__signal
 
@@ -241,6 +250,7 @@ class RuntimeBufferStore():
             class_.__timeframe_buffer = {}
             class_.__history_data_buffer = {}
             class_.__signal_buffer = {}
+            class_.__job_buffer = {}
         return class_._instance
 
     def getSymbolsFromBuffer(self) -> dict[Symbol]:
@@ -364,6 +374,18 @@ class RuntimeBufferStore():
 
     def clear_signal_buffer(self):
         self.__signal_buffer.clear()
+
+    def get_job_from_buffer(self, job_id: str) -> Job:
+        if job_id in self.__job_buffer:
+            return self.__job_buffer[job_id]
+        else:
+            None
+
+    def set_job_to_buffer(self, job: Job) -> None:
+        self.__job_buffer[job.id] = job
+
+    def remove_job_from_buffer(self, job_id: str) -> None:
+        self.__job_buffer.pop(job_id)
 
 
 config = Config()

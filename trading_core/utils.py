@@ -1,44 +1,67 @@
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.schedulers.base import JobLookupError
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.job import Job
 from dotenv import load_dotenv
 import requests
 import os
-import logging
 import smtplib
-from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
-import trading_core.mongodb as db
-from .core import config, Const
-from .model import model, Symbols, RuntimeBuffer
-from .simulator import Simulator
+from .mongodb import MongoJobs
+from .core import logger, runtime_buffer, Const
+from .model import model, RuntimeBuffer
+from .responser import ResponserEmail, ResponserBot
 
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 load_dotenv()
 
 
-def initialise_master_data():
-    logging.info(f"JOB: Refresh runtime buffer")
-    model.get_handler().refresh_runtime_buffer()
+def job_func_initialise_runtime_data():
+    logger.info(f"JOB: Refresh runtime buffer")
+
+    runtime_buffer.clearSymbolsBuffer()
+    runtime_buffer.clearTimeframeBuffer()
+    runtime_buffer.clearHistoryDataBuffer()
+    runtime_buffer.clear_signal_buffer()
+
+    model.get_handler().getSymbols(from_buffer=False)
 
 
-def send_bot_notification(interval):
-    logging.info(
-        f"Bot notification Job is triggered for interval - {interval}")
-    NotifyTelegramBotOrders().send(interval)
-    NotifyTelegramBotAlerts().send(interval)
-    RuntimeBuffer().buffer_signals.clear()
+def job_func_send_bot_notification(interval):
+    
+    logger.info(
+        f"JOB: Bot notification Job is triggered for interval - {interval}")
+
+    message_text = ResponserBot().get_signals(symbols=[],
+                                                intervals=[interval],
+                                                strategies=[],
+                                                signals_config=[],
+                                                closed_bars=True)
+
+    message_inst = MessageEmail(
+        channel_id='None', subject=f'[TradingTool]: Alert signals for {interval}', message_text=message_text)
+
+    NotificationEmail(messages=[message_inst]).send()
 
 
-def send_email_notification(interval):
-    logging.info(
-        f"Email notification Job is triggered for interval - {interval}")
-    NotificationEmail().send(interval)
-    RuntimeBuffer().buffer_signals.clear()
+
+def job_func_send_email_notification(interval):
+    
+    logger.info(
+        f"JOB: Email notification Job is triggered for interval - {interval}")
+
+    message_text = ResponserEmail().get_signals(symbols=[],
+                                                intervals=[interval],
+                                                strategies=[],
+                                                signals_config=[],
+                                                closed_bars=True)
+
+    message_inst = MessageEmail(
+        channel_id='None', subject=f'[TradingTool]: Alert signals for {interval}', message_text=message_text)
+
+    NotificationEmail(messages=[message_inst]).send()
 
 
 class JobScheduler:
@@ -52,36 +75,108 @@ class JobScheduler:
 
     def init(self) -> None:
 
+        self.__db_inst = MongoJobs()
         self.__scheduler = BackgroundScheduler()
         self.__scheduler.start()
-        self.__localJobs = {}
-        self.__initJobs()
+        self.__init_jobs()
 
-        # Init master data during start server
-        initialise_master_data()
+    def get(self):
+        return self.__scheduler
 
-    def __initJobs(self):
-        dbJobs = db.get_jobs()
+    def get_jobs(self):
 
-        for job in dbJobs:
-            jobId = str(job['_id'])
-            jobType = job['jobType']
-            interval = job['interval']
+        jobs = []
 
-            if jobType == Const.JOB_TYPE_BOT:
-                job = self.__scheduler.add_job(
-                    send_bot_notification, self.__generateCronTrigger(interval), id=jobId, args=(interval,))
-            elif jobType == Const.JOB_TYPE_EMAIL:
-                job = self.__scheduler.add_job(
-                    send_email_notification, self.__generateCronTrigger(interval), id=jobId, args=(interval,))
-            elif jobType == Const.JOB_TYPE_INIT:
-                job = self.__scheduler.add_job(
-                    initialise_master_data, CronTrigger(day_of_week='mon-fri', hour='2', jitter=60, timezone='UTC'), id=jobId)
+        # Get jobs from DB
+        db_jobs = self.__db_inst.get_many()
 
-            self.__localJobs[jobId] = job
+        for db_job in db_jobs:
+            job_id = db_job[Const.DB_ID]
 
-            logging.info(
-                f"Job - {jobType} for interval - {interval} is scheduled firstly at {job.next_run_time}")
+            job_details = {Const.JOB_ID: job_id,
+                           Const.DB_JOB_TYPE: db_job[Const.DB_JOB_TYPE],
+                           Const.INTERVAL: db_job[Const.DB_INTERVAL],
+                           Const.DB_IS_ACTIVE: db_job[Const.DB_IS_ACTIVE]}
+
+            job = runtime_buffer.get_job_from_buffer(job_id)
+            if job:
+                job_details[Const.DATETIME] = job.next_run_time
+
+            jobs.append(job)
+
+        return jobs
+
+    def create_job(self, job_type: str, interval: str) -> str:
+        # Create job entry in the DB -> get job_id
+        job_id = self.__db_inst.create_job(
+            job_type=job_type, interval=interval, is_active=False)
+
+        # Schedule and add job to the buffer
+        self.__add_job(job_id=job_id, job_type=job_type, interval=interval)
+
+        # Activate the job in the DB
+        self.__db_inst.activate_job(job_id)
+
+        return job_id
+
+    def activate_job(self, job_id: str) -> bool:
+        db_job = self.__db_inst.get_one(job_id)
+
+        job_id = str(db_job[Const.DB_ID])
+        job_type = db_job[Const.DB_JOB_TYPE]
+        interval = db_job[Const.DB_INTERVAL]
+
+        self.__add_job(job_id=job_id, job_type=job_type, interval=interval)
+
+        return self.__db_inst.activate_job(job_id)
+
+    def deactivate_job(self, job_id: str) -> bool:
+        self.__scheduler.remove_job(job_id)
+        runtime_buffer.remove_job_from_buffer(job_id)
+
+        return self.__db_inst.deactivate_job(job_id)
+
+    def remove_job(self, job_id: str) -> bool:
+        try:
+            self.__scheduler.remove_job(job_id)
+            runtime_buffer.remove_job_from_buffer(job_id)
+            return self.__db_inst.delete_job(job_id)
+        except JobLookupError as error:
+            logger.error(f'JOB: Error during remove job: {job_id} - {error}')
+            raise Exception(
+                f'JOB: Error during remove job: {job_id} - {error}')
+
+    def __init_jobs(self):
+        # Get jobs from the DB
+        db_jobs = self.__db_inst.get_active_jobs()
+
+        for item in db_jobs:
+            job_id = str(item[Const.DB_ID])
+            job_type = item[Const.DB_JOB_TYPE]
+            interval = item[Const.DB_INTERVAL]
+
+            self.__add_job(job_id=job_id, job_type=job_type, interval=interval)
+
+    def __add_job(self, job_id: str, job_type: str, interval: str) -> Job:
+
+        # Schedule a job based on a job type
+        if job_type == Const.JOB_TYPE_BOT:
+            job = self.__scheduler.add_job(
+                job_func_send_bot_notification, self.__generateCronTrigger(interval), id=job_id, args=(interval,))
+        elif job_type == Const.JOB_TYPE_EMAIL:
+            job = self.__scheduler.add_job(
+                job_func_send_email_notification, self.__generateCronTrigger(interval), id=job_id, args=(interval,))
+        elif job_type == Const.JOB_TYPE_INIT:
+            job = self.__scheduler.add_job(
+                job_func_initialise_runtime_data, CronTrigger(day_of_week='mon-fri', hour='2', jitter=60, timezone='UTC'), id=job_id)
+
+        # Add job to the runtime buffer
+        runtime_buffer.set_job_to_buffer(job)
+
+        logger.info(
+            f"JOB: {job_type} is scheduled for interval: {interval} at {job.next_run_time}")
+
+        return job
 
     def __generateCronTrigger(self, interval) -> CronTrigger:
         day_of_week = '*'
@@ -113,133 +208,42 @@ class JobScheduler:
 
         return CronTrigger(day_of_week=day_of_week, hour=hour, minute=minute, second=second, timezone='UTC')
 
-    def createJob(self, jobType, interval):
-        if jobType == Const.JOB_TYPE_BOT:
-            job = self.__scheduler.add_job(
-                send_bot_notification, self.__generateCronTrigger(interval), args=(interval,))
-        elif jobType == Const.JOB_TYPE_EMAIL:
-            job = self.__scheduler.add_job(
-                send_email_notification, self.__generateCronTrigger(interval), args=(interval,))
-        elif jobType == Const.JOB_TYPE_INIT:
-            job = self.__scheduler.add_job(
-                initialise_master_data, CronTrigger(day_of_week='mon-fri', hour='2', jitter=60, timezone='UTC'))
-        db.create_job(job.id, jobType, interval)
-        self.__localJobs[job.id] = job
 
-        logging.info(
-            f"Job - {jobType} for interval - {interval} is scheduled at {job.next_run_time}")
+class MessageBase:
+    def __init__(self, channel_id: str, message_text: str) -> None:
+        self._channel_id = channel_id
+        self._message_text = message_text
 
-        return job
+    def get_channel_id(self) -> str:
+        return self._channel_id
 
-    def removeJob(self, jobId):
-        try:
-            self.__scheduler.remove_job(jobId)
-        except JobLookupError as error:
-            logging.error(error)
+    def get_message_text(self) -> str:
+        return self._message_text
 
-        return db.delete_job(jobId)
 
-    def get(self):
-        return self.__scheduler
+class MessageEmail(MessageBase):
+    def __init__(self, channel_id: str, subject: str, message_text: str) -> None:
+        MessageBase.__init__(self, channel_id=channel_id,
+                             message_text=message_text)
+        self._subject = subject
 
-    def getJobs(self):
-        jobs = []
-        dbJobs = db.get_jobs()
-
-        for dbJob in dbJobs:
-            job_id = dbJob['_id']
-            for job in self.__localJobs.values():
-                if job_id == job.id:
-                    job = {'job_id': job_id,
-                           'jobType': dbJob['jobType'],
-                           'interval': dbJob['interval'],
-                           'isActive': dbJob['isActive'],
-                           'nextRunTime': self.__localJobs[job_id].next_run_time}
-
-                    jobs.append(job)
-
-        return jobs
+    def get_subject(self) -> str:
+        return self._subject
 
 
 class NotificationBase:
-    def __init__(self) -> None:
-        self.messages = {}
-        self.buffer = RuntimeBuffer()
+    def __init__(self, messages: list[MessageBase]) -> None:
+        self._messages = messages
 
     def send(self):
         pass
 
-    def getSignals(self, symbol, interval, strategies, signalCodes):
-
-        try:
-            oSymbol = Symbols(from_buffer=True).get_symbol(symbol)
-        except Exception as SymbolError:
-            logging.error(SymbolError)
-            return []
-
-        if not oSymbol:
-            return []
-
-        if not model.get_handler().is_trading_open(interval, oSymbol.tradingTime):
-            return []
-
-        signals = Simulator().determineSignals(
-            [symbol], [interval], strategies, signalCodes, closedBar=True)
-
-        return signals
-
 
 class NotificationEmail(NotificationBase):
-    def send(self, interval):
-
-        if interval not in [Const.TA_INTERVAL_4H, Const.TA_INTERVAL_1D, Const.TA_INTERVAL_1WK]:
-            return
-
-        logging.info(
-            f"Email notification for interval - {interval}")
-
-        symbolsCode = []
+    def send(self):
 
         # Email configuration
         sender_email = os.getenv("SMTP_USERNAME")
-        receiver_email = os.getenv("RECEIVER_EMAIL").split(';')
-        subject = f'[TradingTool]: Alert signals for {interval}'
-
-        oSymbols = Symbols(from_buffer=True).get_symbol_list()
-
-        for oSymbol in oSymbols:
-            if model.get_handler().is_trading_open(interval, oSymbol.tradingTime):
-                symbolsCode.append(oSymbol.code)
-
-        signals = Simulator().determineSignals(symbols=symbolsCode, intervals=[
-            interval], signals=[Const.STRONG_BUY, Const.STRONG_SELL], closedBar=True)
-
-        if not signals:
-            return
-
-        # Create the HTML table
-        table_html = '<table border="1">'
-        table_html += '<tr><th>DateTime</th><th>Symbol</th><th>Interval</th><th>Strategy</th><th>Signal</th></tr>'
-        for row in signals:
-            table_html += '<tr>'
-            table_html += f'<td>{row["dateTime"]}</td>'
-            table_html += f'<td>{row["symbol"]}</td>'
-            table_html += f'<td>{row["interval"]}</td>'
-            table_html += f'<td>{row["strategy"]}</td>'
-            table_html += f'<td>{row["signal"]}</td>'
-            table_html += '</tr>'
-        table_html += '</table>'
-
-        # Create the email body as HTML
-        message = MIMEText(
-            f'<h2>Alert signals for {interval}</h2>{table_html}', 'html')
-
-        # Create a MIME message object
-        msg = MIMEMultipart()
-        msg['From'] = sender_email
-        msg['To'] = ', '.join(receiver_email)
-        msg['Subject'] = subject
-        msg.attach(message)
 
         # SMTP server configuration
         smtp_server = 'smtp.gmail.com'
@@ -247,110 +251,133 @@ class NotificationEmail(NotificationBase):
         smtp_username = sender_email
         smtp_password = os.getenv("SMTP_PASSWORD")
 
-        try:
-            # Create a secure connection with the SMTP server
-            server = smtplib.SMTP(smtp_server, smtp_port)
-            server.starttls()
-            server.login(smtp_username, smtp_password)
+        for message_inst in self._messages:
 
-            # Send the email
-            server.sendmail(sender_email, receiver_email, msg.as_string())
-            logging.info(f'Sent email successfully to {receiver_email}!')
+            # message_inst.get_channel_id()
+            receiver_email = os.getenv("RECEIVER_EMAIL").split(';')
 
-        except Exception as e:
-            logging.error('An error occurred while sending the email:', str(e))
+            # Create a MIME message object
+            msg = MIMEMultipart()
+            msg['From'] = sender_email
+            msg['To'] = ', '.join(receiver_email)
+            msg['Subject'] = message_inst.get_subject()
+            body = MIMEText(message_inst.get_message_text(), 'html')
+            msg.attach(body)
 
-        finally:
-            # Close the SMTP server connection
-            server.quit()
+            try:
+                # Create a secure connection with the SMTP server
+                server = smtplib.SMTP(smtp_server, smtp_port)
+                server.starttls()
+                server.login(smtp_username, smtp_password)
+
+                # Send the email
+                server.sendmail(sender_email, receiver_email, msg.as_string())
+
+                logger.info(
+                    f'NOTIFICATION: EMAIL - Sent successfully to {receiver_email}.')
+
+            except Exception as e:
+                logger.error(
+                    'NOTIFICATION: EMAIL - An error occurred while sending the email:', str(e))
+
+            finally:
+                # Close the SMTP server connection
+                server.quit()
 
 
 class NotifyTelegramBot(NotificationBase):
 
-    def send(self, interval):
+    def send(self):
         bot_token = os.getenv("BOT_TOKEN")
         bot_url = f'https://api.telegram.org/bot{bot_token}/sendMessage'
 
         if not bot_token:
-            logging.error(
+            logger.error(
                 'Bot token is not maintained in the environment values')
 
-        for channelId, message in self.messages.items():
-            params = {'chat_id': channelId,
-                      'text': message, 'parse_mode': 'HTML'}
+        for message_inst in self._messages:
+
+            channel_id = message_inst.get_channel_id()
+
+            params = {'chat_id': channel_id,
+                      'text': message_inst.get_message_text(),
+                      'parse_mode': 'HTML'}
             response = requests.post(bot_url, data=params)
             if response.ok:
-                logging.info(f"Send message to chat bot: {channelId}")
+                logger.info(
+                    f"NOTIFICATION: BOT - Sent successfully to chat bot: {channel_id}")
             else:
-                logging.error(f"Failed to send message: {response.text}")
+                logger.error(
+                    f"NOTIFICATION: BOT - Failed to send message to chat bot: {channel_id} - {response.text}")
 
 
 class NotifyTelegramBotAlerts(NotifyTelegramBot):
 
     def send(self, interval):
-        logging.info(
+        logger.info(
             f"Alerts Bot notification for interval - {interval}")
         self.getAlertMessages(interval)
         super().send(interval)
 
     def getAlertMessages(self, interval):
+        pass
 
-        dbAlerts = db.get_alerts(interval)
+        # dbAlerts = db.get_alerts(interval)
 
-        for alert in dbAlerts:
-            dbSymbolCode = alert['symbol']
-            dbComments = alert['comments'] if 'comments' in alert else None
-            dbStrategies = alert['strategies'] if 'strategies' in alert else None
-            dbSignals = alert['signals'] if 'signals' in alert else None
+        # for alert in dbAlerts:
+        #     dbSymbolCode = alert['symbol']
+        #     dbComments = alert['comments'] if 'comments' in alert else None
+        #     dbStrategies = alert['strategies'] if 'strategies' in alert else None
+        #     dbSignals = alert['signals'] if 'signals' in alert else None
 
-            signals = self.getSignals(
-                dbSymbolCode, interval, dbStrategies, dbSignals)
+        #     signals = self.getSignals(
+        #         dbSymbolCode, interval, dbStrategies, dbSignals)
 
-            for signal in signals:
+        #     for signal in signals:
 
-                signal_text = f'<b>{signal["signal"]}</b>'
-                comments_text = f' | {dbComments}' if dbComments else ''
+        #         signal_text = f'<b>{signal["signal"]}</b>'
+        #         comments_text = f' | {dbComments}' if dbComments else ''
 
-                message_text = f'{signal["dateTime"]}  -  <b>{signal["symbol"]} - {signal["interval"]}</b>: ({signal["strategy"]}) - {signal_text}{comments_text}\n\n'
+        #         message_text = f'{signal["dateTime"]}  -  <b>{signal["symbol"]} - {signal["interval"]}</b>: ({signal["strategy"]}) - {signal_text}{comments_text}\n\n'
 
-                if alert['chatId'] in self.messages:
-                    self.messages[alert['chatId']] += message_text
-                else:
-                    self.messages[alert['chatId']
-                                  ] = f'<b>Alert signals for {interval}: \n</b>{message_text}'
+        #         if alert['chatId'] in self.messages:
+        #             self.messages[alert['chatId']] += message_text
+        #         else:
+        #             self.messages[alert['chatId']
+        #                           ] = f'<b>Alert signals for {interval}: \n</b>{message_text}'
 
 
 class NotifyTelegramBotOrders(NotifyTelegramBot):
 
     def send(self, interval):
-        logging.info(
+        logger.info(
             f"Orders Bot notification for interval - {interval}")
         self.getOrderMessages(interval)
         super().send(interval)
 
     def getOrderMessages(self, interval):
+        pass
+        # dbOrders = db.get_orders(interval)
 
-        dbOrders = db.get_orders(interval)
+        # for order in dbOrders:
+        #     dbOrderType = order['type']
+        #     dbSymbolCode = order['symbol']
+        #     dbStrategies = order['strategy'] if 'strategy' in order else None
 
-        for order in dbOrders:
-            dbOrderType = order['type']
-            dbSymbolCode = order['symbol']
-            dbStrategies = order['strategy'] if 'strategy' in order else None
+        #     signals = self.getSignals(dbSymbolCode, interval, dbStrategies, [])
 
-            signals = self.getSignals(dbSymbolCode, interval, dbStrategies, [])
+        #     for signal in signals:
 
-            for signal in signals:
+        #         signal_value = signal["signal"]
+        #         signal_text = f'<b>{signal_value}</b>'
+        #         comments_text = self.getComments(dbOrderType, signal_value)
 
-                signal_value = signal["signal"]
-                signal_text = f'<b>{signal_value}</b>'
-                comments_text = self.getComments(dbOrderType, signal_value)
+        #         message_text = f'{signal["dateTime"]}  -  <b>{signal["symbol"]} - {signal["interval"]}</b>: ({signal["strategy"]}) - {signal_text}{comments_text}\n'
 
-                message_text = f'{signal["dateTime"]}  -  <b>{signal["symbol"]} - {signal["interval"]}</b>: ({signal["strategy"]}) - {signal_text}{comments_text}\n'
-
-                if '1658698044' in self.messages:
-                    self.messages['1658698044'] += message_text
-                else:
-                    self.messages['1658698044'] = f'<b>Order signals for {interval}: \n</b>{message_text}'
+        #         if '1658698044' in self.messages:
+        #             self.messages['1658698044'] += message_text
+        #         else:
+        #             self.messages['1658698044'] = f'<b>Order signals for {interval}: \n</b>{message_text}'
 
     def getComments(self, order_type, signal_value):
 

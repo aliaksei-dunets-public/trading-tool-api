@@ -1,69 +1,110 @@
 import pymongo
+from bson import ObjectId
 import os
 from dotenv import load_dotenv
 from datetime import datetime
 
+from .core import Const
+
 load_dotenv()
 
-mongodb_uri = os.getenv("MONGO_CONFIG")
 
-try:
-    if not mongodb_uri:
-        raise Exception(
-            'Mongo Config is not maintained in the environment values')
-except KeyError:
-    raise Exception('Mongo Config is not maintained in the environment values')
+class MongoBase():
+    def __init__(self):
 
-client = pymongo.MongoClient(mongodb_uri)
+        mongodb_uri = os.getenv("MONGO_CONFIG")
 
-database = client['ClusterShared']
+        try:
+            if not mongodb_uri:
+                raise Exception(
+                    'Mongo Config is not maintained in the environment values')
+        except KeyError:
+            raise Exception(
+                'Mongo Config is not maintained in the environment values')
 
-jobsCollection = database['jobs']
-alertsCollection = database['alerts']
-ordersCollection = database['orders']
+        self._client = pymongo.MongoClient(mongodb_uri)
+        self._database = self._client['ClusterShared']
+        self._collection = None
 
-# Create new job details
-def create_job(jobId, jobType, interval):
-    result = jobsCollection.insert_one(
-        {'_id': jobId, 'jobType': jobType,'interval': interval, 'isActive': True, 'created_at': datetime.utcnow()})
-    return str(result.inserted_id)
+    def get_collection(self, name: str):
+        return self._database[name]
 
-# Update job details
-def update_job(job_id, job):
-    query = {"_id": job_id}
-    new_values = {"$set": job}
-    result = jobsCollection.update_one(query, new_values)
-    return result.modified_count > 0
+    def insert_one(self, query: dict) -> str:
+        if not query:
+            raise Exception(f'DB: INSERT_ONE - Query is empty')
+        else:
+            query[Const.DB_CREATED_AT] = datetime.utcnow()
+            query[Const.DB_CHANGED_AT] = datetime.utcnow()
+        result = self._collection.insert_one(query)
+        return str(result.inserted_id)
 
-# Delete job details
-def delete_job(job_id):
-    query = {"_id": job_id}
-    result = jobsCollection.delete_one(query)
-    return result.deleted_count > 0
+    def update_one(self, id: str, query: dict) -> bool:
+        if not id:
+            raise Exception(f'DB: GET_ONE - ID is empty')
+        elif not query:
+            raise Exception(f'DB: INSERT_ONE - Query is empty')
+        else:
+            query[Const.DB_CHANGED_AT] = datetime.utcnow()
+
+        result = self._collection.update_one({Const.DB_ID: ObjectId(id)},
+                                             {"$set": query})
+        if result.modified_count == 1:
+            return True
+        return False
+
+    def delete_one(self, id: str) -> bool:
+        if not id:
+            raise Exception(f'DB: DELETE_ONE - ID is empty')
+        result = self._collection.delete_one({Const.DB_ID: ObjectId(id)})
+        return result.deleted_count > 0
+
+    def get_one(self, id: str) -> dict:
+        if not id:
+            raise Exception(f'DB: GET_ONE - ID is empty')
+        result = self._collection.find_one({Const.DB_ID: ObjectId(id)})
+        return result
+
+    def get_many(self, query: dict = {}) -> list:
+        return list(self._collection.find(query))
 
 
-def get_job(job_id):
-    query = {"_id": job_id}
-    result = jobsCollection.find_one(query)
-    return result
+class MongoJobs(MongoBase):
+    def __init__(self):
+        MongoBase.__init__(self)
+        self._collection = self.get_collection('jobs')
+
+    def get_active_jobs(self):
+        return self.get_many({Const.DB_IS_ACTIVE: True})
+
+    def create_job(self, job_type: str, interval: str, is_active: bool = True) -> str:
+        query = {Const.DB_JOB_TYPE: job_type,
+                 Const.DB_INTERVAL: interval,
+                 Const.DB_IS_ACTIVE: is_active}
+        return self.insert_one(query)
+
+    def delete_job(self, job_id: str) -> bool:
+        return self.delete_one(id=job_id)
+
+    def activate_job(self, job_id: str) -> bool:
+        return self.update_one(id=job_id, query={Const.DB_IS_ACTIVE: True})
+
+    def deactivate_job(self, job_id: str) -> bool:
+        return self.update_one(id=job_id, query={Const.DB_IS_ACTIVE: False})
 
 
-def get_jobs():
-    result = jobsCollection.find()
-    return result
+class MongoAlerts(MongoBase):
+    def __init__(self):
+        MongoBase.__init__(self)
+        self._collection = self.get_collection('alerts')
+
+    def get_alerts_by_interval(self, interval: str) -> list:
+        return self.get_many({Const.DB_INTERVAL: interval})
 
 
-def get_alerts(interval):
-    result = list(alertsCollection.find({'interval': interval}))
-    return result
+class MongoOrders(MongoBase):
+    def __init__(self):
+        MongoBase.__init__(self)
+        self._collection = self.get_collection('orders')
 
-def get_orders(interval):
-    result = list(ordersCollection.find({'interval': interval}))
-    return result
-
-
-if __name__ == "__main__":
-    pass
-    # x = jobsCollection.insert_one(
-    #     {"id": "1", "symbol": "EPAM", "hour": "1,5,8"})
-    # print(x)
+    def get_orders_by_interval(self, interval: str) -> list:
+        return self.get_many({Const.DB_INTERVAL: interval})

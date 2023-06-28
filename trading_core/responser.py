@@ -1,8 +1,8 @@
 import json
 import pandas as pd
-from datetime import datetime
+from flask import jsonify
 
-from .core import log_file_name, config, Symbol
+from .core import log_file_name, Symbol, Signal
 from .model import model, Symbols
 from .strategy import StrategyFactory, SignalFactory
 from .simulator import Simulator
@@ -10,21 +10,26 @@ from .simulator import Simulator
 
 def decorator_json(func) -> str:
     def wrapper(*args, **kwargs):
-        value = func(*args, **kwargs)
+        try:
+            value = func(*args, **kwargs)
 
-        if isinstance(value, list):
-            if all(type(item) == dict for item in value):
-                return json.dumps(value)
-            if all(isinstance(item, object) for item in value):
-                return json.dumps([item.__dict__ for item in value])
+            if isinstance(value, list):
+                if all(type(item) == dict for item in value):
+                    return json.dumps(value)
+                if all(isinstance(item, object) for item in value):
+                    return json.dumps([item.__dict__ for item in value])
+                else:
+                    return json.dumps(value)
+            elif isinstance(value, pd.DataFrame):
+                return value.to_json(orient="table", index=True)
+            elif isinstance(value, object):
+                return json.dumps(value.__dict__)
             else:
                 return json.dumps(value)
-        elif isinstance(value, pd.DataFrame):
-            return value.to_json(orient="table", index=True)
-        elif isinstance(value, object):
-            return json.dumps(value.__dict__)
-        else:
-            return json.dumps(value)
+
+        except Exception as error:
+            return jsonify({"error": error, }), 500
+
     return wrapper
 
 
@@ -56,7 +61,7 @@ class ResponserBase():
         strategy_inst = StrategyFactory(code)
         return strategy_inst.get_strategy_data(symbol=symbol, interval=interval, limit=limit, from_buffer=from_buffer, closed_bars=closed_bars)
 
-    def get_signals(self, symbols: list, intervals: list, strategies: list, signals_config: list, closed_bars: bool) -> list:
+    def get_signals(self, symbols: list, intervals: list, strategies: list, signals_config: list, closed_bars: bool) -> list[Signal]:
         return SignalFactory().get_signals(symbols=symbols, intervals=intervals, strategies=strategies, signals_config=signals_config, closed_bars=closed_bars)
 
 
@@ -103,6 +108,52 @@ class ResponserWeb(ResponserBase):
             signals.append(signal_inst.get_signal_dict())
 
         return signals
+
+
+class ResponserEmail(ResponserBase):
+    def get_signals(self, symbols: list, intervals: list, strategies: list, signals_config: list, closed_bars: bool) -> str:
+        signals_list = super().get_signals(symbols=symbols, intervals=intervals,
+                                           strategies=strategies, signals_config=signals_config, closed_bars=closed_bars)
+
+        # Create the HTML table
+        table_html = '<table border="1">'
+        table_html += '<tr><th>DateTime</th><th>Symbol</th><th>Interval</th><th>Strategy</th><th>Signal</th></tr>'
+        for signal_inst in signals_list:
+            table_html += '<tr>'
+            table_html += f'<td>{signal_inst.get_date_time().isoformat()}</td>'
+            table_html += f'<td>{signal_inst.get_symbol()}</td>'
+            table_html += f'<td>{signal_inst.get_interval()}</td>'
+            table_html += f'<td>{signal_inst.get_strategy()}</td>'
+            table_html += f'<td>{signal_inst.get_signal()}</td>'
+            table_html += '</tr>'
+        table_html += '</table>'
+
+        # Create the email body as HTML
+        message_text = f'<h4>Alert signals for {signal_inst.get_interval()}</h4>{table_html}'
+
+        return message_text
+
+
+class ResponserBot(ResponserBase):
+    def get_signals(self, symbols: list, intervals: list, strategies: list, signals_config: list, closed_bars: bool) -> str:
+        signals_list = super().get_signals(symbols=symbols, intervals=intervals,
+                                           strategies=strategies, signals_config=signals_config, closed_bars=closed_bars)
+
+        for signal_inst in signals_list:
+            pass
+
+# for signal in signals:
+
+        #         signal_text = f'<b>{signal["signal"]}</b>'
+        #         comments_text = f' | {dbComments}' if dbComments else ''
+
+        #         message_text = f'{signal["dateTime"]}  -  <b>{signal["symbol"]} - {signal["interval"]}</b>: ({signal["strategy"]}) - {signal_text}{comments_text}\n\n'
+
+        #         if alert['chatId'] in self.messages:
+        #             self.messages[alert['chatId']] += message_text
+        #         else:
+        #             self.messages[alert['chatId']
+        #                           ] = f'<b>Alert signals for {interval}: \n</b>{message_text}'
 
 
 @decorator_json
