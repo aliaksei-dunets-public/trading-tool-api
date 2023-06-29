@@ -71,7 +71,7 @@ class MongoBase():
 class MongoJobs(MongoBase):
     def __init__(self):
         MongoBase.__init__(self)
-        self._collection = self.get_collection('jobs')
+        self._collection = self.get_collection(Const.DB_COLLECTION_JOBS)
 
     def get_active_jobs(self):
         return self.get_many({Const.DB_IS_ACTIVE: True})
@@ -95,7 +95,7 @@ class MongoJobs(MongoBase):
 class MongoAlerts(MongoBase):
     def __init__(self):
         MongoBase.__init__(self)
-        self._collection = self.get_collection('alerts')
+        self._collection = self.get_collection(Const.DB_COLLECTION_ALERTS)
 
     def get_alerts_by_interval(self, interval: str) -> list:
         return self.get_many({Const.DB_INTERVAL: interval})
@@ -104,7 +104,7 @@ class MongoAlerts(MongoBase):
 class MongoOrders(MongoBase):
     def __init__(self):
         MongoBase.__init__(self)
-        self._collection = self.get_collection('orders')
+        self._collection = self.get_collection(Const.DB_COLLECTION_ORDERS)
 
     def get_orders_by_interval(self, interval: str) -> list:
         return self.get_many({Const.DB_INTERVAL: interval})

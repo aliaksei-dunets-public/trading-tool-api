@@ -2,7 +2,7 @@ import json
 import pandas as pd
 from flask import jsonify
 
-from .core import log_file_name, Symbol, Signal
+from .core import log_file_name, Const, Symbol, Signal
 from .model import model, Symbols
 from .strategy import StrategyFactory, SignalFactory
 from .simulator import Simulator
@@ -31,6 +31,80 @@ def decorator_json(func) -> str:
             return jsonify({"error": error, }), 500
 
     return wrapper
+
+
+class MessageBase:
+    def __init__(self, channel_id: str, message_text: str) -> None:
+        self._channel_id = channel_id
+        self._message_text = message_text
+
+    def get_channel_id(self) -> str:
+        return self._channel_id
+
+    def get_message_text(self) -> str:
+        return self._message_text
+
+    def set_message_text(self, text: str) -> None:
+        self._message_text = text
+
+    def add_message_text(self, text: str) -> None:
+        self._message_text += text
+
+
+class MessageEmail(MessageBase):
+    def __init__(self, channel_id: str, subject: str, message_text: str) -> None:
+        MessageBase.__init__(self, channel_id=channel_id,
+                             message_text=message_text)
+        self._subject = subject
+
+    def get_subject(self) -> str:
+        return self._subject
+
+
+class Messages:
+    def __init__(self):
+        self._messages = {}
+
+    def check_message(self, channel_id: str) -> bool:
+        if channel_id in self._messages:
+            return True
+        else:
+            return False
+
+    def get_message(self, channel_id: str) -> MessageBase:
+        if self.check_message(channel_id):
+            return self._messages[channel_id]
+        else:
+            None
+
+    def get_messages(self) -> dict:
+        return self._messages
+
+    def add_message_text(self, channel_id: str, text: str) -> MessageBase:
+        message = self.get_message(channel_id)
+        if message:
+            message.add_message_text(text)
+        else:
+            message = self.create_message(channel_id=channel_id, text=text)
+
+        return message
+
+    def set_message_text(self, channel_id: str, text: str) -> MessageBase:
+        message = self.get_message(channel_id)
+        if message:
+            message.set_message_text(text)
+        else:
+            message = self.create_message(channel_id=channel_id, text=text)
+
+        return message
+
+    def add_message(self, message: MessageBase) -> None:
+        self._messages[message.get_channel_id()] = message
+
+    def create_message(self, channel_id: str, text: str) -> MessageBase:
+        message = MessageBase(channel_id=channel_id, message_text=text)
+        self.add_message(message)
+        return message
 
 
 class ResponserBase():
@@ -111,7 +185,7 @@ class ResponserWeb(ResponserBase):
 
 
 class ResponserEmail(ResponserBase):
-    def get_signals(self, symbols: list, intervals: list, strategies: list, signals_config: list, closed_bars: bool) -> str:
+    def get_signals(self, symbols: list, intervals: list, strategies: list, signals_config: list, closed_bars: bool) -> Messages:
         signals_list = super().get_signals(symbols=symbols, intervals=intervals,
                                            strategies=strategies, signals_config=signals_config, closed_bars=closed_bars)
 
@@ -131,29 +205,90 @@ class ResponserEmail(ResponserBase):
         # Create the email body as HTML
         message_text = f'<h4>Alert signals for {signal_inst.get_interval()}</h4>{table_html}'
 
-        return message_text
+        message_inst = MessageEmail(
+            channel_id='None', subject=f'[TradingTool]: Alert signals for {intervals[0]}', message_text=message_text)
+
+        messages_inst = Messages()
+        messages_inst.add_message(message_inst)
+
+        return messages_inst
 
 
 class ResponserBot(ResponserBase):
-    def get_signals(self, symbols: list, intervals: list, strategies: list, signals_config: list, closed_bars: bool) -> str:
-        signals_list = super().get_signals(symbols=symbols, intervals=intervals,
-                                           strategies=strategies, signals_config=signals_config, closed_bars=closed_bars)
+    def get_signals_for_alerts(self, alerts_db: dict) -> Messages:
 
-        for signal_inst in signals_list:
-            pass
+        messages_inst = Messages()
 
-# for signal in signals:
+        for alert_db in alerts_db:
+            channel_id = alert_db[Const.DB_CHANNEL_ID]
+            symbol = alert_db[Const.DB_SYMBOL]
+            interval = alert_db[Const.DB_SYMBOL]
+            strategies = alert_db[Const.DB_STRATEGIES]
+            signals_config = alert_db[Const.DB_SIGNALS]
+            comment = alert_db[Const.DB_COMMENT]
 
-        #         signal_text = f'<b>{signal["signal"]}</b>'
-        #         comments_text = f' | {dbComments}' if dbComments else ''
+            comments_text = f' | {comment}' if comment else ''
 
-        #         message_text = f'{signal["dateTime"]}  -  <b>{signal["symbol"]} - {signal["interval"]}</b>: ({signal["strategy"]}) - {signal_text}{comments_text}\n\n'
+            signals_list = super().get_signals(symbols=[symbol], intervals=[
+                interval], strategies=strategies, signals_config=signals_config, closed_bars=True)
 
-        #         if alert['chatId'] in self.messages:
-        #             self.messages[alert['chatId']] += message_text
-        #         else:
-        #             self.messages[alert['chatId']
-        #                           ] = f'<b>Alert signals for {interval}: \n</b>{message_text}'
+            for signal_inst in signals_list:
+                signal_text = f'<b>{signal_inst.get_signal()}</b>'
+                message_text = f'{signal_inst.get_date_time().isoformat()} - <b>{signal_inst.get_symbol()} - {signal_inst.get_interval()}</b>: ({signal_inst.get_strategy()}) - {signal_text}{comments_text}\n\n'
+
+                # Add header of the message before the first content
+                if not messages_inst.check_message(channel_id):
+                    message_text = f'<b>Alert signals for {interval}: \n</b>{message_text}'
+
+                messages_inst.add_message_text(
+                    channel_id=channel_id, text=message_text)
+
+        return messages_inst
+
+    def get_signals_for_orders(self, orders_db: dict) -> Messages:
+
+        def get_comment(self, order_type, signal_value):
+            if order_type == Const.LONG:
+                if signal_value in (Const.BUY, Const.STRONG_BUY):
+                    return f' | <b>You can open more LONG positions</b>'
+                elif signal_value in (Const.SELL, Const.STRONG_SELL):
+                    return f' | <b>CLOSE all postions</b>'
+            elif order_type == Const.SHORT:
+                if signal_value in (Const.BUY, Const.STRONG_BUY):
+                    return f' | <b>CLOSE all postions</b>'
+                elif signal_value in (Const.SELL, Const.STRONG_SELL):
+                    return f' | <b>You can open more SHORT positions</b>'
+            else:
+                return ''
+
+        messages_inst = Messages()
+
+        for order_db in orders_db:
+            channel_id = '1658698044'
+            order_type = order_db[Const.DB_ORDER_TYPE]
+            symbol = order_db[Const.DB_SYMBOL]
+            interval = order_db[Const.DB_SYMBOL]
+            strategies = order_db[Const.DB_STRATEGIES]
+
+            signals_list = super().get_signals(symbols=[symbol], intervals=[
+                interval], strategies=strategies, signals_config=[], closed_bars=True)
+
+            for signal_inst in signals_list:
+
+                signal_value = signal_inst.get_signal()
+                signal_text = f'<b>{signal_value}</b>'
+                comment_text = get_comment(order_type, signal_value)
+
+                message_text = f'{signal_inst.get_date_time().isoformat()} - <b>{signal_inst.get_symbol()} - {signal_inst.get_interval()}</b>: ({signal_inst.get_strategy()}) - {signal_text}{comment_text}\n'
+
+                # Add header of the message before the first content
+                if not messages_inst.check_message(channel_id):
+                    message_text = f'<b>Order signals for {interval}: \n</b>{message_text}'
+
+                messages_inst.add_message_text(
+                    channel_id=channel_id, text=message_text)
+
+        return messages_inst
 
 
 @decorator_json

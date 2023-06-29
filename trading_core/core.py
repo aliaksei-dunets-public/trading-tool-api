@@ -93,6 +93,12 @@ class Const:
     DB_CREATED_BY = "created_by"
     DB_CHANGED_AT = "changed_at"
     DB_CHANGED_BY = "changed_by"
+    DB_CHANNEL_ID = 'channel_id'
+    DB_SYMBOL = 'symbol'
+    DB_STRATEGIES = 'strategies'
+    DB_SIGNALS = 'signals'
+    DB_COMMENT = 'comment'
+    DB_ORDER_TYPE = 'order_type'
 
     # API fields
     END_TIME = 'endTime'
@@ -115,6 +121,11 @@ class Const:
     JOB_TYPE_INIT = 'JOB_TYPE_INIT'
     JOB_TYPE_BOT = 'JOB_TYPE_BOT'
     JOB_TYPE_EMAIL = 'JOB_TYPE_EMAIL'
+
+    # Collections name
+    DB_COLLECTION_JOBS = 'jobs_temp'
+    DB_COLLECTION_ALERTS = 'alerts_temp'
+    DB_COLLECTION_ORDERS = 'orders_temp'
 
     # Stock Exchanges
     STOCK_EXCH_CURRENCY_COM = 'CURRENCY.COM'

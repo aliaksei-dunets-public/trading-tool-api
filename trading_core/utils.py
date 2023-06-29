@@ -9,10 +9,10 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
-from .mongodb import MongoJobs
+from .mongodb import MongoJobs, MongoAlerts, MongoOrders
 from .core import logger, runtime_buffer, Const
 from .model import model, RuntimeBuffer
-from .responser import ResponserEmail, ResponserBot
+from .responser import Messages, ResponserEmail, ResponserBot
 
 
 load_dotenv()
@@ -30,38 +30,34 @@ def job_func_initialise_runtime_data():
 
 
 def job_func_send_bot_notification(interval):
-    
+
     logger.info(
         f"JOB: Bot notification Job is triggered for interval - {interval}")
 
-    message_text = ResponserBot().get_signals(symbols=[],
-                                                intervals=[interval],
-                                                strategies=[],
-                                                signals_config=[],
-                                                closed_bars=True)
+    responser = ResponserBot()
+    notificator = NotificationBot()
 
-    message_inst = MessageEmail(
-        channel_id='None', subject=f'[TradingTool]: Alert signals for {interval}', message_text=message_text)
+    orders_db = MongoOrders().get_orders_by_interval(interval)
+    order_messages = responser.get_signals_for_orders(orders_db)
+    notificator.send(order_messages)
 
-    NotificationEmail(messages=[message_inst]).send()
-
+    alerts_db = MongoAlerts().get_alerts_by_interval(interval)
+    alert_messages = responser.get_signals_for_alerts(alerts_db)
+    notificator.send(alert_messages)
 
 
 def job_func_send_email_notification(interval):
-    
+
     logger.info(
         f"JOB: Email notification Job is triggered for interval - {interval}")
 
-    message_text = ResponserEmail().get_signals(symbols=[],
-                                                intervals=[interval],
-                                                strategies=[],
-                                                signals_config=[],
-                                                closed_bars=True)
+    messages = ResponserEmail().get_signals(symbols=[],
+                                            intervals=[interval],
+                                            strategies=[],
+                                            signals_config=[],
+                                            closed_bars=True)
 
-    message_inst = MessageEmail(
-        channel_id='None', subject=f'[TradingTool]: Alert signals for {interval}', message_text=message_text)
-
-    NotificationEmail(messages=[message_inst]).send()
+    NotificationEmail().send(messages)
 
 
 class JobScheduler:
@@ -209,38 +205,13 @@ class JobScheduler:
         return CronTrigger(day_of_week=day_of_week, hour=hour, minute=minute, second=second, timezone='UTC')
 
 
-class MessageBase:
-    def __init__(self, channel_id: str, message_text: str) -> None:
-        self._channel_id = channel_id
-        self._message_text = message_text
-
-    def get_channel_id(self) -> str:
-        return self._channel_id
-
-    def get_message_text(self) -> str:
-        return self._message_text
-
-
-class MessageEmail(MessageBase):
-    def __init__(self, channel_id: str, subject: str, message_text: str) -> None:
-        MessageBase.__init__(self, channel_id=channel_id,
-                             message_text=message_text)
-        self._subject = subject
-
-    def get_subject(self) -> str:
-        return self._subject
-
-
 class NotificationBase:
-    def __init__(self, messages: list[MessageBase]) -> None:
-        self._messages = messages
-
-    def send(self):
+    def send(self, messages_inst: Messages):
         pass
 
 
 class NotificationEmail(NotificationBase):
-    def send(self):
+    def send(self, messages_inst: Messages):
 
         # Email configuration
         sender_email = os.getenv("SMTP_USERNAME")
@@ -251,7 +222,7 @@ class NotificationEmail(NotificationBase):
         smtp_username = sender_email
         smtp_password = os.getenv("SMTP_PASSWORD")
 
-        for message_inst in self._messages:
+        for message_inst in messages_inst.get_messages().values():
 
             # message_inst.get_channel_id()
             receiver_email = os.getenv("RECEIVER_EMAIL").split(';')
@@ -285,9 +256,9 @@ class NotificationEmail(NotificationBase):
                 server.quit()
 
 
-class NotifyTelegramBot(NotificationBase):
+class NotificationBot(NotificationBase):
 
-    def send(self):
+    def send(self, messages_inst: Messages):
         bot_token = os.getenv("BOT_TOKEN")
         bot_url = f'https://api.telegram.org/bot{bot_token}/sendMessage'
 
@@ -295,7 +266,7 @@ class NotifyTelegramBot(NotificationBase):
             logger.error(
                 'Bot token is not maintained in the environment values')
 
-        for message_inst in self._messages:
+        for message_inst in messages_inst.get_messages().values():
 
             channel_id = message_inst.get_channel_id()
 
@@ -311,7 +282,7 @@ class NotifyTelegramBot(NotificationBase):
                     f"NOTIFICATION: BOT - Failed to send message to chat bot: {channel_id} - {response.text}")
 
 
-class NotifyTelegramBotAlerts(NotifyTelegramBot):
+class NotifyTelegramBotAlerts(NotificationBot):
 
     def send(self, interval):
         logger.info(
@@ -347,7 +318,7 @@ class NotifyTelegramBotAlerts(NotifyTelegramBot):
         #                           ] = f'<b>Alert signals for {interval}: \n</b>{message_text}'
 
 
-class NotifyTelegramBotOrders(NotifyTelegramBot):
+class NotifyTelegramBotOrders(NotificationBot):
 
     def send(self, interval):
         logger.info(
