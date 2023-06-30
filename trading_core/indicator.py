@@ -1,6 +1,7 @@
 import pandas_ta as ta
 import pandas as pd
 
+from .constants import Const
 from .core import logger, config, Const, HistoryData
 from .model import model
 

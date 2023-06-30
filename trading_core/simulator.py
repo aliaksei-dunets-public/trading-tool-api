@@ -2,8 +2,9 @@ import logging
 import os
 import json
 
-from .core import Const, HistoryData, SimulateOptions
-from .model import config, RuntimeBuffer
+from .constants import Const
+from .core import HistoryData, SimulateOptions
+from .model import config
 from .strategy import StrategyFactory
 
 logging.basicConfig(

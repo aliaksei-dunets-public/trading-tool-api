@@ -1,14 +1,10 @@
-from flask import Flask, jsonify, request
+from flask import Flask, request
 
-from trading_core.core import Const
-import trading_core.responser as resp
-import trading_core.utils as utils
-
-from trading_core.responser import ResponserWeb
+from trading_core.constants import Const
+from trading_core.responser import ResponserWeb, job_func_initialise_runtime_data, JobScheduler
 
 app = Flask(__name__)
 
-# scheduler = utils.JobScheduler()
 responser = ResponserWeb()
 
 
@@ -84,87 +80,63 @@ def get_signals():
     return responser.get_signals(symbols=symbols, intervals=intervals, strategies=strategies, signals_config=signals_config, closed_bars=closed_bars)
 
 
-@app.route('/simulate', methods=['GET'])
-def getSimulate():
-    symbols = request.args.getlist('symbol', None)
-    intervals = request.args.getlist('interval', None)
-    codes = request.args.getlist('code', None)
-
-    if symbols == []:
-        return jsonify({"error": "Symbol is missed", }), 500
-
-    return resp.getSimulate(symbols, intervals, codes)
+@app.route('/jobs', methods=['POST'])
+def create_job():
+    job_type = request.json.get(Const.DB_JOB_TYPE)
+    interval = request.json.get(Const.DB_INTERVAL)
+    return responser.create_job(job_type=job_type, interval=interval)
 
 
-@app.route('/simulations', methods=['GET'])
-def getSimulations():
-    symbols = request.args.getlist('symbol', None)
-    intervals = request.args.getlist('interval', None)
-    codes = request.args.getlist('code', None)
-
-    return resp.getSimulations(symbols, intervals, codes)
+@app.route('/jobs', methods=['GET'])
+def get_jobs():
+    return responser.get_jobs()
 
 
-@app.route('/signalsBySimulation', methods=['GET'])
-def getSignalsBySimulation():
-    symbols = request.args.getlist('symbol', None)
-    intervals = request.args.getlist('interval', None)
-    codes = request.args.getlist('code', None)
-
-    return resp.getSignalsBySimulation(symbols, intervals, codes)
-
-# Define endpoints for creating, reading, updating, and deleting background jobs
+@app.route('/jobs/<job_id>/activate', methods=['POST'])
+def activate_job(job_id):
+    return responser.activate_job(job_id)
 
 
-# @app.route('/jobs', methods=['POST'])
-# def create_job():
-#     jobType = request.json.get('jobType')
-#     interval = request.json.get('interval')
-#     job = scheduler.createJob(jobType, interval)
-#     return jsonify({'job_id': job.id}), 201
+@app.route('/jobs/<job_id>/deactivate', methods=['POST'])
+def deactivate_job(job_id):
+    return responser.deactivate_job(job_id)
+
+@app.route('/jobs/<job_id>', methods=['DELETE'])
+def remove_jobs(job_id):
+    return responser.remove_job(job_id)
 
 
-# @app.route('/jobs', methods=['GET'])
-# def get_jobs():
-#     jobs = scheduler.getJobs()
-#     if jobs:
-#         return jsonify(jobs), 200
-#     else:
-#         return jsonify({'error': 'Jobs not found'}), 404
+# @app.route('/simulate', methods=['GET'])
+# def getSimulate():
+#     symbols = request.args.getlist('symbol', None)
+#     intervals = request.args.getlist('interval', None)
+#     codes = request.args.getlist('code', None)
+
+#     if symbols == []:
+#         return jsonify({"error": "Symbol is missed", }), 500
+
+#     return resp.getSimulate(symbols, intervals, codes)
 
 
-# @app.route('/jobs/<job_id>', methods=['GET'])
-# def get_job(job_id):
-#     pass
-    # job = jobs.get(job_id)
-    # if job:
-    #     return jsonify({'job_id': job_id, 'interval': job.trigger.fields_as_string()}), 200
-    # else:
-    #     return jsonify({'error': 'Job not found'}), 404
+# @app.route('/simulations', methods=['GET'])
+# def getSimulations():
+#     symbols = request.args.getlist('symbol', None)
+#     intervals = request.args.getlist('interval', None)
+#     codes = request.args.getlist('code', None)
+
+#     return resp.getSimulations(symbols, intervals, codes)
 
 
-# @app.route('/jobs/<job_id>', methods=['PUT'])
-# def update_job(job_id):
-#     pass
-    # job = jobs.get(job_id)
-    # if job:
-    #     interval = request.json.get('interval')
-    #     job.reschedule(trigger='interval', **interval)
-    #     return jsonify({'job_id': job_id, 'interval': job.trigger.fields_as_string()}), 200
-    # else:
-    #     return jsonify({'error': 'Job not found'}), 404
+# @app.route('/signalsBySimulation', methods=['GET'])
+# def getSignalsBySimulation():
+#     symbols = request.args.getlist('symbol', None)
+#     intervals = request.args.getlist('interval', None)
+#     codes = request.args.getlist('code', None)
 
+#     return resp.getSignalsBySimulation(symbols, intervals, codes)
 
-# @app.route('/jobs/<job_id>', methods=['DELETE'])
-# def delete_job(job_id):
-#     if scheduler.removeJob(job_id):
-#         return jsonify({'message': 'Job deleted'}), 200
-#     else:
-#         return jsonify({'error': 'Job not found'}), 404
-
-
-@app.route("/logs")
-def get_logs():
-    start_date_str = request.args.get("start_date")
-    end_date_str = request.args.get("end_date")
-    return resp.getLogs(start_date_str, end_date_str)
+# @app.route("/logs")
+# def get_logs():
+#     start_date_str = request.args.get("start_date")
+#     end_date_str = request.args.get("end_date")
+#     return resp.getLogs(start_date_str, end_date_str)

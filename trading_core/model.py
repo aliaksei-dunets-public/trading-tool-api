@@ -1,4 +1,5 @@
-from .core import config, Const, Symbol
+from .constants import Const
+from .core import config, Symbol
 from .handler import StockExchangeHandler
 
 
@@ -112,16 +113,4 @@ class Symbols:
         return symbols_list
 
 
-class RuntimeBuffer:
-    _instance = None
-
-    def __new__(class_, *args, **kwargs):
-        if not isinstance(class_._instance, class_):
-            class_._instance = object.__new__(class_, *args, **kwargs)
-            class_.buffer_symbols_dict = {}
-            class_.buffer_signals = {}
-        return class_._instance
-
-
 model = Model()
-buffer = RuntimeBuffer()

@@ -9,9 +9,10 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
+from .constants import Const
+from .core import logger, runtime_buffer
+from .model import model
 from .mongodb import MongoJobs, MongoAlerts, MongoOrders
-from .core import logger, runtime_buffer, Const
-from .model import model, RuntimeBuffer
 from .responser import Messages, ResponserEmail, ResponserBot
 
 
@@ -280,87 +281,3 @@ class NotificationBot(NotificationBase):
             else:
                 logger.error(
                     f"NOTIFICATION: BOT - Failed to send message to chat bot: {channel_id} - {response.text}")
-
-
-class NotifyTelegramBotAlerts(NotificationBot):
-
-    def send(self, interval):
-        logger.info(
-            f"Alerts Bot notification for interval - {interval}")
-        self.getAlertMessages(interval)
-        super().send(interval)
-
-    def getAlertMessages(self, interval):
-        pass
-
-        # dbAlerts = db.get_alerts(interval)
-
-        # for alert in dbAlerts:
-        #     dbSymbolCode = alert['symbol']
-        #     dbComments = alert['comments'] if 'comments' in alert else None
-        #     dbStrategies = alert['strategies'] if 'strategies' in alert else None
-        #     dbSignals = alert['signals'] if 'signals' in alert else None
-
-        #     signals = self.getSignals(
-        #         dbSymbolCode, interval, dbStrategies, dbSignals)
-
-        #     for signal in signals:
-
-        #         signal_text = f'<b>{signal["signal"]}</b>'
-        #         comments_text = f' | {dbComments}' if dbComments else ''
-
-        #         message_text = f'{signal["dateTime"]}  -  <b>{signal["symbol"]} - {signal["interval"]}</b>: ({signal["strategy"]}) - {signal_text}{comments_text}\n\n'
-
-        #         if alert['chatId'] in self.messages:
-        #             self.messages[alert['chatId']] += message_text
-        #         else:
-        #             self.messages[alert['chatId']
-        #                           ] = f'<b>Alert signals for {interval}: \n</b>{message_text}'
-
-
-class NotifyTelegramBotOrders(NotificationBot):
-
-    def send(self, interval):
-        logger.info(
-            f"Orders Bot notification for interval - {interval}")
-        self.getOrderMessages(interval)
-        super().send(interval)
-
-    def getOrderMessages(self, interval):
-        pass
-        # dbOrders = db.get_orders(interval)
-
-        # for order in dbOrders:
-        #     dbOrderType = order['type']
-        #     dbSymbolCode = order['symbol']
-        #     dbStrategies = order['strategy'] if 'strategy' in order else None
-
-        #     signals = self.getSignals(dbSymbolCode, interval, dbStrategies, [])
-
-        #     for signal in signals:
-
-        #         signal_value = signal["signal"]
-        #         signal_text = f'<b>{signal_value}</b>'
-        #         comments_text = self.getComments(dbOrderType, signal_value)
-
-        #         message_text = f'{signal["dateTime"]}  -  <b>{signal["symbol"]} - {signal["interval"]}</b>: ({signal["strategy"]}) - {signal_text}{comments_text}\n'
-
-        #         if '1658698044' in self.messages:
-        #             self.messages['1658698044'] += message_text
-        #         else:
-        #             self.messages['1658698044'] = f'<b>Order signals for {interval}: \n</b>{message_text}'
-
-    def getComments(self, order_type, signal_value):
-
-        if order_type == Const.LONG:
-            if signal_value in (Const.BUY, Const.STRONG_BUY):
-                return f' | <b>You can open more LONG positions</b>'
-            elif signal_value in (Const.SELL, Const.STRONG_SELL):
-                return f' | <b>CLOSE all postions</b>'
-        elif order_type == Const.SHORT:
-            if signal_value in (Const.BUY, Const.STRONG_BUY):
-                return f' | <b>CLOSE all postions</b>'
-            elif signal_value in (Const.SELL, Const.STRONG_SELL):
-                return f' | <b>You can open more SHORT positions</b>'
-        else:
-            return ''

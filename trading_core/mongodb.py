@@ -4,7 +4,7 @@ import os
 from dotenv import load_dotenv
 from datetime import datetime
 
-from .core import Const
+from .constants import Const
 
 load_dotenv()
 
@@ -100,6 +100,15 @@ class MongoAlerts(MongoBase):
     def get_alerts_by_interval(self, interval: str) -> list:
         return self.get_many({Const.DB_INTERVAL: interval})
 
+    def create_alert(self, channel_id: str, symbol: str, interval: str, strategies: list, signals: list, comment: str):
+        query = {Const.DB_CHANNEL_ID: channel_id,
+                 Const.DB_SYMBOL: symbol,
+                 Const.DB_INTERVAL: interval,
+                 Const.DB_STRATEGIES: strategies,
+                 Const.DB_SIGNALS: signals,
+                 Const.DB_COMMENT: comment}
+        return self.insert_one(query)
+
 
 class MongoOrders(MongoBase):
     def __init__(self):
@@ -108,3 +117,10 @@ class MongoOrders(MongoBase):
 
     def get_orders_by_interval(self, interval: str) -> list:
         return self.get_many({Const.DB_INTERVAL: interval})
+
+    def create_order(self, order_type: str, symbol: str, interval: str, strategies: list):
+        query = {Const.DB_ORDER_TYPE: order_type,
+                 Const.DB_SYMBOL: symbol,
+                 Const.DB_INTERVAL: interval,
+                 Const.DB_STRATEGIES: strategies}
+        return self.insert_one(query)

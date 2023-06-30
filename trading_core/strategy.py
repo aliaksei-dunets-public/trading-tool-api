@@ -1,6 +1,7 @@
 import pandas as pd
 
-from .core import logger, config, runtime_buffer, Const, HistoryData, Signal
+from .constants import Const
+from .core import logger, config, runtime_buffer, HistoryData, Signal
 from .model import model
 from .indicator import Indicator_CCI
 
