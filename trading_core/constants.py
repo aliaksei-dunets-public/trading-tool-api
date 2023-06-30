@@ -39,6 +39,9 @@ class Const:
     DB_SIGNALS = 'signals'
     DB_COMMENT = 'comment'
     DB_ORDER_TYPE = 'order_type'
+    DB_ALERT_TYPE = 'alert_type'
+    DB_PRICE = 'price'
+    DB_QUANTITY = 'quantity'
 
     # Config properties
     CONFIG_DEBUG_LOG = 'DEBUG_LOG'
@@ -72,6 +75,11 @@ class Const:
     JOB_TYPE_INIT = 'JOB_TYPE_INIT'
     JOB_TYPE_BOT = 'JOB_TYPE_BOT'
     JOB_TYPE_EMAIL = 'JOB_TYPE_EMAIL'
+
+    # Alert types
+    ALERT_TYPE_BOT = 'ALERT_TYPE_BOT'
+    ALERT_TYPE_EMAIL = 'ALERT_TYPE_EMAIL'
+    ALERT_TYPE_SYSTEM = 'ALERT_TYPE_SYSTEM'
 
     # Column Names
     COLUMN_DATETIME = 'Datetime'

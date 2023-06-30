@@ -8,26 +8,27 @@ from .constants import Const
 
 load_dotenv()
 
+mongodb_uri = os.getenv("MONGO_CONFIG")
+
+try:
+    if not mongodb_uri:
+        raise Exception(
+            'Mongo Config is not maintained in the environment values')
+except KeyError:
+    raise Exception(
+        'Mongo Config is not maintained in the environment values')
+
+client = pymongo.MongoClient(mongodb_uri)
+database = client['ClusterShared']
+
 
 class MongoBase():
     def __init__(self):
 
-        mongodb_uri = os.getenv("MONGO_CONFIG")
-
-        try:
-            if not mongodb_uri:
-                raise Exception(
-                    'Mongo Config is not maintained in the environment values')
-        except KeyError:
-            raise Exception(
-                'Mongo Config is not maintained in the environment values')
-
-        self._client = pymongo.MongoClient(mongodb_uri)
-        self._database = self._client['ClusterShared']
         self._collection = None
 
     def get_collection(self, name: str):
-        return self._database[name]
+        return database[name]
 
     def insert_one(self, query: dict) -> str:
         if not query:
@@ -97,17 +98,26 @@ class MongoAlerts(MongoBase):
         MongoBase.__init__(self)
         self._collection = self.get_collection(Const.DB_COLLECTION_ALERTS)
 
-    def get_alerts_by_interval(self, interval: str) -> list:
-        return self.get_many({Const.DB_INTERVAL: interval})
+    def get_alerts(self, alert_type: str, interval: str) -> list:
+        return self.get_many({Const.DB_ALERT_TYPE: alert_type,
+                              Const.DB_INTERVAL: interval})
 
-    def create_alert(self, channel_id: str, symbol: str, interval: str, strategies: list, signals: list, comment: str):
-        query = {Const.DB_CHANNEL_ID: channel_id,
+    def create_alert(self, alert_type: str, channel_id: str, symbol: str, interval: str, strategies: list, signals: list, comment: str) -> str:
+        query = {Const.DB_ALERT_TYPE: alert_type,
+                 Const.DB_CHANNEL_ID: channel_id,
                  Const.DB_SYMBOL: symbol,
                  Const.DB_INTERVAL: interval,
                  Const.DB_STRATEGIES: strategies,
                  Const.DB_SIGNALS: signals,
                  Const.DB_COMMENT: comment}
         return self.insert_one(query)
+
+    def update_alert(self, id: str, interval: str, strategies: list, signals: list, comment: str) -> bool:
+        query = {Const.DB_INTERVAL: interval,
+                 Const.DB_STRATEGIES: strategies,
+                 Const.DB_SIGNALS: signals,
+                 Const.DB_COMMENT: comment}
+        return self.update_one(id=id, query=query)
 
 
 class MongoOrders(MongoBase):
@@ -118,9 +128,11 @@ class MongoOrders(MongoBase):
     def get_orders_by_interval(self, interval: str) -> list:
         return self.get_many({Const.DB_INTERVAL: interval})
 
-    def create_order(self, order_type: str, symbol: str, interval: str, strategies: list):
+    def create_order(self, order_type: str, symbol: str, interval: str, price: float, quantity: float, strategies: list):
         query = {Const.DB_ORDER_TYPE: order_type,
                  Const.DB_SYMBOL: symbol,
                  Const.DB_INTERVAL: interval,
+                 Const.DB_PRICE: price,
+                 Const.DB_QUANTITY: quantity,
                  Const.DB_STRATEGIES: strategies}
         return self.insert_one(query)

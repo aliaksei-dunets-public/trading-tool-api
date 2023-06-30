@@ -1,4 +1,5 @@
 import json
+import bson.json_util as json_util
 import pandas as pd
 from flask import jsonify
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -30,20 +31,20 @@ def decorator_json(func) -> str:
 
             if isinstance(value, list):
                 if all(type(item) == dict for item in value):
-                    return json.dumps(value)
+                    return json_util.dumps(value)
                 if all(isinstance(item, object) for item in value):
-                    return json.dumps([item.__dict__ for item in value])
+                    return json_util.dumps([item.__dict__ for item in value])
                 else:
-                    return json.dumps(value)
+                    return json_util.dumps(value)
             elif isinstance(value, pd.DataFrame):
                 return value.to_json(orient="table", index=True)
             elif isinstance(value, object):
                 if '__dict__' in value:
-                    return json.dumps(value.__dict__)
+                    return json_util.dumps(value.__dict__)
                 else:
-                    return json.dumps(value)
+                    return json_util.dumps(value)
             else:
-                return json.dumps(value)
+                return json_util.dumps(value)
 
         except Exception as error:
             return jsonify({"error": f'{error}'}), 500
@@ -74,7 +75,9 @@ def job_func_send_bot_notification(interval):
     order_messages = responser.get_signals_for_orders(orders_db)
     notificator.send(order_messages)
 
-    alerts_db = MongoAlerts().get_alerts_by_interval(interval)
+    alerts_db = MongoAlerts().get_alerts(alert_type=Const.ALERT_TYPE_BOT,
+                                         interval=interval)
+
     alert_messages = responser.get_signals_for_alerts(alerts_db)
     notificator.send(alert_messages)
 
@@ -213,6 +216,30 @@ class ResponserBase():
     def deactivate_job(self, job_id) -> bool:
         return JobScheduler().deactivate_job(job_id)
 
+    def create_alert(self, alert_type: str, channel_id: str, symbol: str, interval: str, strategies: list, signals: list, comment: str):
+        return MongoAlerts().create_alert(alert_type=alert_type,
+                                          channel_id=channel_id,
+                                          symbol=symbol,
+                                          interval=interval,
+                                          strategies=strategies,
+                                          signals=signals,
+                                          comment=comment
+                                          )
+
+    def update_alert(self, id: str, interval: str, strategies: list, signals: list, comment: str):
+        return MongoAlerts().update_alert(id=id,
+                                          interval=interval,
+                                          strategies=strategies,
+                                          signals=signals,
+                                          comment=comment
+                                          )
+
+    def remove_alert(self, id: str):
+        return MongoAlerts().delete_one(id)
+
+    def get_alerts(self):
+        return MongoAlerts().get_many()
+
 
 class ResponserWeb(ResponserBase):
     @decorator_json
@@ -266,7 +293,7 @@ class ResponserWeb(ResponserBase):
     @decorator_json
     def remove_job(self, job_id: str) -> json:
         if super().remove_job(job_id):
-            return {'message': f'Job {job_id} deleted'}
+            return {'message': f'Job {job_id} has been deleted'}
         else:
             raise Exception(f'Error during deletion of the job id: {job_id}')
 
@@ -284,6 +311,42 @@ class ResponserWeb(ResponserBase):
         else:
             raise Exception(
                 f'Error during deactivation of the job id: {job_id}')
+
+    @decorator_json
+    def create_alert(self, alert_type: str, channel_id: str, symbol: str, interval: str, strategies: list, signals: list, comment: str):
+        alert_id = super().create_alert(alert_type=alert_type,
+                                        channel_id=channel_id,
+                                        symbol=symbol,
+                                        interval=interval,
+                                        strategies=strategies,
+                                        signals=signals,
+                                        comment=comment
+                                        )
+
+        return {Const.DB_ID: alert_id}
+
+    @decorator_json
+    def update_alert(self, id: str, interval: str, strategies: list, signals: list, comment: str):
+        if super().update_alert(id=id,
+                                interval=interval,
+                                strategies=strategies,
+                                signals=signals,
+                                comment=comment
+                                ):
+            return {'message': f'Alert {id} has been updated'}
+        else:
+            raise Exception(f'Error during update of the alert: {id}')
+
+    @decorator_json
+    def remove_alert(self, id: str):
+        if super().remove_alert(id):
+            return {'message': f'Alert {id} has been deleted'}
+        else:
+            raise Exception(f'Error during deletion of the alert: {id}')
+
+    @decorator_json
+    def get_alerts(self):
+        return super().get_alerts()
 
 
 class ResponserEmail(ResponserBase):

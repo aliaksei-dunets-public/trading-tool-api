@@ -80,16 +80,16 @@ def get_signals():
     return responser.get_signals(symbols=symbols, intervals=intervals, strategies=strategies, signals_config=signals_config, closed_bars=closed_bars)
 
 
+@app.route('/jobs', methods=['GET'])
+def get_jobs():
+    return responser.get_jobs()
+
+
 @app.route('/jobs', methods=['POST'])
 def create_job():
     job_type = request.json.get(Const.DB_JOB_TYPE)
     interval = request.json.get(Const.DB_INTERVAL)
     return responser.create_job(job_type=job_type, interval=interval)
-
-
-@app.route('/jobs', methods=['GET'])
-def get_jobs():
-    return responser.get_jobs()
 
 
 @app.route('/jobs/<job_id>/activate', methods=['POST'])
@@ -101,9 +101,55 @@ def activate_job(job_id):
 def deactivate_job(job_id):
     return responser.deactivate_job(job_id)
 
+
 @app.route('/jobs/<job_id>', methods=['DELETE'])
 def remove_jobs(job_id):
     return responser.remove_job(job_id)
+
+
+@app.route('/alerts', methods=['GET'])
+def get_alerts():
+    return responser.get_alerts()
+
+
+@app.route('/alerts', methods=['POST'])
+def create_alert():
+    alert_type = request.json.get(Const.DB_ALERT_TYPE)
+    channel_id = request.json.get(Const.DB_CHANNEL_ID)
+    symbol = request.json.get(Const.DB_SYMBOL)
+    interval = request.json.get(Const.DB_INTERVAL)
+    strategies = request.json.get(Const.DB_STRATEGIES)
+    signals = request.json.get(Const.DB_SIGNALS)
+    comment = request.json.get(Const.DB_COMMENT)
+
+    return responser.create_alert(alert_type=alert_type,
+                                  channel_id=channel_id,
+                                  symbol=symbol,
+                                  interval=interval,
+                                  strategies=strategies,
+                                  signals=signals,
+                                  comment=comment
+                                  )
+
+
+@app.route('/alerts/<_id>', methods=['PUT'])
+def update_alert(_id):
+    interval = request.json.get(Const.DB_INTERVAL)
+    strategies = request.json.get(Const.DB_STRATEGIES)
+    signals = request.json.get(Const.DB_SIGNALS)
+    comment = request.json.get(Const.DB_COMMENT)
+
+    return responser.update_alert(id=_id,
+                                  interval=interval,
+                                  strategies=strategies,
+                                  signals=signals,
+                                  comment=comment
+                                  )
+
+
+@app.route('/alerts/<_id>', methods=['DELETE'])
+def remove_alert(_id):
+    return responser.remove_alert(_id)
 
 
 # @app.route('/simulate', methods=['GET'])

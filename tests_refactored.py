@@ -569,7 +569,8 @@ def getHistoryDataTest(symbol, interval, limit, from_buffer, closed_bars):
 #         self.assertEqual(collection.name, collection_name)
 
 #     def test_functionality(self):
-#         query = {Const.DB_CHANNEL_ID: 689916629,
+#         query = {Const.DB_ALERT_TYPE: Const.ALERT_TYPE_BOT,
+#                  Const.DB_CHANNEL_ID: 689916629,
 #                  Const.DB_SYMBOL: "BTC/USD",
 #                  Const.DB_INTERVAL: Const.TA_INTERVAL_5M,
 #                  Const.DB_STRATEGIES: [Const.TA_STRATEGY_CCI_14_TREND_100, Const.TA_STRATEGY_CCI_20_TREND_100],
@@ -580,6 +581,8 @@ def getHistoryDataTest(symbol, interval, limit, from_buffer, closed_bars):
 #         self.assertTrue(ObjectId.is_valid(self.document_id))
 
 #         result_get_one = self.mongo_base.get_one(self.document_id)
+#         self.assertEqual(
+#             result_get_one[Const.DB_ALERT_TYPE], Const.ALERT_TYPE_BOT)
 #         self.assertEqual(result_get_one[Const.DB_CHANNEL_ID], 689916629)
 #         self.assertEqual(result_get_one[Const.DB_SYMBOL], "BTC/USD")
 #         self.assertEqual(
@@ -658,7 +661,7 @@ def getHistoryDataTest(symbol, interval, limit, from_buffer, closed_bars):
 #         self.mongo_alerts = MongoAlerts()
 
 #     def test_db_alerts_functionality(self):
-
+#         alert_type = Const.ALERT_TYPE_BOT
 #         channel_id = 689916629
 #         symbol = "BTC/USD"
 #         interval = Const.TA_INTERVAL_5M
@@ -667,12 +670,17 @@ def getHistoryDataTest(symbol, interval, limit, from_buffer, closed_bars):
 #         signals = [Const.DEBUG_SIGNAL]
 #         comment = "Test comments"
 
-#         self.document_id = self.mongo_alerts.create_alert(
-#             channel_id, symbol, interval, strategies, signals, comment)
+#         self.document_id = self.mongo_alerts.create_alert(alert_type,
+#                                                           channel_id,
+#                                                           symbol,
+#                                                           interval,
+#                                                           strategies,
+#                                                           signals,
+#                                                           comment)
 
 #         self.assertTrue(ObjectId.is_valid(self.document_id))
 
-#         result = self.mongo_alerts.get_alerts_by_interval(interval)
+#         result = self.mongo_alerts.get_alerts(alert_type, interval)
 #         self.assertIsInstance(result, list)
 #         self.assertGreaterEqual(len(result), 1)
 
@@ -694,7 +702,7 @@ def getHistoryDataTest(symbol, interval, limit, from_buffer, closed_bars):
 #                       Const.TA_STRATEGY_CCI_20_TREND_100]
 
 #         self.document_id = self.mongo_orders.create_order(
-#             order_type, symbol, interval, strategies)
+#             order_type, symbol, interval, 100, 1.1, strategies)
 
 #         result = self.mongo_orders.get_orders_by_interval(interval)
 #         self.assertIsInstance(result, list)
@@ -1650,6 +1658,7 @@ def getHistoryDataTest(symbol, interval, limit, from_buffer, closed_bars):
 #             elif signal_inst.get_interval() == Const.TA_INTERVAL_4H:
 #                 self.assertEqual(signal_inst.get_date_time(), date_time_4h)
 
+
 # class MessageBaseTestCase(unittest.TestCase):
 
 #     def setUp(self):
@@ -1753,7 +1762,8 @@ def getHistoryDataTest(symbol, interval, limit, from_buffer, closed_bars):
 #         self.assertIsInstance(message_inst, MessageBase)
 #         self.assertEqual(message_inst.get_channel_id(), self.channel_id)
 #         self.assertEqual(message_inst.get_message_text(), self.message_text)
-#         self.assertEqual(self.messages.get_message(self.channel_id), message_inst)
+#         self.assertEqual(self.messages.get_message(
+#             self.channel_id), message_inst)
 
 #         result = self.messages.get_messages()
 #         self.assertIn(self.channel_id, result)
@@ -1904,7 +1914,7 @@ class FlaskAPITestCase(unittest.TestCase):
             f'/signals?symbol={symbol}&interval={interval_1h}&interval={interval_4h}&strategy={strategy}&signal=Debug&closed_bars={closed_bars}')
 
         json_api_response = json.loads(response.text)
- 
+
         end_datetime_1h = model.get_handler().getEndDatetime(
             interval=interval_1h, closed_bars=closed_bars)
         end_datetime_4h = model.get_handler().getEndDatetime(
@@ -1923,6 +1933,90 @@ class FlaskAPITestCase(unittest.TestCase):
         self.assertEqual(json_api_response[1][Const.SYMBOL], symbol)
         self.assertEqual(json_api_response[1][Const.INTERVAL], interval_4h)
         self.assertEqual(json_api_response[1][Const.STRATEGY], strategy)
+
+    def test_jobs_functionality(self):
+        job_type = Const.JOB_TYPE_BOT
+        interval = Const.TA_INTERVAL_1D
+
+        payload = {
+            Const.DB_JOB_TYPE: job_type,
+            Const.DB_INTERVAL: interval
+        }
+
+        # Create job
+        response = self.client.post(
+            '/jobs', data=json.dumps(payload), content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        json_api_response = json.loads(response.text)
+
+        job_id = json_api_response[Const.JOB_ID]
+        self.assertIsNotNone(job_id)
+
+        # Get jobs
+        response = self.client.get('/jobs')
+        json_api_response = json.loads(response.text)
+        self.assertEqual(response.status_code, 200)
+        self.assertGreaterEqual(len(json_api_response), 1)
+
+        # Deactivate job
+        response = self.client.post(f'/jobs/{job_id}/deactivate')
+        self.assertEqual(response.status_code, 200)
+
+        # Activate job
+        response = self.client.post(f'/jobs/{job_id}/activate')
+        self.assertEqual(response.status_code, 200)
+
+        response = self.client.delete(f'/jobs/{job_id}')
+        self.assertEqual(response.status_code, 200)
+
+    def test_alerts_functionality(self):
+        alert_type = Const.ALERT_TYPE_BOT
+        channel_id = 1658698044
+        symbol = 'BTC/USD'
+        interval = Const.TA_INTERVAL_1D
+        strategies = [Const.TA_STRATEGY_CCI_14_TREND_100]
+        signals = [Const.STRONG_BUY]
+        comment = 'Test comments'
+
+        payload = {
+            Const.DB_ALERT_TYPE: alert_type,
+            Const.DB_CHANNEL_ID: channel_id,
+            Const.DB_SYMBOL: symbol,
+            Const.DB_INTERVAL: interval,
+            Const.DB_STRATEGIES: strategies,
+            Const.DB_SIGNALS: signals,
+            Const.DB_COMMENT: comment
+        }
+
+        # Create
+        response = self.client.post(
+            '/alerts', data=json.dumps(payload), content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        json_api_response = json.loads(response.text)
+
+        _id = json_api_response[Const.DB_ID]
+        self.assertIsNotNone(_id)
+
+        # Get jobs
+        response = self.client.get('/alerts')
+        json_api_response = json.loads(response.text)
+        self.assertEqual(response.status_code, 200)
+        self.assertGreaterEqual(len(json_api_response), 1)
+
+        # Update
+        payload = {
+            Const.DB_INTERVAL: interval,
+            Const.DB_STRATEGIES: strategies,
+            Const.DB_SIGNALS: signals,
+            Const.DB_COMMENT: 'Updated comment'
+        }
+
+        response = self.client.put(
+            f'/alerts/{_id}', data=json.dumps(payload), content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+
+        response = self.client.delete(f'/alerts/{_id}')
+        self.assertEqual(response.status_code, 200)
 
 
 if __name__ == '__main__':
