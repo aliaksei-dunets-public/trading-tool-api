@@ -13,6 +13,12 @@ def index():
     return "<h1>This is the Trading tool API</h1>"
 
 
+@app.after_request
+def add_content_type(response):
+    response.headers['Content-Type'] = 'application/json'
+    return response
+
+
 @app.route('/intervals', methods=['GET'])
 def get_intervals():
     importances = request.args.getlist(Const.IMPORTANCE, None)
@@ -109,7 +115,13 @@ def remove_jobs(job_id):
 
 @app.route('/alerts', methods=['GET'])
 def get_alerts():
-    return responser.get_alerts()
+    alert_type = request.args.get(Const.DB_ALERT_TYPE)
+    symbol = request.args.get(Const.DB_SYMBOL)
+    interval = request.args.get(Const.DB_INTERVAL)
+
+    return responser.get_alerts(alert_type=alert_type,
+                                symbol=symbol,
+                                interval=interval)
 
 
 @app.route('/alerts', methods=['POST'])
@@ -150,6 +162,45 @@ def update_alert(_id):
 @app.route('/alerts/<_id>', methods=['DELETE'])
 def remove_alert(_id):
     return responser.remove_alert(_id)
+
+
+@app.route('/orders', methods=['GET'])
+def get_orders():
+    symbol = request.args.get(Const.DB_SYMBOL)
+    interval = request.args.get(Const.DB_INTERVAL)
+
+    return responser.get_orders(symbol=symbol,
+                                interval=interval)
+
+
+@app.route('/orders', methods=['POST'])
+def create_order():
+    order_type = request.json.get(Const.DB_ORDER_TYPE)
+    open_date_time = request.json.get(Const.DB_OPEN_DATE_TIME)
+    symbol = request.json.get(Const.DB_SYMBOL)
+    interval = request.json.get(Const.DB_INTERVAL)
+    price = request.json.get(Const.DB_PRICE)
+    quantity = request.json.get(Const.DB_QUANTITY)
+    strategies = request.json.get(Const.DB_STRATEGIES)
+
+    return responser.create_order(order_type=order_type,
+                                  open_date_time=open_date_time,
+                                  symbol=symbol,
+                                  interval=interval,
+                                  price=price,
+                                  quantity=quantity,
+                                  strategies=strategies)
+
+
+@app.route('/orders/<_id>', methods=['DELETE'])
+def remove_order(_id):
+    return responser.remove_order(_id)
+
+
+@app.route('/dashboard', methods=['GET'])
+def get_dashboard():
+    symbol = request.json.get(Const.DB_SYMBOL)
+    return responser.get_dashboard(symbol=symbol)
 
 
 # @app.route('/simulate', methods=['GET'])

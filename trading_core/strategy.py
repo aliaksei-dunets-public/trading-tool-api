@@ -2,12 +2,17 @@ import pandas as pd
 
 from .constants import Const
 from .core import logger, config, runtime_buffer, HistoryData, Signal
-from .model import model
+from .model import model, Symbols
 from .indicator import Indicator_CCI
 
 
 class SignalFactory():
     def get_signal(self, symbol: str, interval: str, strategy: str, signals_config: list, closed_bars: bool) -> Signal:
+
+        # Check if trading is not open for symbol -> skip processing
+        symbol_inst = Symbols(from_buffer=True).get_symbol(symbol)
+        if not symbol_inst or not model.get_handler().is_trading_open(interval=interval, trading_time=symbol_inst.tradingTime):
+            return None
 
         # Get DateTime of the Strategy
         end_date_time = model.get_handler().getEndDatetime(
@@ -18,12 +23,7 @@ class SignalFactory():
             symbol=symbol, interval=interval, strategy=strategy, date_time=end_date_time)
 
         # Check if buffer contains corresponding signal
-        if signal_inst:
-            if config.get_config_value(Const.CONFIG_DEBUG_LOG):
-                logger.info(
-                    f'BUFFER: get_signal(symbol={symbol}, interval={interval}, strategy={strategy}, signals_config={signals_config}, closed_bars={closed_bars})')
-        else:
-
+        if not signal_inst:
             # Calculate signal from the API
             # Get the latest bar from the Strategy Factory
             strategy_df = StrategyFactory(strategy).get_strategy_data(
@@ -32,14 +32,13 @@ class SignalFactory():
             # Init signal instance
             for index, strategy_row in strategy_df.iterrows():
                 signal_inst = Signal(date_time=index, symbol=symbol, interval=interval,
-                                     strategy=strategy, signal=strategy_row[Const.SIGNAL])
+                                     strategy=strategy, signal=strategy_row[Const.PARAM_SIGNAL])
 
             # Add signal to the buffer
             runtime_buffer.set_signal_to_buffer(signal_inst)
 
-            if config.get_config_value(Const.CONFIG_DEBUG_LOG):
-                logger.info(
-                    f'SIGNAL: get_signal(symbol={symbol}, interval={interval}, strategy={strategy}, signals_config={signals_config}, closed_bars={closed_bars})')
+            logger.info(
+                f'SIGNAL: get_signal(symbol={symbol}, interval={interval}, strategy={strategy}, signals_config={signals_config}, closed_bars={closed_bars})')
 
         # Return signal data if signal is compatible with signal config, else return None
         if signal_inst.is_compatible(signals_config):
@@ -51,7 +50,8 @@ class SignalFactory():
         signals = []
 
         if not symbols:
-            raise Exception(f'Symbol is missed')
+            symbols = Symbols(from_buffer=False).get_symbol_codes(
+                status=Const.STATUS_OPEN)
 
         if not intervals:
             intervals = model.get_intervals()
@@ -70,7 +70,7 @@ class SignalFactory():
                             continue
                     except Exception as error:
                         logger.error(
-                            f'For symbol={symbol}, interval={interval}, strategy={strategy} - {error}')
+                            f'SIGNAL: For symbol={symbol}, interval={interval}, strategy={strategy} - {error}')
                         continue
 
         return signals
@@ -86,7 +86,7 @@ class StrategyFactory():
         if code in [Const.TA_STRATEGY_CCI_50_TREND_0, Const.TA_STRATEGY_CCI_14_TREND_100, Const.TA_STRATEGY_CCI_20_TREND_100]:
             self.__instance = Strategy_CCI(strategy_config_inst)
         else:
-            raise Exception(f'Strategy with code {code} is missed')
+            raise Exception(f'STARTEGY: Strategy with code {code} is missed')
 
     def get_strategy_data(self, symbol: str, interval: str, limit: int = 0, from_buffer: bool = True, closed_bars: bool = True):
         strategy_data = self.__instance.get_strategy_data(symbol=symbol,
@@ -97,7 +97,7 @@ class StrategyFactory():
 
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
             logger.info(
-                f'STRATEGY - {self.__instance.get_strategy_config().get_code()}: get_strategy_data(symbol={symbol}, interval={interval}, limit={limit}, from_buffer={from_buffer}, closed_bars={closed_bars})')
+                f'STRATEGY: {self.__instance.get_strategy_config().get_code()} - get_strategy_data(symbol={symbol}, interval={interval}, limit={limit}, from_buffer={from_buffer}, closed_bars={closed_bars})')
 
         return strategy_data
 
@@ -107,7 +107,7 @@ class StrategyFactory():
 
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
             logger.info(
-                f'STRATEGY - {self.__instance.get_strategy_config().get_code()}: get_strategy_data_by_history_data(symbol={historyData.getSymbol()}, interval={historyData.getInterval()}, limit={historyData.getLimit()}, endDatetime={historyData.getEndDateTime()})')
+                f'STRATEGY: {self.__instance.get_strategy_config().get_code()} - get_strategy_data_by_history_data(symbol={historyData.getSymbol()}, interval={historyData.getInterval()}, limit={historyData.getLimit()}, endDatetime={historyData.getEndDateTime()})')
 
         return strategy_data
 
@@ -179,7 +179,7 @@ class Strategy_CCI(StrategyBase):
 
     def get_strategy_data_by_history_data(self, historyData: HistoryData):
         cci_df = self._cci.get_indicator_by_history_data(historyData)
-        cci_df.insert(cci_df.shape[1], Const.SIGNAL,
+        cci_df.insert(cci_df.shape[1], Const.PARAM_SIGNAL,
                       self._determineSignal(cci_df))
 
         return cci_df

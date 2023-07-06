@@ -36,12 +36,24 @@ class Const:
     DB_CHANNEL_ID = 'channel_id'
     DB_SYMBOL = 'symbol'
     DB_STRATEGIES = 'strategies'
+    DB_STRATEGY = 'strategy'
     DB_SIGNALS = 'signals'
     DB_COMMENT = 'comment'
     DB_ORDER_TYPE = 'order_type'
+    DB_OPEN_DATE_TIME = 'open_date_time'
+    DB_OPEN_PRICE = 'open_price'
+    DB_CLOSE_DATE_TIME = 'close_date_time'
+    DB_CLOSE_PRICE = 'close_price'
     DB_ALERT_TYPE = 'alert_type'
+    DB_INIT_BALANCE = 'init_balance'
+    DB_LIMIT = 'limit'
+    DB_STOP_LOSS_RATE = 'stop_loss_rate'
+    DB_TAKE_PROFIT_RATE = 'take_profit_rate'
+    DB_FEE_RATE = 'fee_rate'
     DB_PRICE = 'price'
     DB_QUANTITY = 'quantity'
+    DB_BALANCE = 'balance'
+    DB_PROFIT = 'profit'
 
     # Config properties
     CONFIG_DEBUG_LOG = 'DEBUG_LOG'
@@ -57,9 +69,9 @@ class Const:
     LONG = 'LONG'
     SHORT = 'SHORT'
 
-    # Order Statuses
-    ORDER_STATUS_OPEN = 'Open'
-    ORDER_STATUS_CLOSE = 'Close'
+    # Statuses
+    STATUS_OPEN = 'Open'
+    STATUS_CLOSE = 'Close'
 
     # Order Close Reason
     ORDER_CLOSE_REASON_STOP_LOSS = 'Stop Loss'
@@ -90,8 +102,8 @@ class Const:
     COLUMN_VOLUME = 'Volume'
 
     # Parameters
-    SIGNAL = 'signal'
-    SYMBOL = 'symbol'
+    PARAM_SIGNAL = 'signal'
+    PARAM_SYMBOL = 'symbol'
     CODE = 'code'
     INTERVAL = 'interval'
     LIMIT = 'limit'
@@ -109,6 +121,8 @@ class Const:
     LENGTH = "length"
     VALUE = "value"
     JOB_ID = "job_id"
+    TRADING_TIME = "tradingTime"
+    PARAM_SYMBOL_TYPE = "type"
 
     # API fields
     END_TIME = 'endTime'

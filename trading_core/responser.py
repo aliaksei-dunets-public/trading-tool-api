@@ -29,22 +29,10 @@ def decorator_json(func) -> str:
         try:
             value = func(*args, **kwargs)
 
-            if isinstance(value, list):
-                if all(type(item) == dict for item in value):
-                    return json_util.dumps(value)
-                if all(isinstance(item, object) for item in value):
-                    return json_util.dumps([item.__dict__ for item in value])
-                else:
-                    return json_util.dumps(value)
-            elif isinstance(value, pd.DataFrame):
-                return value.to_json(orient="table", index=True)
-            elif isinstance(value, object):
-                if '__dict__' in value:
-                    return json_util.dumps(value.__dict__)
-                else:
-                    return json_util.dumps(value)
+            if isinstance(value, pd.DataFrame):
+                return value.to_json(orient="table", index=True), 200
             else:
-                return json_util.dumps(value)
+                return json_util.dumps(value), 200
 
         except Exception as error:
             return jsonify({"error": f'{error}'}), 500
@@ -53,7 +41,7 @@ def decorator_json(func) -> str:
 
 
 def job_func_initialise_runtime_data():
-    logger.info(f"JOB: Refresh runtime buffer")
+    logger.info(f"JOB: {Const.JOB_TYPE_INIT} - Refresh runtime buffer")
 
     runtime_buffer.clearSymbolsBuffer()
     runtime_buffer.clearTimeframeBuffer()
@@ -66,12 +54,12 @@ def job_func_initialise_runtime_data():
 def job_func_send_bot_notification(interval):
 
     logger.info(
-        f"JOB: Bot notification Job is triggered for interval - {interval}")
+        f"JOB: {Const.JOB_TYPE_BOT} is triggered for interval - {interval}")
 
     responser = ResponserBot()
     notificator = NotificationBot()
 
-    orders_db = MongoOrders().get_orders_by_interval(interval)
+    orders_db = MongoOrders().get_orders(interval=interval)
     order_messages = responser.get_signals_for_orders(orders_db)
     notificator.send(order_messages)
 
@@ -85,7 +73,7 @@ def job_func_send_bot_notification(interval):
 def job_func_send_email_notification(interval):
 
     logger.info(
-        f"JOB: Email notification Job is triggered for interval - {interval}")
+        f"JOB: {Const.JOB_TYPE_EMAIL} is triggered for interval - {interval}")
 
     messages = ResponserEmail().get_signals(symbols=[],
                                             intervals=[interval],
@@ -175,10 +163,10 @@ class ResponserBase():
         return bool(param_value.lower() == 'true')
 
     def get_symbol(self, code: str) -> Symbol:
-        return Symbols().get_symbol(code)
+        return Symbols(from_buffer=True).get_symbol(code)
 
     def get_symbol_list(self, code: str, name: str, status: str, type: str, from_buffer: bool) -> list[Symbol]:
-        return Symbols(from_buffer).get_symbol_list(code=code, name=name, status=status, type=type)
+        return Symbols(from_buffer).get_symbol_list_json(code=code, name=name, status=status, type=type)
 
     def get_intervals(self, importances: list = None) -> list:
         return model.get_intervals_config(importances)
@@ -216,7 +204,7 @@ class ResponserBase():
     def deactivate_job(self, job_id) -> bool:
         return JobScheduler().deactivate_job(job_id)
 
-    def create_alert(self, alert_type: str, channel_id: str, symbol: str, interval: str, strategies: list, signals: list, comment: str):
+    def create_alert(self, alert_type: str, channel_id: str, symbol: str, interval: str, strategies: list, signals: list, comment: str) -> str:
         return MongoAlerts().create_alert(alert_type=alert_type,
                                           channel_id=channel_id,
                                           symbol=symbol,
@@ -226,19 +214,36 @@ class ResponserBase():
                                           comment=comment
                                           )
 
-    def update_alert(self, id: str, interval: str, strategies: list, signals: list, comment: str):
+    def update_alert(self, id: str, interval: str, strategies: list, signals: list, comment: str) -> bool:
         return MongoAlerts().update_alert(id=id,
                                           interval=interval,
                                           strategies=strategies,
                                           signals=signals,
-                                          comment=comment
-                                          )
+                                          comment=comment)
 
-    def remove_alert(self, id: str):
+    def remove_alert(self, id: str) -> bool:
         return MongoAlerts().delete_one(id)
 
-    def get_alerts(self):
-        return MongoAlerts().get_many()
+    def get_alerts(self, alert_type: str, symbol: str, interval: str) -> list:
+        return MongoAlerts().get_alerts(alert_type=alert_type,
+                                        symbol=symbol,
+                                        interval=interval)
+
+    def create_order(self, order_type: str, open_date_time: str,  symbol: str, interval: str, price: float, quantity: float, strategies: list) -> str:
+        return MongoOrders().create_order(order_type=order_type,
+                                          open_date_time=open_date_time,
+                                          symbol=symbol,
+                                          interval=interval,
+                                          price=price,
+                                          quantity=quantity,
+                                          strategies=strategies)
+
+    def remove_order(self, id: str) -> bool:
+        return MongoOrders().delete_one(id)
+
+    def get_orders(self, symbol: str, interval: str) -> list:
+        return MongoOrders().get_orders(symbol=symbol,
+                                        interval=interval)
 
 
 class ResponserWeb(ResponserBase):
@@ -345,8 +350,56 @@ class ResponserWeb(ResponserBase):
             raise Exception(f'Error during deletion of the alert: {id}')
 
     @decorator_json
-    def get_alerts(self):
-        return super().get_alerts()
+    def get_alerts(self, alert_type: str, symbol: str, interval: str):
+        return super().get_alerts(alert_type=alert_type,
+                                  symbol=symbol,
+                                  interval=interval)
+
+    @decorator_json
+    def create_order(self, order_type: str, open_date_time: str, symbol: str, interval: str, price: float, quantity: float, strategies: list) -> json:
+        order_id = super().create_order(order_type=order_type,
+                                        open_date_time=open_date_time,
+                                        symbol=symbol,
+                                        interval=interval,
+                                        price=price,
+                                        quantity=quantity,
+                                        strategies=strategies)
+
+        return {Const.DB_ID: order_id}
+
+    @decorator_json
+    def remove_order(self, id: str) -> json:
+        if super().remove_order(id):
+            return {'message': f'Order {id} has been deleted'}
+        else:
+            raise Exception(f'Error during deletion of the order: {id}')
+
+    @decorator_json
+    def get_orders(self, symbol: str, interval: str) -> json:
+        return super().get_orders(symbol=symbol,
+                                  interval=interval)
+
+    @decorator_json
+    def get_dashboard(self, symbol: str):
+        response = {}
+
+        response["symbol"] = Symbols(from_buffer=True).get_symbol(
+            code=symbol).get_symbol_json()
+        response["history_data"] = []
+        response["strategy_data"] = []
+        response["signals"] = []
+
+        signals_list = super().get_signals(symbols=[symbol],
+                                           intervals=["1h", "4h", "1d"],
+                                           strategies=[],
+                                           signals_config=[
+                                               Const.STRONG_BUY, Const.STRONG_SELL],
+                                           closed_bars=True)
+
+        for signal_inst in signals_list:
+            response["signals"].append(signal_inst.get_signal_dict())
+
+        return response
 
 
 class ResponserEmail(ResponserBase):
@@ -387,7 +440,7 @@ class ResponserBot(ResponserBase):
         for alert_db in alerts_db:
             channel_id = alert_db[Const.DB_CHANNEL_ID]
             symbol = alert_db[Const.DB_SYMBOL]
-            interval = alert_db[Const.DB_SYMBOL]
+            interval = alert_db[Const.DB_INTERVAL]
             strategies = alert_db[Const.DB_STRATEGIES]
             signals_config = alert_db[Const.DB_SIGNALS]
             comment = alert_db[Const.DB_COMMENT]
@@ -403,7 +456,7 @@ class ResponserBot(ResponserBase):
 
                 # Add header of the message before the first content
                 if not messages_inst.check_message(channel_id):
-                    message_text = f'<b>Alert signals for {interval}: \n</b>{message_text}'
+                    message_text = f'<b>Local: Alert signals for {interval}: \n</b>{message_text}'
 
                 messages_inst.add_message_text(
                     channel_id=channel_id, text=message_text)
@@ -412,27 +465,13 @@ class ResponserBot(ResponserBase):
 
     def get_signals_for_orders(self, orders_db: dict) -> Messages:
 
-        def get_comment(self, order_type, signal_value):
-            if order_type == Const.LONG:
-                if signal_value in (Const.BUY, Const.STRONG_BUY):
-                    return f' | <b>You can open more LONG positions</b>'
-                elif signal_value in (Const.SELL, Const.STRONG_SELL):
-                    return f' | <b>CLOSE all postions</b>'
-            elif order_type == Const.SHORT:
-                if signal_value in (Const.BUY, Const.STRONG_BUY):
-                    return f' | <b>CLOSE all postions</b>'
-                elif signal_value in (Const.SELL, Const.STRONG_SELL):
-                    return f' | <b>You can open more SHORT positions</b>'
-            else:
-                return ''
-
         messages_inst = Messages()
 
         for order_db in orders_db:
             channel_id = '1658698044'
             order_type = order_db[Const.DB_ORDER_TYPE]
             symbol = order_db[Const.DB_SYMBOL]
-            interval = order_db[Const.DB_SYMBOL]
+            interval = order_db[Const.DB_INTERVAL]
             strategies = order_db[Const.DB_STRATEGIES]
 
             signals_list = super().get_signals(symbols=[symbol], intervals=[
@@ -442,18 +481,33 @@ class ResponserBot(ResponserBase):
 
                 signal_value = signal_inst.get_signal()
                 signal_text = f'<b>{signal_value}</b>'
-                comment_text = get_comment(order_type, signal_value)
+                comment_text = self.get_comment_of_order(
+                    order_type, signal_value)
 
                 message_text = f'{signal_inst.get_date_time().isoformat()} - <b>{signal_inst.get_symbol()} - {signal_inst.get_interval()}</b>: ({signal_inst.get_strategy()}) - {signal_text}{comment_text}\n'
 
                 # Add header of the message before the first content
                 if not messages_inst.check_message(channel_id):
-                    message_text = f'<b>Order signals for {interval}: \n</b>{message_text}'
+                    message_text = f'<b>Local: Order signals for {interval}: \n</b>{message_text}'
 
                 messages_inst.add_message_text(
                     channel_id=channel_id, text=message_text)
 
         return messages_inst
+
+    def get_comment_of_order(self, order_type: str, signal_value: str) -> str:
+        if order_type == Const.LONG:
+            if signal_value in (Const.BUY, Const.STRONG_BUY):
+                return f' | <b>You can open more LONG positions</b>'
+            elif signal_value in (Const.SELL, Const.STRONG_SELL):
+                return f' | <b>CLOSE all postions</b>'
+        elif order_type == Const.SHORT:
+            if signal_value in (Const.BUY, Const.STRONG_BUY):
+                return f' | <b>CLOSE all postions</b>'
+            elif signal_value in (Const.SELL, Const.STRONG_SELL):
+                return f' | <b>You can open more SHORT positions</b>'
+        else:
+            return ''
 
 
 class JobScheduler:

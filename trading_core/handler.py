@@ -17,13 +17,13 @@ class StockExchangeHandler():
 
         if not stock_exchange_id:
             raise Exception(
-                f'Stock Exchange is not configured')
+                f'STOCK_EXCHANGE: Id is not configured')
 
         if stock_exchange_id == Const.STOCK_EXCH_CURRENCY_COM:
             self.__api_inst = CurrencyComApi()
         else:
             raise Exception(
-                f'Stock Exchange: {stock_exchange_id} implementation is missed')
+                f'STOCK_EXCHANGE: {stock_exchange_id} implementation is missed')
 
     def getStockExchangeName(self) -> str:
         return self.__api_inst.getStockExchangeName()
@@ -37,9 +37,6 @@ class StockExchangeHandler():
 
         # If it reruires to read from the buffer and buffer data is valid -> get hidtory data from the buffer
         if from_buffer and self.__buffer_inst.validateHistoryDataInBuffer(symbol=symbol, interval=interval, limit=limit, endDatetime=endDatetime):
-
-            logger.info(
-                f'BUFFER: getHistoryData(symbol={symbol}, interval={interval}, limit={limit}, closed_bars={closed_bars}, endDatetime={endDatetime})')
 
             # Get history data from the buffer for the parameters
             history_data_inst = self.__buffer_inst.getHistoryDataFromBuffer(
@@ -61,10 +58,6 @@ class StockExchangeHandler():
 
         # If it reruires to read data from the buffer and buffer data is existing -> get symbols from the buffer
         if from_buffer and self.__buffer_inst.checkSymbolsInBuffer():
-
-            logger.info(
-                f'BUFFER: getSymbols()')
-
             #  Get symbols from the buffer
             symbols = self.__buffer_inst.getSymbolsFromBuffer()
         else:
@@ -230,7 +223,7 @@ class CurrencyComApi(StockExchangeApiBase):
             url_params[Const.LIMIT] = url_params[Const.LIMIT] + 1
 
         logger.info(
-            f'{self.getStockExchangeName()}: getHistoryData({url_params})')
+            f'STOCK_EXCHANGE: {self.getStockExchangeName()} - getHistoryData({url_params})')
 
         json_api_response = self.get_api_klines(url_params)
 
@@ -253,7 +246,7 @@ class CurrencyComApi(StockExchangeApiBase):
 
         else:
             logger.error(
-                f'{self.getStockExchangeName()}: getHistoryData -> {response.text}')
+                f'STOCK_EXCHANGE: {self.getStockExchangeName()} - getHistoryData -> {response.text}')
             raise Exception(response.text)
 
     def getSymbols(self) -> dict[Symbol]:
@@ -265,7 +258,7 @@ class CurrencyComApi(StockExchangeApiBase):
 
         symbols = {}
 
-        logger.info(f'{self.getStockExchangeName()}: getSymbols()')
+        logger.info(f'STOCK_EXCHANGE: {self.getStockExchangeName()} - getSymbols()')
 
         # Get API data
         response = requests.get(f'{self.getApiEndpoint()}/exchangeInfo')
@@ -276,8 +269,11 @@ class CurrencyComApi(StockExchangeApiBase):
             # Create an instance of Symbol and add to the list
             for row in json_api_response['symbols']:
                 if row['quoteAssetId'] == 'USD' and row['assetType'] in ['CRYPTOCURRENCY', 'EQUITY', 'COMMODITY'] and 'REGULAR' in row['marketModes']:
-                    symbol_inst = Symbol(code=row[Const.SYMBOL], name=row[Const.NAME],
-                                         status=row[Const.STATUS], tradingTime=row['tradingHours'], type=row['assetType'])
+                    
+                    status_converted = Const.STATUS_OPEN if row[Const.STATUS] == 'TRADING' else Const.STATUS_CLOSE
+
+                    symbol_inst = Symbol(code=row[Const.PARAM_SYMBOL], name=row[Const.NAME],
+                                         status=status_converted, tradingTime=row['tradingHours'], type=row['assetType'])
                     symbols[symbol_inst.code] = symbol_inst
                 else:
                     continue
@@ -286,7 +282,7 @@ class CurrencyComApi(StockExchangeApiBase):
 
         else:
             logger.error(
-                f'{self.getStockExchangeName()}: getSymbols -> {response.text}')
+                f'STOCK_EXCHANGE: {self.getStockExchangeName()} - getSymbols -> {response.text}')
             raise Exception(response.text)
 
     def get_intervals(self) -> list:
@@ -417,12 +413,11 @@ class CurrencyComApi(StockExchangeApiBase):
             offset_date_time = offset_date_time.replace(
                 hour=self.getTimezoneDifference(), minute=0, second=0, microsecond=0)
 
-        other_attributes = ", ".join(
-            f'{key}={value}' for key, value in kwargs.items())
-
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+            other_attributes = ", ".join(f'{key}={value}' for key, value in kwargs.items())
+
             logger.info(
-                f'getEndDatetime(interval:{interval}, {other_attributes}) -> Original: {original_datetime} | Closed: {offset_date_time}')
+                f'STOCK_EXCHANGE: {self.getStockExchangeName()} - getEndDatetime(interval:{interval}, {other_attributes}) -> Original: {original_datetime} | Closed: {offset_date_time}')
 
         return offset_date_time
 

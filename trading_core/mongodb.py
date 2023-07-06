@@ -68,6 +68,12 @@ class MongoBase():
     def get_many(self, query: dict = {}) -> list:
         return list(self._collection.find(query))
 
+    def add_param_to_query(self, query: dict, param: str, value: str) -> dict:
+        if value:
+            query[param] = value
+
+        return query
+
 
 class MongoJobs(MongoBase):
     def __init__(self):
@@ -98,9 +104,16 @@ class MongoAlerts(MongoBase):
         MongoBase.__init__(self)
         self._collection = self.get_collection(Const.DB_COLLECTION_ALERTS)
 
-    def get_alerts(self, alert_type: str, interval: str) -> list:
-        return self.get_many({Const.DB_ALERT_TYPE: alert_type,
-                              Const.DB_INTERVAL: interval})
+    def get_alerts(self, alert_type: str = None, symbol: str = None, interval: str = None) -> list:
+        query = {}
+        query = self.add_param_to_query(
+            query=query, param=Const.DB_ALERT_TYPE, value=alert_type)
+        query = self.add_param_to_query(
+            query=query, param=Const.DB_SYMBOL, value=symbol)
+        query = self.add_param_to_query(
+            query=query, param=Const.DB_INTERVAL, value=interval)
+
+        return self.get_many(query)
 
     def create_alert(self, alert_type: str, channel_id: str, symbol: str, interval: str, strategies: list, signals: list, comment: str) -> str:
         query = {Const.DB_ALERT_TYPE: alert_type,
@@ -125,11 +138,21 @@ class MongoOrders(MongoBase):
         MongoBase.__init__(self)
         self._collection = self.get_collection(Const.DB_COLLECTION_ORDERS)
 
-    def get_orders_by_interval(self, interval: str) -> list:
-        return self.get_many({Const.DB_INTERVAL: interval})
+    def get_orders(self, symbol: str = None, interval: str = None) -> list:
+        query = {}
+        query = self.add_param_to_query(
+            query=query, param=Const.DB_SYMBOL, value=symbol)
+        query = self.add_param_to_query(
+            query=query, param=Const.DB_INTERVAL, value=interval)
 
-    def create_order(self, order_type: str, symbol: str, interval: str, price: float, quantity: float, strategies: list):
+        return self.get_many(query)
+
+    def create_order(self, order_type: str, open_date_time: str, symbol: str, interval: str, price: float, quantity: float, strategies: list):
+        open_date_time = datetime.fromisoformat(
+            open_date_time) if open_date_time else datetime.now()
+
         query = {Const.DB_ORDER_TYPE: order_type,
+                 Const.DB_OPEN_DATE_TIME: open_date_time,
                  Const.DB_SYMBOL: symbol,
                  Const.DB_INTERVAL: interval,
                  Const.DB_PRICE: price,

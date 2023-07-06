@@ -72,6 +72,37 @@ class Symbol:
         self.tradingTime = tradingTime
         self.type = type
 
+    def get_symbol_json(self):
+        return {Const.CODE: self.code,
+                Const.NAME: self.name,
+                Const.DESCR: self.descr,
+                Const.STATUS: self.status,
+                Const.TRADING_TIME: self.tradingTime,
+                Const.PARAM_SYMBOL_TYPE: self.type}
+
+
+class CandelBar:
+    def __init__(self, date_time: datetime, open: float, high: float, low: float, close: float, volume: float) -> None:
+        self.date_time = date_time
+        self.open = open
+        self.high = high
+        self.low = low
+        self.close = close
+        self.volume = volume
+
+
+class CandelBarSignal(CandelBar):
+    def __init__(self, date_time: datetime, open: float, high: float, low: float, close: float, volume: float, signal: str) -> None:
+        CandelBar.__init__(self,
+                           date_time=date_time,
+                           open=open,
+                           high=high,
+                           low=low,
+                           close=close,
+                           volume=volume)
+
+        self.signal = signal
+
 
 class HistoryData:
     def __init__(self, symbol: str, interval: str, limit: int, dataFrame: pd.DataFrame):
@@ -98,12 +129,33 @@ class HistoryData:
 
 
 class SimulateOptions:
-    def __init__(self, balance, limit, stopLossRate, takeProfitRate, feeRate):
-        self.balance = balance
-        self.limit = int(limit)
-        self.stopLossRate = stopLossRate
-        self.takeProfitRate = takeProfitRate
-        self.feeRate = feeRate
+    def __init__(self, init_balance, limit, stop_loss_rate, take_profit_rate, fee_rate):
+        self.init_balance: float = init_balance
+        self.limit: int = int(limit)
+        self.stop_loss_rate: float = stop_loss_rate
+        self.take_profit_rate: float = take_profit_rate
+        self.fee_rate: float = fee_rate
+
+    def get_fee_value(self) -> float:
+        return (self.init_balance * self.fee_rate) / 100
+
+    def get_stop_loss_value(self, price: float) -> float:
+        return (price * self.stop_loss_rate) / 100
+
+    def get_take_profit_value(self, price: float) -> float:
+        return (price * self.take_profit_rate) / 100
+
+    def get_balance(self) -> float:
+        return self.init_balance - self.get_fee_value()
+
+    def set_init_balance(self, init_balance: float) -> None:
+        self.init_balance = init_balance
+
+    def get_quantity(self, price: float) -> float:
+        if price == 0:
+            return 0
+        else:
+            return self.get_balance() / price
 
 
 class Signal():
@@ -116,10 +168,10 @@ class Signal():
 
     def get_signal_dict(self) -> dict:
         return {Const.DATETIME: self.__date_time.isoformat(),
-                Const.SYMBOL: self.__symbol,
+                Const.PARAM_SYMBOL: self.__symbol,
                 Const.INTERVAL: self.__interval,
                 Const.STRATEGY: self.__strategy,
-                Const.SIGNAL: self.__signal}
+                Const.PARAM_SIGNAL: self.__signal}
 
     def get_date_time(self) -> datetime:
         return self.__date_time
@@ -159,6 +211,8 @@ class RuntimeBufferStore():
         return class_._instance
 
     def getSymbolsFromBuffer(self) -> dict[Symbol]:
+        logger.info(f'BUFFER: getSymbols()')
+
         return self.__symbol_buffer
 
     def checkSymbolsInBuffer(self) -> bool:
@@ -203,6 +257,9 @@ class RuntimeBufferStore():
 
         history_data_required = HistoryData(
             symbol=symbol, interval=interval, limit=limit, dataFrame=df_required)
+
+        logger.info(
+            f'BUFFER: getHistoryData(symbol={symbol}, interval={interval}, limit={limit}, endDatetime={endDatetime})')
 
         return history_data_required
 
@@ -252,6 +309,10 @@ class RuntimeBufferStore():
         signal_buffer_inst = self.__signal_buffer[buffer_key]
 
         if date_time == signal_buffer_inst.get_date_time():
+
+            logger.info(
+                f'BUFFER: get_signal(symbol={symbol}, interval={interval}, strategy={strategy}, date_time={date_time})')
+
             return signal_buffer_inst
         else:
             return None

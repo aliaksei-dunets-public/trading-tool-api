@@ -38,7 +38,7 @@ class IndicatorBase():
         """
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
             logger.info(
-                f'INDICATOR - {self._code}: get_indicator(symbol={symbol}, interval={interval}, limit={limit}, from_buffer={from_buffer}, closed_bars={closed_bars})')
+                f'INDICATOR: {self._code} - get_indicator(symbol={symbol}, interval={interval}, limit={limit}, from_buffer={from_buffer}, closed_bars={closed_bars})')
 
         return model.get_handler().getHistoryData(symbol=symbol, interval=interval, limit=limit, from_buffer=from_buffer, closed_bars=closed_bars)
 
@@ -54,7 +54,7 @@ class IndicatorBase():
         """
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
             logger.info(
-                f'INDICATOR - {self._code}: get_indicator_by_history_data(symbol={history_data_inst.getSymbol()}, interval={history_data_inst.getInterval()}, limit={history_data_inst.getLimit()}, endDatetime={history_data_inst.getEndDateTime()})')
+                f'INDICATOR: {self._code} - get_indicator_by_history_data(symbol={history_data_inst.getSymbol()}, interval={history_data_inst.getInterval()}, limit={history_data_inst.getLimit()}, endDatetime={history_data_inst.getEndDateTime()})')
 
         return history_data_inst.getDataFrame()
 
