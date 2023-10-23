@@ -1,15 +1,76 @@
+import logging
+import os
+from dotenv import load_dotenv
+
 from flask import Flask, jsonify, request
+import telegram
 
 import trading_core.responser as resp
 import trading_core.utils as utils
 
 app = Flask(__name__)
 
+load_dotenv()
+
+BOT_TOKEN = os.getenv('BOT_TOKEN')
+if not BOT_TOKEN:
+    logging.error('Bot token is not maintained in the environment values')
+
+HEROKU_APP_NAME = os.getenv('HEROKU_APP_NAME')
+
+# webhook settings
+WEBHOOK_HOST = f'https://{HEROKU_APP_NAME}.herokuapp.com'
+WEBHOOK_PATH = f'/webhook/{BOT_TOKEN}'
+WEBHOOK_URL = f'{WEBHOOK_HOST}{WEBHOOK_PATH}'
+
+# webserver settings
+WEBAPP_HOST = '0.0.0.0'
+WEBAPP_PORT = int(os.getenv('PORT'))
+
+bot = telegram.Bot(token=BOT_TOKEN)
+
 scheduler = utils.JobScheduler()
+
 
 @app.route("/")
 def index():
     return "<h1>This is the Trading tool API</h1>"
+
+
+# ----------------------------------
+# Our public Webhook URL
+# ----------------------------------
+@app.route(f'/{WEBHOOK_URL}', methods=['POST'])
+def respond():
+    # retrieve the message in JSON and then transform it to Telegram object
+    update = telegram.Update.de_json(request.get_json(force=True), bot)
+
+    chat_id = update.message.chat.id
+    msg_id = update.message.message_id
+
+    # Telegram understands UTF-8, so encode text for unicode compatibility
+    text = update.message.text.encode('utf-8').decode()
+    logging.info(f'BOT: got the message - {text}')
+
+    # response = get_response(text)
+    bot.sendMessage(chat_id=chat_id,
+                    text=f'Hello {chat_id}', reply_to_message_id=msg_id)
+
+    return 'ok'
+
+
+# ----------------------------------
+# Our Private to 'set' our webhook URL (you should protect this URL)
+# ----------------------------------
+@app.route('/setwebhook', methods=['GET', 'POST'])
+def set_webhook():
+    s = bot.setWebhook(f'{WEBHOOK_URL}')
+    if s:
+        logging.info(f'{WEBHOOK_URL} is succesfully activated')
+        return f'{WEBHOOK_URL} is succesfully activated'
+    else:
+        logging.error(f'{WEBHOOK_URL} is failed')
+        return f'{WEBHOOK_URL} is failed'
 
 
 @app.route('/intervals', methods=['GET'])
@@ -114,6 +175,8 @@ def getSignalsBySimulation():
     return resp.getSignalsBySimulation(symbols, intervals, codes)
 
 # Define endpoints for creating, reading, updating, and deleting background jobs
+
+
 @app.route('/jobs', methods=['POST'])
 def create_job():
     jobType = request.json.get('jobType')
@@ -159,6 +222,7 @@ def delete_job(job_id):
         return jsonify({'message': 'Job deleted'}), 200
     else:
         return jsonify({'error': 'Job not found'}), 404
+
 
 @app.route("/logs")
 def get_logs():
