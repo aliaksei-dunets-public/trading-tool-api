@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 
 from aiohttp import web
 from aiogram import Bot, types
-from aiogram import Bot, Dispatcher, types
+from aiogram import Bot, Dispatcher, Router, types
 from aiogram.filters import Command, CommandObject
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 
@@ -25,18 +25,16 @@ WEBHOOK_URL = f'{WEBHOOK_HOST}{WEBHOOK_PATH}'
 WEBAPP_HOST = '0.0.0.0'
 WEBAPP_PORT = int(os.getenv('PORT'))
 
-bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher(bot)
+# All handlers should be attached to the Router (or Dispatcher)
+router = Router()
 
-
-@dp.message_handler()
-async def echo(message: types.Message):
+@router.message(Command(commands=["start"]))
+async def cmd_start(message: types.Message):
     logging.warning(
         f'Recieved a message from {message.from_user}: {message.chat.id}')
-    await bot.send_message(message.chat.id, message.text)
+    await message.answer(message.chat.id, f'Hello {message.from_user}: {message.chat.id}')
 
-
-async def on_startup(dp):
+async def on_startup(bot):
     logging.warning('Starting connection. ')
 
     # Get current webhook status
@@ -51,19 +49,27 @@ async def on_startup(dp):
         await bot.set_webhook(WEBHOOK_URL, drop_pending_updates=True)
 
 
-async def on_shutdown(dp):
+async def on_shutdown(bot):
     logging.warning('Bye! Shutting down webhook connection')
-    
+
     # Remove webhook.
     await bot.delete_webhook()
 
 
 def main():
 
+    # Dispatcher is a root router
+    dp = Dispatcher()
+    # ... and all other routers should be attached to Dispatcher
+    dp.include_router(router)
+
     # Register startup hook to initialize webhook
     dp.startup.register(on_startup)
 
     dp.shutdown.register(on_shutdown)
+
+    # Initialize Bot instance with a default parse mode which will be passed to all API calls
+    bot = Bot(BOT_TOKEN)
 
     # Create aiohttp.web.Application instance
     app = web.Application()
