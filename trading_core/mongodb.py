@@ -40,29 +40,32 @@ class MongoBase():
         return str(result.inserted_id)
 
     def update_one(self, id: str, query: dict) -> bool:
-        if not id:
-            raise Exception(f'DB: GET_ONE - ID is empty')
-        elif not query:
+        return self.__update_one(id=id, query=query)
+
+    def upsert_one(self, id: str, query: dict) -> bool:
+        query[Const.DB_ID] = self._convert_id(id)
+        return self.__update_one(id=id, query=query, upsert=True)
+
+    def __update_one(self, id: str, query: dict, upsert: bool = False) -> bool:
+        if not query:
             raise Exception(f'DB: INSERT_ONE - Query is empty')
         else:
             query[Const.DB_CHANGED_AT] = datetime.utcnow()
 
-        result = self._collection.update_one({Const.DB_ID: ObjectId(id)},
-                                             {"$set": query})
+        result = self._collection.update_one({Const.DB_ID: self._convert_id(id)},
+                                             {"$set": query},
+                                             upsert)
         if result.modified_count == 1:
             return True
         return False
 
     def delete_one(self, id: str) -> bool:
-        if not id:
-            raise Exception(f'DB: DELETE_ONE - ID is empty')
-        result = self._collection.delete_one({Const.DB_ID: ObjectId(id)})
+        result = self._collection.delete_one(
+            {Const.DB_ID: self._convert_id(id)})
         return result.deleted_count > 0
 
     def get_one(self, id: str) -> dict:
-        if not id:
-            raise Exception(f'DB: GET_ONE - ID is empty')
-        result = self._collection.find_one({Const.DB_ID: ObjectId(id)})
+        result = self._collection.find_one({Const.DB_ID: self._convert_id(id)})
         return result
 
     def get_many(self, query: dict = {}) -> list:
@@ -73,6 +76,12 @@ class MongoBase():
             query[param] = value
 
         return query
+
+    def _convert_id(self, id: str) -> str:
+        if not id:
+            raise Exception(f'DB: _id is missed')
+
+        return ObjectId(id)
 
 
 class MongoJobs(MongoBase):
@@ -147,7 +156,7 @@ class MongoOrders(MongoBase):
 
         return self.get_many(query)
 
-    def create_order(self, order_type: str, open_date_time: str, symbol: str, interval: str, price: float, quantity: float, strategies: list):
+    def create_order(self, order_type: str, open_date_time: str, symbol: str, interval: str, price: float, quantity: float, strategies: list) -> str:
         open_date_time = datetime.fromisoformat(
             open_date_time) if open_date_time else datetime.now()
 
@@ -159,3 +168,15 @@ class MongoOrders(MongoBase):
                  Const.DB_QUANTITY: quantity,
                  Const.DB_STRATEGIES: strategies}
         return self.insert_one(query)
+
+
+class MongoSimulations(MongoBase):
+    def __init__(self):
+        super().__init__()
+        self._collection = self.get_collection(Const.DB_COLLECTION_SIMULATION)
+
+    def _convert_id(self, id: str) -> str:
+        if not id:
+            raise Exception(f'DB: _id is missed')
+
+        return id

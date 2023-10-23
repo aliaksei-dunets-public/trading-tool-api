@@ -1,3 +1,5 @@
+import copy
+
 from .constants import Const
 from .core import config, Symbol, SimulateOptions
 from .handler import StockExchangeHandler
@@ -16,6 +18,15 @@ class Model:
         if self.__handler == None:
             self.__handler = StockExchangeHandler()
         return self.__handler
+
+    def get_interval_config(self, interval: str) -> dict:
+        intervals = self.get_intervals_config()
+
+        for row in intervals:
+            if row[Const.INTERVAL] == interval:
+                return row
+
+        return None
 
     def get_intervals(self, importances: list = None) -> list:
         return [x[Const.INTERVAL] for x in self.get_intervals_config(importances)]
@@ -123,7 +134,9 @@ class Symbols:
 
 
 class ParamBase:
-    pass
+    @staticmethod
+    def copy_instance(obj):
+        return copy.deepcopy(obj)
 
 
 class ParamSymbol(ParamBase):
@@ -147,7 +160,7 @@ class ParamSymbol(ParamBase):
 class ParamInterval(ParamBase):
     def __init__(self, interval: str) -> None:
 
-        self.__interval_config = Model().get_intervals_config()
+        self.__interval_config = Model().get_interval_config(interval)
 
         if not self.__interval_config:
             raise Exception(f"PARAM: Interval: {interval} doesn't exist")
@@ -196,6 +209,31 @@ class ParamSymbolInterval(ParamSymbol, ParamInterval):
     def __init__(self, symbol: str, interval: str) -> None:
         ParamSymbol.__init__(self, symbol)
         ParamInterval.__init__(self, interval)
+
+
+class ParamSymbolIntervalLimit(ParamSymbol, ParamInterval, ParamLimit):
+    def __init__(self, symbol: str, interval: str, limit: int) -> None:
+        ParamSymbol.__init__(self, symbol)
+        ParamInterval.__init__(self, interval)
+        ParamLimit.__init__(self, limit)
+
+
+class ParamHistoryData(ParamSymbol, ParamInterval, ParamLimit):
+    def __init__(self, symbol: str, interval: str, limit: int, from_buffer: bool, closed_bars: bool) -> None:
+        ParamSymbol.__init__(self, symbol)
+        ParamInterval.__init__(self, interval)
+        ParamLimit.__init__(self, limit)
+
+        self.__from_buffer = from_buffer
+        self.__closed_bars = closed_bars
+
+    @property
+    def from_buffer(self):
+        return self.__from_buffer
+
+    @property
+    def closed_bars(self):
+        return self.__closed_bars
 
 
 class ParamSymbolIntervalStrategy(ParamSymbolInterval, ParamStrategy):

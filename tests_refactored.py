@@ -63,9 +63,9 @@ class ConstTestCase(unittest.TestCase):
         self.assertEqual(Const.STATUS_CLOSE, 'Close')
 
     def test_order_close_reason(self):
-        self.assertEqual(Const.ORDER_CLOSE_REASON_STOP_LOSS, 'Stop Loss')
-        self.assertEqual(Const.ORDER_CLOSE_REASON_TAKE_PROFIT, 'Take Profit')
-        self.assertEqual(Const.ORDER_CLOSE_REASON_SIGNAL, 'Signal')
+        self.assertEqual(Const.ORDER_CLOSE_REASON_STOP_LOSS, 'STOP_LOSS')
+        self.assertEqual(Const.ORDER_CLOSE_REASON_TAKE_PROFIT, 'TAKE_PROFIT')
+        self.assertEqual(Const.ORDER_CLOSE_REASON_SIGNAL, 'SIGNAL')
 
     def test_intervals(self):
         self.assertEqual(Const.TA_INTERVAL_5M, '5m')

@@ -3,6 +3,7 @@ import requests
 import json
 import pandas as pd
 import math
+import os
 
 from .constants import Const
 from .core import logger, config, Symbol, HistoryData, RuntimeBufferStore
@@ -21,6 +22,8 @@ class StockExchangeHandler():
 
         if stock_exchange_id == Const.STOCK_EXCH_CURRENCY_COM:
             self.__api_inst = CurrencyComApi()
+        elif stock_exchange_id == Const.STOCK_EXCH_LOCAL_CURRENCY_COM:
+            self.__api_inst = LocalCurrencyComApi()
         else:
             raise Exception(
                 f'STOCK_EXCHANGE: {stock_exchange_id} implementation is missed')
@@ -212,9 +215,9 @@ class CurrencyComApi(StockExchangeApiBase):
         interval_api = self.mapInterval(interval)
 
         # Prepare URL parameters
-        url_params = {"symbol": symbol,
-                      "interval": interval_api,
-                      "limit": limit}
+        url_params = {Const.PARAM_SYMBOL: symbol,
+                      Const.INTERVAL: interval_api,
+                      Const.LIMIT: limit}
 
         # If closed_bars indicator is True -> calculated endTime for the API
         if closed_bars:
@@ -246,7 +249,7 @@ class CurrencyComApi(StockExchangeApiBase):
 
         else:
             logger.error(
-                f'STOCK_EXCHANGE: {self.getStockExchangeName()} - getHistoryData -> {response.text}')
+                f'STOCK_EXCHANGE: {self.getStockExchangeName()} - get_api_klines -> {response.text}')
             raise Exception(response.text)
 
     def getSymbols(self) -> dict[Symbol]:
@@ -258,7 +261,8 @@ class CurrencyComApi(StockExchangeApiBase):
 
         symbols = {}
 
-        logger.info(f'STOCK_EXCHANGE: {self.getStockExchangeName()} - getSymbols()')
+        logger.info(
+            f'STOCK_EXCHANGE: {self.getStockExchangeName()} - getSymbols()')
 
         # Get API data
         response = requests.get(f'{self.getApiEndpoint()}/exchangeInfo')
@@ -269,8 +273,9 @@ class CurrencyComApi(StockExchangeApiBase):
             # Create an instance of Symbol and add to the list
             for row in json_api_response['symbols']:
                 if row['quoteAssetId'] == 'USD' and row['assetType'] in ['CRYPTOCURRENCY', 'EQUITY', 'COMMODITY'] and 'REGULAR' in row['marketModes']:
-                    
-                    status_converted = Const.STATUS_OPEN if row[Const.STATUS] == 'TRADING' else Const.STATUS_CLOSE
+
+                    status_converted = Const.STATUS_OPEN if row[
+                        Const.STATUS] == 'TRADING' else Const.STATUS_CLOSE
 
                     symbol_inst = Symbol(code=row[Const.PARAM_SYMBOL], name=row[Const.NAME],
                                          status=status_converted, tradingTime=row['tradingHours'], type=row['assetType'])
@@ -414,7 +419,8 @@ class CurrencyComApi(StockExchangeApiBase):
                 hour=self.getTimezoneDifference(), minute=0, second=0, microsecond=0)
 
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
-            other_attributes = ", ".join(f'{key}={value}' for key, value in kwargs.items())
+            other_attributes = ", ".join(
+                f'{key}={value}' for key, value in kwargs.items())
 
             logger.info(
                 f'STOCK_EXCHANGE: {self.getStockExchangeName()} - getEndDatetime(interval:{interval}, {other_attributes}) -> Original: {original_datetime} | Closed: {offset_date_time}')
@@ -549,3 +555,81 @@ class CurrencyComApi(StockExchangeApiBase):
                         return True
 
         return False
+
+
+class LocalCurrencyComApi(CurrencyComApi):
+    def write_symbols_to_local(self):
+        api = CurrencyComApi()
+
+        response = requests.get(f'{api.getApiEndpoint()}/exchangeInfo')
+
+        file_path = self.__get_file_path('symbols')
+
+        with open(file_path, 'w') as writer:
+            writer.write(response.text)
+
+    def write_history_data_to_local(self, symbol: str, interval: str, limit: int) -> bool:
+        api = CurrencyComApi()
+
+        url_params = {Const.PARAM_SYMBOL: symbol,
+                      Const.INTERVAL: interval,
+                      Const.LIMIT: limit}
+
+        response = api.get_api_klines(url_params)
+
+        file_name = self.__get_file_name(symbol=symbol, interval=interval)
+        file_path = self.__get_file_path(file_name)
+
+        with open(file_path, 'w') as writer:
+            writer.write(json.dumps(response))
+
+    def get_api_klines(self, url_params: dict) -> dict:
+
+        file_name = self.__get_file_name(
+            symbol=url_params[Const.PARAM_SYMBOL], interval=url_params[Const.INTERVAL])
+        file_path = self.__get_file_path(file_name)
+
+        with open(file_path, 'r') as reader:
+            local_data = json.load(reader)
+
+        index = -1 * int(url_params[Const.LIMIT])
+
+        return local_data[index:]
+
+    def getSymbols(self) -> dict[Symbol]:
+
+        symbols = {}
+
+        logger.info(
+            f'STOCK_EXCHANGE: {self.getStockExchangeName()} - getSymbols()')
+
+        file_path = self.__get_file_path('symbols')
+
+        # Get API data from local
+        with open(file_path, 'r') as reader:
+            json_api_response = json.load(reader)
+
+        # json_api_response = json.loads(response)
+
+        # Create an instance of Symbol and add to the list
+        for row in json_api_response['symbols']:
+            if row['quoteAssetId'] == 'USD' and row['assetType'] in ['CRYPTOCURRENCY', 'EQUITY', 'COMMODITY'] and 'REGULAR' in row['marketModes']:
+
+                status_converted = Const.STATUS_OPEN if row[
+                    Const.STATUS] == 'TRADING' else Const.STATUS_CLOSE
+
+                symbol_inst = Symbol(code=row[Const.PARAM_SYMBOL], name=row[Const.NAME],
+                                        status=status_converted, tradingTime=row['tradingHours'], type=row['assetType'])
+                symbols[symbol_inst.code] = symbol_inst
+            else:
+                continue
+
+        return symbols
+
+
+    def __get_file_name(self, symbol: str, interval: str) -> str:
+        symbol = symbol.replace('/', '_')
+        return f'history_data_{symbol}_{interval}'
+
+    def __get_file_path(self, file_name: str) -> str:
+        return f'{os.getcwd()}\static\local\{file_name}.json'

@@ -1,8 +1,9 @@
 from datetime import datetime
 
 from .constants import Const
-from .core import CandelBarSignal, SimulateOptions
+from .core import logger, CandelBarSignal, SimulateOptions
 from .model import ParamSimulation
+from .mongodb import MongoSimulations
 from .strategy import StrategyFactory
 
 
@@ -40,7 +41,7 @@ class Simulator:
         # Current open simulation
         self.current_simulation: SimulationBase = None
 
-    def execute(self) -> dict:
+    def execute(self) -> object:
         # Get strategy DataFrame for symbol, interval, strategy and limit
         strategy_df = StrategyFactory(self.strategy).get_strategy_data(symbol=self.symbol,
                                                                        interval=self.interval,
@@ -61,93 +62,142 @@ class Simulator:
             # Process candle bar -> create/close order and calculate profits and loses
             self._process_candle_bar(candle_bar)
 
+        return self
+
+    def get_summary(self) -> dict:
+        return {Const.DB_SYMBOL: self.symbol,
+                Const.DB_INTERVAL: self.interval,
+                Const.DB_STRATEGY: self.strategy,
+                Const.DB_INIT_BALANCE: self.init_balance,
+                Const.DB_LIMIT: self.simulation_options.limit,
+                Const.DB_STOP_LOSS_RATE: self.simulation_options.stop_loss_rate,
+                Const.DB_TAKE_PROFIT_RATE: self.simulation_options.take_profit_rate,
+                Const.DB_FEE_RATE: self.simulation_options.fee_rate,
+                Const.DB_BALANCE: (self.init_balance + self.total_profit),
+                Const.DB_PROFIT: self.total_profit}
+
+    def get_orders(self) -> dict:
         orders = []
 
         for simulation in self.simulations:
             orders.append(simulation.get_simulation())
 
-        return {"summary":
-                {Const.DB_SYMBOL: self.symbol,
-                 Const.DB_INTERVAL: self.interval,
-                 Const.DB_STRATEGY: self.strategy,
-                 Const.DB_INIT_BALANCE: self.init_balance,
-                 Const.DB_LIMIT: self.simulation_options.limit,
-                 Const.DB_STOP_LOSS_RATE: self.simulation_options.stop_loss_rate,
-                 Const.DB_TAKE_PROFIT_RATE: self.simulation_options.take_profit_rate,
-                 Const.DB_FEE_RATE: self.simulation_options.fee_rate,
-                 Const.DB_BALANCE: (self.init_balance + self.total_profit),
-                 Const.DB_PROFIT: self.total_profit},
-                "orders": orders,
-                "analysis": self.__analyze()}
+        return orders
+
+    def get_analysis(self) -> dict:
+        return self.__analyze()
+
+    def get_simulation(self) -> dict:
+        return {"summary": self.get_summary(),
+                "orders": self.get_orders(),
+                "analysis": self.get_analysis()}
+
+    def get_simulation_id(self) -> str:
+        sep = '-'
+        return f'{self.symbol}{sep}{self.interval}{sep}{self.strategy}{sep}{self.init_balance}{sep}{self.simulation_options.limit}{sep}{self.simulation_options.stop_loss_rate}{sep}{self.simulation_options.take_profit_rate}{sep}{self.simulation_options.fee_rate}'
 
     def __analyze(self) -> dict:
+
         analysis = {
+            Const.DB_TOTAL: {
+                # Const.DB_COUNT_PROFIT: 0,
+                # Const.DB_COUNT_LOSS: 0,
+                # Const.DB_SUM_PROFIT: 0,
+                # Const.DB_SUM_LOSS: 0,
+                Const.DB_SUM_FEE_VALUE: 0
+            },
             Const.LONG: {
-                "count": {
-                    "profit": 0,
-                    "loss": 0,
-                    "all": 0
-                },
-                "sum": {
-                    "profit": 0,
-                    "loss": 0,
-                    "all": 0
-                },
-                # "avg": {
-                #     "profit_percent": 0,
-                #     "loss_percent": 0
-                # },
-                "close_reason": {
-                    Const.ORDER_CLOSE_REASON_STOP_LOSS: 0,
-                    Const.ORDER_CLOSE_REASON_TAKE_PROFIT: 0,
-                    Const.ORDER_CLOSE_REASON_SIGNAL: 0,
-                }
+                Const.DB_COUNT_PROFIT: 0,
+                Const.DB_COUNT_LOSS: 0,
+                Const.DB_SUM_PROFIT: 0,
+                Const.DB_SUM_LOSS: 0,
+                Const.DB_AVG_PERCENT_PROFIT: 0,
+                Const.DB_AVG_PERCENT_LOSS: 0,
+                Const.DB_AVG_MAX_PERCENT_PROFIT: 0,
+                Const.DB_AVG_MIN_PERCENT_LOSS: 0,
             },
             Const.SHORT: {
-                "count": {
-                    "profit": 0,
-                    "loss": 0,
-                    "all": 0
-                },
-                "sum": {
-                    "profit": 0,
-                    "loss": 0,
-                    "all": 0
-                },
-                # "avg": {
-                #     "profit_percent": 0,
-                #     "loss_percent": 0
-                # },
-                "close_reason": {
-                    Const.ORDER_CLOSE_REASON_STOP_LOSS: 0,
-                    Const.ORDER_CLOSE_REASON_TAKE_PROFIT: 0,
-                    Const.ORDER_CLOSE_REASON_SIGNAL: 0,
-                }
+                Const.DB_COUNT_PROFIT: 0,
+                Const.DB_COUNT_LOSS: 0,
+                Const.DB_SUM_PROFIT: 0,
+                Const.DB_SUM_LOSS: 0,
+                Const.DB_AVG_PERCENT_PROFIT: 0,
+                Const.DB_AVG_PERCENT_LOSS: 0,
+                Const.DB_AVG_MAX_PERCENT_PROFIT: 0,
+                Const.DB_AVG_MIN_PERCENT_LOSS: 0,
             },
-            "sum_fee_value": 0,
-            "sum_max_loss_value": 0,
-            "sum_max_profit_value": 0
+            Const.ORDER_CLOSE_REASON_STOP_LOSS: {
+                Const.DB_COUNT_PROFIT: 0,
+                Const.DB_COUNT_LOSS: 0,
+                Const.DB_SUM_PROFIT: 0,
+                Const.DB_SUM_LOSS: 0
+            },
+            Const.ORDER_CLOSE_REASON_TAKE_PROFIT: {
+                Const.DB_COUNT_PROFIT: 0,
+                Const.DB_COUNT_LOSS: 0,
+                Const.DB_SUM_PROFIT: 0,
+                Const.DB_SUM_LOSS: 0
+            },
+            Const.ORDER_CLOSE_REASON_SIGNAL: {
+                Const.DB_COUNT_PROFIT: 0,
+                Const.DB_COUNT_LOSS: 0,
+                Const.DB_SUM_PROFIT: 0,
+                Const.DB_SUM_LOSS: 0
+            }
         }
 
         for simulation in self.simulations:
-
             order_type = simulation.get_order().type
 
             if simulation.profit > 0:
-                analysis[order_type]["count"]["profit"] += 1
-                analysis[order_type]["sum"]["profit"] += simulation.profit
+                analysis[order_type][Const.DB_COUNT_PROFIT] += 1
+                analysis[order_type][Const.DB_SUM_PROFIT] += simulation.profit
+                analysis[simulation.close_reason][Const.DB_COUNT_PROFIT] += 1
+                analysis[simulation.close_reason][Const.DB_SUM_PROFIT] += simulation.profit
+
+                analysis[order_type][Const.DB_AVG_PERCENT_PROFIT] += simulation.percent_change
+                analysis[order_type][Const.DB_AVG_MAX_PERCENT_PROFIT] += simulation.max_percent_change
             else:
-                analysis[order_type]["count"]["loss"] += 1
-                analysis[order_type]["sum"]["loss"] += simulation.profit
+                analysis[order_type][Const.DB_COUNT_LOSS] += 1
+                analysis[order_type][Const.DB_SUM_LOSS] += simulation.profit
+                analysis[simulation.close_reason][Const.DB_COUNT_LOSS] += 1
+                analysis[simulation.close_reason][Const.DB_SUM_LOSS] += simulation.profit
 
-            analysis[order_type]["count"]["all"] += 1
-            analysis[order_type]["sum"]["all"] += simulation.profit
+                analysis[order_type][Const.DB_AVG_PERCENT_LOSS] += simulation.percent_change
+                analysis[order_type][Const.DB_AVG_MIN_PERCENT_LOSS] += simulation.min_percent_change
 
-            analysis[order_type]["close_reason"][simulation.close_reason] += 1
+            analysis[Const.DB_TOTAL][Const.DB_SUM_FEE_VALUE] += simulation.fee_value
 
-            analysis["sum_fee_value"] += simulation.fee_value
-            analysis["sum_max_loss_value"] += simulation.max_loss_value
-            analysis["sum_max_profit_value"] += simulation.max_profit_value
+        # analysis[Const.DB_TOTAL][Const.DB_COUNT_PROFIT] = analysis[Const.LONG][Const.DB_COUNT_PROFIT] + \
+        #     analysis[Const.SHORT][Const.DB_COUNT_PROFIT]
+        # analysis[Const.DB_TOTAL][Const.DB_COUNT_LOSS] = analysis[Const.LONG][Const.DB_COUNT_LOSS] + \
+        #     analysis[Const.SHORT][Const.DB_COUNT_LOSS]
+        # analysis[Const.DB_TOTAL][Const.DB_SUM_PROFIT] = analysis[Const.LONG][Const.DB_SUM_PROFIT] + \
+        #     analysis[Const.SHORT][Const.DB_SUM_PROFIT]
+        # analysis[Const.DB_TOTAL][Const.DB_SUM_LOSS] = analysis[Const.LONG][Const.DB_SUM_LOSS] + \
+        #     analysis[Const.SHORT][Const.DB_SUM_LOSS]
+
+        for key, item in analysis.items():
+            if key in [Const.DB_TOTAL, Const.ORDER_CLOSE_REASON_STOP_LOSS, Const.ORDER_CLOSE_REASON_TAKE_PROFIT, Const.ORDER_CLOSE_REASON_SIGNAL]:
+                continue
+
+            if item[Const.DB_COUNT_PROFIT] == 0:
+                item[Const.DB_AVG_PERCENT_PROFIT] = 0
+                item[Const.DB_AVG_MAX_PERCENT_PROFIT] = 0
+            else:
+                item[Const.DB_AVG_PERCENT_PROFIT] = item[Const.DB_AVG_PERCENT_PROFIT] / \
+                    item[Const.DB_COUNT_PROFIT]
+                item[Const.DB_AVG_MAX_PERCENT_PROFIT] = item[Const.DB_AVG_MAX_PERCENT_PROFIT] / \
+                    item[Const.DB_COUNT_PROFIT]
+
+            if item[Const.DB_COUNT_LOSS] == 0:
+                item[Const.DB_AVG_PERCENT_LOSS] = 0
+                item[Const.DB_AVG_MIN_PERCENT_LOSS] = 0
+            else:
+                item[Const.DB_AVG_PERCENT_LOSS] = item[Const.DB_AVG_PERCENT_LOSS] / \
+                    item[Const.DB_COUNT_LOSS]
+                item[Const.DB_AVG_MIN_PERCENT_LOSS] = item[Const.DB_AVG_MIN_PERCENT_LOSS] / \
+                    item[Const.DB_COUNT_LOSS]
 
         return analysis
 
@@ -252,13 +302,11 @@ class SimulationBase:
     def get_simulation(self) -> dict:
 
         order_dict = dict(self._order.__dict__)
-        # simulation_options = vars(self._options_inst)
         simulation = dict(self.__dict__)
         simulation.pop('_order')
         simulation.pop('_options_inst')
 
         simulation.update(order_dict)
-        # simulation.update(simulation_options)
 
         return simulation
 
@@ -268,12 +316,6 @@ class SimulationBase:
         # Set changes in percents of the candle bar
         self.percent_change = self._get_percent_change(initial=self._order.open_price,
                                                        target=close_price)
-        # Set max changes in percents of the candle bar
-        self.max_percent_change = self._get_percent_change(initial=self._order.open_price,
-                                                           target=self.max_price)
-        # Set min changes in percents of the candle bar
-        self.min_percent_change = self._get_percent_change(initial=self._order.open_price,
-                                                           target=self.min_price)
 
         # Close the order
         if self._order and self._order.status == Const.STATUS_OPEN:
@@ -290,7 +332,10 @@ class SimulationBase:
         self.max_price = self.max_price if self.max_price >= high else high
 
     def _get_percent_change(self, initial, target):
-        return (target-initial) / initial * 100
+        if initial == 0:
+            return 0
+        else:
+            return (target-initial) / initial * 100
 
     def _get_price_value(self, price):
         return self._order.quantity * price
@@ -332,16 +377,21 @@ class SimulationLong(SimulationBase):
                                  close_price=close_price,
                                  close_reason=close_reason)
 
-    # def get_order(self) -> Order:
-    #     return super().get_order()
-
     def _close_order(self, close_date_time: datetime, close_price: float, close_reason: str) -> bool:
 
         self.profit = self._get_price_value(close_price) - self.balance
+
         self.max_loss_value = self._get_price_value(
             self.min_price) - self.balance
         self.max_profit_value = self._get_price_value(
             self.max_price) - self.balance
+
+        # Set max changes in percents of the candle bar
+        self.max_percent_change = self._get_percent_change(initial=self._order.open_price,
+                                                           target=self.max_price)
+        # Set min changes in percents of the candle bar
+        self.min_percent_change = self._get_percent_change(initial=self._order.open_price,
+                                                           target=self.min_price)
 
         return super()._close_order(close_date_time=close_date_time,
                                     close_price=close_price,
@@ -384,16 +434,21 @@ class SimulationShort(SimulationBase):
                                  close_price=close_price,
                                  close_reason=close_reason)
 
-    # def get_order(self) -> Order:
-    #     return super().get_order()
-
     def _close_order(self, close_date_time: datetime, close_price: float, close_reason: str) -> bool:
 
         self.profit = self.balance - self._get_price_value(close_price)
+
         self.max_loss_value = self.balance - \
             self._get_price_value(self.max_price)
         self.max_profit_value = self.balance - \
             self._get_price_value(self.min_price)
+
+        # Set max changes in percents of the candle bar
+        self.max_percent_change = self._get_percent_change(initial=self._order.open_price,
+                                                           target=self.min_price)
+        # Set min changes in percents of the candle bar
+        self.min_percent_change = self._get_percent_change(initial=self._order.open_price,
+                                                           target=self.max_price)
 
         return super()._close_order(close_date_time=close_date_time,
                                     close_price=close_price,
@@ -402,17 +457,38 @@ class SimulationShort(SimulationBase):
 
 class Executor:
 
-    def simulate(self, param: ParamSimulation):
+    def simulate(self, param: ParamSimulation) -> Simulator:
         return Simulator(param).execute()
 
-    def simulate_many(self, params: list[ParamSimulation]):
-        simulations = []
+    def simulate_many(self, params: list[ParamSimulation]) -> list[Simulator]:
+        simulators = []
 
         for param in params:
-            simulations.append(self.simulate(param))
+            try:
+                simulators.append(self.simulate(param))
+            except Exception as error:
+                logger.error(
+                    f'SIMULATION: For symbol={param.symbol}, interval={param.interval}, strategy={param.strategy} - {error}')
+                continue
 
-        return simulations
+        return simulators
 
-    def simulate_and_save(self, params: list[ParamSimulation]):
+    def simulate_many_and_db_save(self, params: list[ParamSimulation]) -> list[Simulator]:
 
-        simulations = self.simulate_many(params)
+        db = MongoSimulations()
+        simulators = self.simulate_many(params)
+
+        for simulator in simulators:
+
+            summary = simulator.get_summary()
+
+            if ( summary[Const.DB_PROFIT] / summary[Const.DB_INIT_BALANCE] ) * 100 >= 5:
+                query = summary
+                query.update(simulator.get_analysis())
+
+                db.upsert_one(id=simulator.get_simulation_id(),
+                              query=query)
+            else:
+                continue
+
+        return simulators

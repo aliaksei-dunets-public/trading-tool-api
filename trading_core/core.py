@@ -25,44 +25,6 @@ logger = logging.getLogger("trading_core")
 # logger.info(f"Log file created at {datetime.now()}")
 
 
-class Config:
-    _instance = None
-
-    def __new__(class_, *args, **kwargs):
-        if not isinstance(class_._instance, class_):
-            class_._instance = object.__new__(class_, *args, **kwargs)
-            class_.__config_data = {Const.CONFIG_DEBUG_LOG: False}
-        return class_._instance
-
-    def get_config_value(self, property: str):
-        if property and property in self.__config_data:
-            return self.__config_data[property]
-        else:
-            None
-
-    def get_stock_exchange_id(self) -> str:
-        return Const.STOCK_EXCH_CURRENCY_COM
-
-    def get_indicators_config(self) -> list:
-        return [{Const.CODE: Const.TA_INDICATOR_CCI, Const.NAME: "Commodity Channel Index"}]
-
-    def get_strategies_config(self):
-        strategies = {Const.TA_STRATEGY_CCI_14_TREND_100: {Const.CODE: Const.TA_STRATEGY_CCI_14_TREND_100,
-                                                           Const.NAME: "CCI(14): Indicator value +/- 100",
-                                                           Const.LENGTH: 14,
-                                                           Const.VALUE: 100},
-                      Const.TA_STRATEGY_CCI_20_TREND_100: {Const.CODE: Const.TA_STRATEGY_CCI_20_TREND_100,
-                                                           Const.NAME: "CCI(20): Indicator value +/- 100",
-                                                           Const.LENGTH: 20,
-                                                           Const.VALUE: 100},
-                      Const.TA_STRATEGY_CCI_50_TREND_0: {Const.CODE: Const.TA_STRATEGY_CCI_50_TREND_0,
-                                                         Const.NAME: "CCI(50): Indicator value 0",
-                                                         Const.LENGTH: 50,
-                                                         Const.VALUE: 0}}
-
-        return strategies
-
-
 class Symbol:
     def __init__(self, code: str, name: str, status: str, type: str, tradingTime: str):
         self.code = code
@@ -352,6 +314,97 @@ class RuntimeBufferStore():
 
     def remove_job_from_buffer(self, job_id: str) -> None:
         self.__job_buffer.pop(job_id)
+
+
+class Config:
+    _instance = None
+
+    def __new__(class_, *args, **kwargs):
+        if not isinstance(class_._instance, class_):
+            class_._instance = object.__new__(class_, *args, **kwargs)
+            class_.__config_data = {Const.CONFIG_DEBUG_LOG: False}
+        return class_._instance
+
+    def get_config_value(self, property: str):
+        if property and property in self.__config_data:
+            return self.__config_data[property]
+        else:
+            None
+
+    def get_stock_exchange_id(self) -> str:
+        return Const.STOCK_EXCH_CURRENCY_COM
+        # return Const.STOCK_EXCH_LOCAL_CURRENCY_COM
+
+    def get_indicators_config(self) -> list:
+        return [{Const.CODE: Const.TA_INDICATOR_CCI, Const.NAME: "Commodity Channel Index"}]
+
+    def get_strategies_config(self):
+        strategies = {Const.TA_STRATEGY_CCI_14_TREND_100: {Const.CODE: Const.TA_STRATEGY_CCI_14_TREND_100,
+                                                           Const.NAME: "CCI(14): Indicator value +/- 100",
+                                                           Const.LENGTH: 14,
+                                                           Const.VALUE: 100},
+                      Const.TA_STRATEGY_CCI_20_TREND_100: {Const.CODE: Const.TA_STRATEGY_CCI_20_TREND_100,
+                                                           Const.NAME: "CCI(20): Indicator value +/- 100",
+                                                           Const.LENGTH: 20,
+                                                           Const.VALUE: 100},
+                      Const.TA_STRATEGY_CCI_50_TREND_0: {Const.CODE: Const.TA_STRATEGY_CCI_50_TREND_0,
+                                                         Const.NAME: "CCI(50): Indicator value 0",
+                                                         Const.LENGTH: 50,
+                                                         Const.VALUE: 0}}
+
+        return strategies
+
+    def get_default_simulation_options(self, interval: str) -> list[SimulateOptions]:
+
+        init_balance = 100
+        # Strategy ofset
+        limit = 300 + 50
+        stop_loss_rate = 0
+        take_profit_rate = 0
+        fee_rate = 3
+        rate_step_1 = 0
+        rate_step_2 = 0
+
+        if interval == Const.TA_INTERVAL_5M:
+            rate_step_1 = 0.5
+            rate_step_2 = 1.5
+        if interval == Const.TA_INTERVAL_15M:
+            rate_step_1 = 1
+            rate_step_2 = 3
+        if interval == Const.TA_INTERVAL_30M:
+            rate_step_1 = 2
+            rate_step_2 = 6
+        if interval == Const.TA_INTERVAL_1H:
+            rate_step_1 = 3
+            rate_step_2 = 9
+        if interval == Const.TA_INTERVAL_4H:
+            rate_step_1 = 5
+            rate_step_2 = 10
+        if interval == Const.TA_INTERVAL_1D:
+            rate_step_1 = 10
+            rate_step_2 = 20
+        if interval == Const.TA_INTERVAL_1WK:
+            rate_step_1 = 10
+            rate_step_2 = 20
+            limit = 100 + 50
+
+        return [SimulateOptions(init_balance=init_balance,
+                                limit=limit,
+                                stop_loss_rate=stop_loss_rate,
+                                take_profit_rate=take_profit_rate,
+                                fee_rate=fee_rate),
+                SimulateOptions(init_balance=init_balance,
+                                limit=limit,
+                                stop_loss_rate=stop_loss_rate + rate_step_1,
+                                take_profit_rate=take_profit_rate +
+                                (rate_step_1*3),
+                                fee_rate=fee_rate),
+                SimulateOptions(init_balance=init_balance,
+                                limit=limit,
+                                stop_loss_rate=stop_loss_rate + rate_step_2,
+                                take_profit_rate=take_profit_rate +
+                                (rate_step_2*3),
+                                fee_rate=fee_rate)]
 
 
 config = Config()

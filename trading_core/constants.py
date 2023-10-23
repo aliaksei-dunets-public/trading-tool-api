@@ -1,6 +1,7 @@
 class Const:
     # Stock Exchanges
     STOCK_EXCH_CURRENCY_COM = 'CURRENCY.COM'
+    STOCK_EXCH_LOCAL_CURRENCY_COM = 'LOCAL_CURRENCY.COM'
 
     # Intervals
     TA_INTERVAL_5M = "5m"
@@ -23,6 +24,7 @@ class Const:
     DB_COLLECTION_JOBS = 'jobs_temp'
     DB_COLLECTION_ALERTS = 'alerts_temp'
     DB_COLLECTION_ORDERS = 'orders_temp'
+    DB_COLLECTION_SIMULATION = 'simulations'
 
     # DB fields
     DB_ID = "_id"
@@ -54,6 +56,16 @@ class Const:
     DB_QUANTITY = 'quantity'
     DB_BALANCE = 'balance'
     DB_PROFIT = 'profit'
+    DB_TOTAL = 'total'
+    DB_COUNT_PROFIT = "count_profit"
+    DB_COUNT_LOSS = "count_loss"
+    DB_SUM_PROFIT = "sum_profit"
+    DB_SUM_LOSS = "sum_loss"
+    DB_SUM_FEE_VALUE = "sum_fee_value"
+    DB_AVG_PERCENT_PROFIT = "avg_percent_profit"
+    DB_AVG_PERCENT_LOSS = "avg_percent_loss"
+    DB_AVG_MAX_PERCENT_PROFIT = "avg_max_percent_profit"
+    DB_AVG_MIN_PERCENT_LOSS = "avg_min_percent_loss"
 
     # Config properties
     CONFIG_DEBUG_LOG = 'DEBUG_LOG'
@@ -64,19 +76,24 @@ class Const:
     STRONG_SELL = 'Strong Sell'
     SELL = 'Sell'
     DEBUG_SIGNAL = 'Debug'
+    TREND_CHANGED = 'Trend Changed'
 
     # Direction Values
     LONG = 'LONG'
     SHORT = 'SHORT'
 
+    # Trend values
+    TREND_UP = 'UpTrend'
+    TREND_DOWN = 'DownTrend'
+    
     # Statuses
     STATUS_OPEN = 'Open'
     STATUS_CLOSE = 'Close'
 
     # Order Close Reason
-    ORDER_CLOSE_REASON_STOP_LOSS = 'Stop Loss'
-    ORDER_CLOSE_REASON_TAKE_PROFIT = 'Take Profit'
-    ORDER_CLOSE_REASON_SIGNAL = 'Signal'
+    ORDER_CLOSE_REASON_STOP_LOSS = 'STOP_LOSS'
+    ORDER_CLOSE_REASON_TAKE_PROFIT = 'TAKE_PROFIT'
+    ORDER_CLOSE_REASON_SIGNAL = 'SIGNAL'
 
     # Importance
     IMPORTANCE_LOW = 'LOW'
@@ -123,6 +140,8 @@ class Const:
     JOB_ID = "job_id"
     TRADING_TIME = "tradingTime"
     PARAM_SYMBOL_TYPE = "type"
+    PARAM_QUERY = "query"
+    PARAM_TREND = "trend"
 
     # API fields
     END_TIME = 'endTime'

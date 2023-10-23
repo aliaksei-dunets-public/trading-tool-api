@@ -388,16 +388,18 @@ class ResponserWeb(ResponserBase):
         response["history_data"] = []
         response["strategy_data"] = []
         response["signals"] = []
+        response["trends"] = []
 
         signals_list = super().get_signals(symbols=[symbol],
-                                           intervals=["1h", "4h", "1d"],
+                                           intervals=[],
                                            strategies=[],
-                                           signals_config=[
-                                               Const.STRONG_BUY, Const.STRONG_SELL],
+                                           signals_config=[Const.STRONG_BUY, Const.STRONG_SELL],
                                            closed_bars=True)
 
         for signal_inst in signals_list:
             response["signals"].append(signal_inst.get_signal_dict())
+        
+
 
         return response
 
