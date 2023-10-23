@@ -41,7 +41,7 @@ def index():
 # Our public Webhook URL
 # ----------------------------------
 @app.route(WEBHOOK_PATH, methods=['POST'])
-async def respond():
+def respond():
     # retrieve the message in JSON and then transform it to Telegram object
     update = telegram.Update.de_json(request.get_json(force=True), bot)
 
@@ -53,7 +53,7 @@ async def respond():
     logging.info(f'BOT: got the message - {text}')
 
     # response = get_response(text)
-    await bot.sendMessage(chat_id=chat_id, text=f'Hello {chat_id}')
+    bot.sendMessage(chat_id=chat_id, text=f'Hello {chat_id}')
 
     return 'ok'
 
