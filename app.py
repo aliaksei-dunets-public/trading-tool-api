@@ -21,7 +21,7 @@ HEROKU_APP_NAME = os.getenv('HEROKU_APP_NAME')
 # webhook settings
 WEBHOOK_HOST = f'https://{HEROKU_APP_NAME}.herokuapp.com'
 WEBHOOK_PATH = f'/webhook/{BOT_TOKEN}'
-WEBHOOK_URL = f'{WEBHOOK_HOST}{BOT_TOKEN}'
+WEBHOOK_URL = f'{WEBHOOK_HOST}{WEBHOOK_PATH}'
 
 # webserver settings
 WEBAPP_HOST = '0.0.0.0'
@@ -40,7 +40,7 @@ def index():
 # ----------------------------------
 # Our public Webhook URL
 # ----------------------------------
-@app.route(f'/{WEBHOOK_URL}', methods=['POST'])
+@app.route(WEBHOOK_PATH, methods=['POST'])
 def respond():
     # retrieve the message in JSON and then transform it to Telegram object
     update = telegram.Update.de_json(request.get_json(force=True), bot)
