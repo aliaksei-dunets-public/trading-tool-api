@@ -1,7 +1,7 @@
 
 from flask import Flask, jsonify, request
 
-from bot import telebot, bot, WEBHOOK_PATH, set_webhook, remove_webhook, get_webhook_info
+import bot as Bot
 import trading_core.responser as resp
 import trading_core.utils as utils
 
@@ -15,16 +15,16 @@ def index():
     return "<h1>This is the Trading tool API</h1>"
 
 # ----------------------------------
-# Our public Webhook URL
+# Telegram Webhook functionality
 # ----------------------------------
 
 
-@app.route(WEBHOOK_PATH, methods=['POST'])
+@app.route(Bot.WEBHOOK_PATH, methods=['POST'])
 def webhook():
     if request.headers.get('content-type') == 'application/json':
-        json_string  = request.get_data().decode('utf-8')
-        update = telebot.types.Update.de_json(json_string)
-        bot.process_new_updates([update])
+        json_string = request.get_data().decode('utf-8')
+        update = Bot.telebot.types.Update.de_json(json_string)
+        Bot.bot.process_new_updates([update])
         return ''
     else:
         return jsonify({'error': 'Telegram Bot response is failed'}), 404
@@ -32,17 +32,21 @@ def webhook():
 
 @app.route('/getwebhookinfo', methods=['GET'])
 def get_webhook_info():
-    get_webhook_info()
+    Bot.get_webhook_info()
 
 
 @app.route('/setwebhook', methods=['GET', 'POST'])
 def set_webhook():
-    set_webhook()
+    Bot.set_webhook()
 
 
 @app.route('/removewebhook', methods=['GET', 'POST'])
 def remove_webhook():
-    remove_webhook()
+    Bot.remove_webhook()
+
+# ----------------------------------
+# Telegram Webhook functionality
+# ----------------------------------
 
 
 @app.route('/intervals', methods=['GET'])
