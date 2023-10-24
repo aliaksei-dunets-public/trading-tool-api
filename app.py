@@ -53,8 +53,7 @@ def respond():
     logging.info(f'BOT: got the message - {text}')
 
     # response = get_response(text)
-    bot.sendMessage(chat_id=chat_id,
-                    text=f'Hello {chat_id}', reply_to_message_id=msg_id)
+    bot.sendMessage(chat_id=chat_id, text=f'Hello {chat_id}', reply_to_message_id=msg_id)
 
     return 'ok'
 
