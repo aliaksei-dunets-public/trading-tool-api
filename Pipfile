@@ -13,6 +13,7 @@ pymongo = "*"
 python-dotenv = "~=0.21.1"
 apscheduler = "~=3.9.1"
 secure-smtplib = "*"
+pytelegrambotapi = "*"
 
 [dev-packages]
 autopep8 = "*"

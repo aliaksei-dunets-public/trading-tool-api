@@ -1,7 +1,9 @@
-from flask import Flask, request
 
+from flask import Flask, jsonify, request
+
+import bot as Bot
 from trading_core.constants import Const
-from trading_core.responser import ResponserWeb, job_func_initialise_runtime_data, JobScheduler
+from trading_core.responser import ResponserWeb
 
 app = Flask(__name__)
 
@@ -11,6 +13,40 @@ responser = ResponserWeb()
 @app.route("/")
 def index():
     return "<h1>This is the Trading tool API</h1>"
+
+# ----------------------------------
+# Telegram Webhook functionality
+# ----------------------------------
+
+
+@app.route(Bot.WEBHOOK_PATH, methods=['POST'])
+def webhook():
+    if request.headers.get('content-type') == 'application/json':
+        json_string = request.get_data().decode('utf-8')
+        update = Bot.telebot.types.Update.de_json(json_string)
+        Bot.bot.process_new_updates([update])
+        return ''
+    else:
+        return jsonify({'error': 'Telegram Bot response is failed'}), 404
+
+
+@app.route('/getwebhookinfo', methods=['GET'])
+def get_webhook_info():
+    return jsonify(Bot.get_webhook_info())
+
+
+@app.route('/setwebhook', methods=['GET', 'POST'])
+def set_webhook():
+    return Bot.set_webhook()
+
+
+@app.route('/removewebhook', methods=['GET', 'POST'])
+def remove_webhook():
+    return Bot.remove_webhook()
+
+# ----------------------------------
+# Telegram Webhook functionality
+# ----------------------------------
 
 
 @app.after_request
@@ -89,6 +125,17 @@ def get_signals():
 @app.route('/jobs', methods=['GET'])
 def get_jobs():
     return responser.get_jobs()
+
+
+@app.route('/signalsBySimulation', methods=['GET'])
+def getSignalsBySimulation():
+    symbols = request.args.getlist('symbol', None)
+    intervals = request.args.getlist('interval', None)
+    codes = request.args.getlist('code', None)
+
+    return responser.getSignalsBySimulation(symbols, intervals, codes)
+
+# Define endpoints for creating, reading, updating, and deleting background jobs
 
 
 @app.route('/jobs', methods=['POST'])
@@ -232,8 +279,8 @@ def get_dashboard():
 
 #     return resp.getSignalsBySimulation(symbols, intervals, codes)
 
-# @app.route("/logs")
-# def get_logs():
-#     start_date_str = request.args.get("start_date")
-#     end_date_str = request.args.get("end_date")
-#     return resp.getLogs(start_date_str, end_date_str)
+@app.route("/logs")
+def get_logs():
+    start_date_str = request.args.get("start_date")
+    end_date_str = request.args.get("end_date")
+    return responser.getLogs(start_date_str, end_date_str)
