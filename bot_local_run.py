@@ -6,7 +6,7 @@ import telebot
 
 load_dotenv()
 
-BOT_TOKEN = os.getenv('BOT_TOKEN')
+BOT_TOKEN = os.getenv('BOT_TOKEN_LOCAL')
 if not BOT_TOKEN:
     logging.error('Bot token is not maintained in the environment values')
 
@@ -48,4 +48,5 @@ def remove_webhook():
 def get_webhook_info():
     return bot.get_webhook_info()
 
-
+if __name__ == "__main__":
+    bot.infinity_polling()

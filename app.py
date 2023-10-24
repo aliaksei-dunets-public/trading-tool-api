@@ -32,17 +32,17 @@ def webhook():
 
 @app.route('/getwebhookinfo', methods=['GET'])
 def get_webhook_info():
-    Bot.get_webhook_info()
+    return jsonify(Bot.get_webhook_info())
 
 
 @app.route('/setwebhook', methods=['GET', 'POST'])
 def set_webhook():
-    Bot.set_webhook()
+    return Bot.set_webhook()
 
 
 @app.route('/removewebhook', methods=['GET', 'POST'])
 def remove_webhook():
-    Bot.remove_webhook()
+    return Bot.remove_webhook()
 
 # ----------------------------------
 # Telegram Webhook functionality
