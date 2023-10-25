@@ -15,10 +15,10 @@ from email.mime.text import MIMEText
 
 
 from .constants import Const
-from .core import logger, runtime_buffer, Symbol, Signal
-from .model import model, Symbols
+from .core import config, logger, runtime_buffer, Symbol, Signal, SimulateOptions
+from .model import model, Symbols, ParamSimulationList
 from .strategy import StrategyFactory, SignalFactory
-# from .simulator import Simulator
+from .simulation import Executor
 from .mongodb import MongoJobs, MongoAlerts, MongoOrders, MongoSimulations
 
 load_dotenv()
@@ -41,7 +41,8 @@ def decorator_json(func) -> str:
 
 
 def job_func_initialise_runtime_data():
-    logger.info(f"JOB: {Const.JOB_TYPE_INIT} - Refresh runtime buffer")
+    if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+        logger.info(f"JOB: {Const.JOB_TYPE_INIT} - Refresh runtime buffer")
 
     runtime_buffer.clearSymbolsBuffer()
     runtime_buffer.clearTimeframeBuffer()
@@ -53,8 +54,9 @@ def job_func_initialise_runtime_data():
 
 def job_func_send_bot_notification(interval):
 
-    logger.info(
-        f"JOB: {Const.JOB_TYPE_BOT} is triggered for interval - {interval}")
+    if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+        logger.info(
+            f"JOB: {Const.JOB_TYPE_BOT} is triggered for interval - {interval}")
 
     responser = ResponserBot()
     notificator = NotificationBot()
@@ -71,9 +73,9 @@ def job_func_send_bot_notification(interval):
 
 
 def job_func_send_email_notification(interval):
-
-    logger.info(
-        f"JOB: {Const.JOB_TYPE_EMAIL} is triggered for interval - {interval}")
+    if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+        logger.info(
+            f"JOB: {Const.JOB_TYPE_EMAIL} is triggered for interval - {interval}")
 
     messages = ResponserEmail().get_signals(symbols=[],
                                             intervals=[interval],
@@ -246,7 +248,18 @@ class ResponserBase():
                                         interval=interval)
 
     def get_simulations(self, symbols: list, intervals: list, strategies: list) -> list:
-        return MongoSimulations().get_simulations(symbols=symbols, intervals=intervals, strategies=strategies)                                
+        return MongoSimulations().get_simulations(symbols=symbols, intervals=intervals, strategies=strategies)    
+
+    def get_simulate(self, params: ParamSimulationList) -> list:
+        simulations = []
+        executor = Executor()
+        simulators = executor.simulate_many(params=params) 
+
+        for simulator in simulators:
+            simulation = simulator.get_simulation()
+            simulations.append(simulation)
+
+        return simulations                           
 
 
 class ResponserWeb(ResponserBase):
@@ -625,8 +638,9 @@ class JobScheduler:
         # Add job to the runtime buffer
         runtime_buffer.set_job_to_buffer(job)
 
-        logger.info(
-            f"JOB: {job_type} is scheduled for interval: {interval} at {job.next_run_time}")
+        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+            logger.info(
+                f"JOB: {job_type} is scheduled for interval: {interval} at {job.next_run_time}")
 
         return job
 
@@ -699,9 +713,9 @@ class NotificationEmail(NotificationBase):
 
                 # Send the email
                 server.sendmail(sender_email, receiver_email, msg.as_string())
-
-                logger.info(
-                    f'NOTIFICATION: EMAIL - Sent successfully to {receiver_email}.')
+                if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+                    logger.info(
+                        f'NOTIFICATION: EMAIL - Sent successfully to {receiver_email}.')
 
             except Exception as e:
                 logger.error(
@@ -731,8 +745,9 @@ class NotificationBot(NotificationBase):
                       'parse_mode': 'HTML'}
             response = requests.post(bot_url, data=params)
             if response.ok:
-                logger.info(
-                    f"NOTIFICATION: BOT - Sent successfully to chat bot: {channel_id}")
+                if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+                    logger.info(
+                        f"NOTIFICATION: BOT - Sent successfully to chat bot: {channel_id}")
             else:
                 logger.error(
                     f"NOTIFICATION: BOT - Failed to send message to chat bot: {channel_id} - {response.text}")

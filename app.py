@@ -3,22 +3,16 @@ from flask import Flask, jsonify, request
 
 import bot as Bot
 from trading_core.constants import Const
-from trading_core.responser import ResponserWeb
+from trading_core.responser import ResponserWeb, ParamSimulationList, SimulateOptions
 
 app = Flask(__name__)
 
 responser = ResponserWeb()
 
 
-@app.route("/")
-def index():
-    return "<h1>This is the Trading tool API</h1>"
-
 # ----------------------------------
 # Telegram Webhook functionality
 # ----------------------------------
-
-
 @app.route(Bot.WEBHOOK_PATH, methods=['POST'])
 def webhook():
     if request.headers.get('content-type') == 'application/json':
@@ -53,6 +47,11 @@ def remove_webhook():
 def add_content_type(response):
     response.headers['Content-Type'] = 'application/json'
     return response
+
+
+@app.route("/")
+def index():
+    return "<h1>This is the Trading tool API</h1>"
 
 
 @app.route('/intervals', methods=['GET'])
@@ -127,17 +126,7 @@ def get_jobs():
     return responser.get_jobs()
 
 
-@app.route('/signalsBySimulation', methods=['GET'])
-def getSignalsBySimulation():
-    symbols = request.args.getlist('symbol', None)
-    intervals = request.args.getlist('interval', None)
-    codes = request.args.getlist('code', None)
-
-    return responser.getSignalsBySimulation(symbols, intervals, codes)
-
 # Define endpoints for creating, reading, updating, and deleting background jobs
-
-
 @app.route('/jobs', methods=['POST'])
 def create_job():
     job_type = request.json.get(Const.DB_JOB_TYPE)
@@ -243,6 +232,7 @@ def create_order():
 def remove_order(_id):
     return responser.remove_order(_id)
 
+
 @app.route('/simulations', methods=['GET'])
 def get_simulations():
     symbols = request.args.getlist('symbol', None)
@@ -252,25 +242,39 @@ def get_simulations():
     return responser.get_simulations(symbols=symbols, intervals=intervals, strategies=strategies)
 
 
+@app.route('/simulate', methods=['GET'])
+def get_simulate():
+    symbols = request.args.getlist('symbol', None)
+    intervals = request.args.getlist('interval', None)
+    strategies = request.args.getlist('strategy', None)
+    init_balance = request.args.get(Const.SRV_INIT_BALANCE)
+    limit = request.args.get(Const.LIMIT)
+    stop_loss_rate = request.args.get(Const.SRV_STOP_LOSS_RATE)
+    take_profit_rate = request.args.get(Const.SRV_TAKE_PROFIT_RATE)
+    fee_rate = request.args.get(Const.SRV_FEE_RATE)
+
+    try:
+        simulate_options = SimulateOptions(init_balance=init_balance,
+                                           limit=limit,
+                                           stop_loss_rate=stop_loss_rate,
+                                           take_profit_rate=take_profit_rate,
+                                           fee_rate=fee_rate)
+
+        params = ParamSimulationList(symbols=symbols,
+                                     intervals=intervals,
+                                     strategies=strategies,
+                                     simulation_options_list=[simulate_options])
+
+    except Exception as error:
+        return jsonify({"error": error}), 500
+
+    return responser.get_simulate(params)
+
+
 @app.route('/dashboard', methods=['GET'])
 def get_dashboard():
     symbol = request.json.get(Const.DB_SYMBOL)
     return responser.get_dashboard(symbol=symbol)
-
-
-# @app.route('/simulate', methods=['GET'])
-# def getSimulate():
-#     symbols = request.args.getlist('symbol', None)
-#     intervals = request.args.getlist('interval', None)
-#     codes = request.args.getlist('code', None)
-
-#     if symbols == []:
-#         return jsonify({"error": "Symbol is missed", }), 500
-
-#     return resp.getSimulate(symbols, intervals, codes)
-
-
-
 
 
 # @app.route('/signalsBySimulation', methods=['GET'])
@@ -281,8 +285,16 @@ def get_dashboard():
 
 #     return resp.getSignalsBySimulation(symbols, intervals, codes)
 
-@app.route("/logs")
-def get_logs():
-    start_date_str = request.args.get("start_date")
-    end_date_str = request.args.get("end_date")
-    return responser.getLogs(start_date_str, end_date_str)
+# @app.route("/logs")
+# def get_logs():
+#     start_date_str = request.args.get("start_date")
+#     end_date_str = request.args.get("end_date")
+#     return responser.getLogs(start_date_str, end_date_str)
+
+# @app.route('/signalsBySimulation', methods=['GET'])
+# def getSignalsBySimulation():
+#     symbols = request.args.getlist('symbol', None)
+#     intervals = request.args.getlist('interval', None)
+#     codes = request.args.getlist('code', None)
+
+#     return responser.getSignalsBySimulation(symbols, intervals, codes)

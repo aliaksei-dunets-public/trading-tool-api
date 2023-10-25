@@ -92,11 +92,11 @@ class HistoryData:
 
 class SimulateOptions:
     def __init__(self, init_balance, limit, stop_loss_rate, take_profit_rate, fee_rate):
-        self.init_balance: float = init_balance
+        self.init_balance: float = float(init_balance)
         self.limit: int = int(limit)
-        self.stop_loss_rate: float = stop_loss_rate
-        self.take_profit_rate: float = take_profit_rate
-        self.fee_rate: float = fee_rate
+        self.stop_loss_rate: float = float(stop_loss_rate)
+        self.take_profit_rate: float = float(take_profit_rate)
+        self.fee_rate: float = float(fee_rate)
 
     def get_fee_value(self) -> float:
         return (self.init_balance * self.fee_rate) / 100
@@ -173,7 +173,8 @@ class RuntimeBufferStore():
         return class_._instance
 
     def getSymbolsFromBuffer(self) -> dict[Symbol]:
-        logger.info(f'BUFFER: getSymbols()')
+        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+            logger.info(f'BUFFER: getSymbols()')
 
         return self.__symbol_buffer
 
@@ -220,8 +221,9 @@ class RuntimeBufferStore():
         history_data_required = HistoryData(
             symbol=symbol, interval=interval, limit=limit, dataFrame=df_required)
 
-        logger.info(
-            f'BUFFER: getHistoryData(symbol={symbol}, interval={interval}, limit={limit}, endDatetime={endDatetime})')
+        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+            logger.info(
+                f'BUFFER: getHistoryData(symbol={symbol}, interval={interval}, limit={limit}, endDatetime={endDatetime})')
 
         return history_data_required
 
@@ -272,8 +274,9 @@ class RuntimeBufferStore():
 
         if date_time == signal_buffer_inst.get_date_time():
 
-            logger.info(
-                f'BUFFER: get_signal(symbol={symbol}, interval={interval}, strategy={strategy}, date_time={date_time})')
+            if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+                logger.info(
+                    f'BUFFER: get_signal(symbol={symbol}, interval={interval}, strategy={strategy}, date_time={date_time})')
 
             return signal_buffer_inst
         else:
@@ -322,7 +325,7 @@ class Config:
     def __new__(class_, *args, **kwargs):
         if not isinstance(class_._instance, class_):
             class_._instance = object.__new__(class_, *args, **kwargs)
-            class_.__config_data = {Const.CONFIG_DEBUG_LOG: False}
+            class_.__config_data = {Const.CONFIG_DEBUG_LOG: True}
         return class_._instance
 
     def get_config_value(self, property: str):

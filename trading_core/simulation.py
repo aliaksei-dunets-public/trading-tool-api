@@ -2,7 +2,7 @@ from datetime import datetime
 
 from .constants import Const
 from .core import logger, CandelBarSignal, SimulateOptions
-from .model import ParamSimulation
+from .model import ParamSimulation, ParamSimulationList
 from .mongodb import MongoSimulations
 from .strategy import StrategyFactory
 
@@ -76,7 +76,7 @@ class Simulator:
                 Const.DB_BALANCE: (self.init_balance + self.total_profit),
                 Const.DB_PROFIT: self.total_profit}
 
-    def get_orders(self) -> dict:
+    def get_orders(self) -> list:
         orders = []
 
         for simulation in self.simulations:
@@ -460,10 +460,10 @@ class Executor:
     def simulate(self, param: ParamSimulation) -> Simulator:
         return Simulator(param).execute()
 
-    def simulate_many(self, params: list[ParamSimulation]) -> list[Simulator]:
+    def simulate_many(self, params: ParamSimulationList) -> list[Simulator]:
         simulators = []
 
-        for param in params:
+        for param in params.get_param_simulation_list():
             try:
                 simulators.append(self.simulate(param))
             except Exception as error:
@@ -473,7 +473,7 @@ class Executor:
 
         return simulators
 
-    def simulate_many_and_db_save(self, params: list[ParamSimulation]) -> list[Simulator]:
+    def simulate_many_and_db_save(self, params: ParamSimulationList) -> list[Simulator]:
 
         db = MongoSimulations()
         simulators = self.simulate_many(params)

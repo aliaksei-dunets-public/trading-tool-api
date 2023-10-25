@@ -225,8 +225,9 @@ class CurrencyComApi(StockExchangeApiBase):
                 interval_api)
             url_params[Const.LIMIT] = url_params[Const.LIMIT] + 1
 
-        logger.info(
-            f'STOCK_EXCHANGE: {self.getStockExchangeName()} - getHistoryData({url_params})')
+        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+            logger.info(
+                f'STOCK_EXCHANGE: {self.getStockExchangeName()} - getHistoryData({url_params})')
 
         json_api_response = self.get_api_klines(url_params)
 
@@ -261,8 +262,9 @@ class CurrencyComApi(StockExchangeApiBase):
 
         symbols = {}
 
-        logger.info(
-            f'STOCK_EXCHANGE: {self.getStockExchangeName()} - getSymbols()')
+        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+            logger.info(
+                f'STOCK_EXCHANGE: {self.getStockExchangeName()} - getSymbols()')
 
         # Get API data
         response = requests.get(f'{self.getApiEndpoint()}/exchangeInfo')
@@ -600,8 +602,9 @@ class LocalCurrencyComApi(CurrencyComApi):
 
         symbols = {}
 
-        logger.info(
-            f'STOCK_EXCHANGE: {self.getStockExchangeName()} - getSymbols()')
+        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+            logger.info(
+                f'STOCK_EXCHANGE: {self.getStockExchangeName()} - getSymbols()')
 
         file_path = self.__get_file_path('symbols')
 
@@ -619,13 +622,12 @@ class LocalCurrencyComApi(CurrencyComApi):
                     Const.STATUS] == 'TRADING' else Const.STATUS_CLOSE
 
                 symbol_inst = Symbol(code=row[Const.PARAM_SYMBOL], name=row[Const.NAME],
-                                        status=status_converted, tradingTime=row['tradingHours'], type=row['assetType'])
+                                     status=status_converted, tradingTime=row['tradingHours'], type=row['assetType'])
                 symbols[symbol_inst.code] = symbol_inst
             else:
                 continue
 
         return symbols
-
 
     def __get_file_name(self, symbol: str, interval: str) -> str:
         symbol = symbol.replace('/', '_')

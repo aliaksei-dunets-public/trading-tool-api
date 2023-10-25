@@ -37,8 +37,9 @@ class SignalFactory():
             # Add signal to the buffer
             runtime_buffer.set_signal_to_buffer(signal_inst)
 
-            logger.info(
-                f'SIGNAL: get_signal(symbol={symbol}, interval={interval}, strategy={strategy}, signals_config={signals_config}, closed_bars={closed_bars})')
+            if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+                logger.info(
+                    f'SIGNAL: get_signal(symbol={symbol}, interval={interval}, strategy={strategy}, signals_config={signals_config}, closed_bars={closed_bars})')
 
         # Return signal data if signal is compatible with signal config, else return None
         if signal_inst.is_compatible(signals_config):

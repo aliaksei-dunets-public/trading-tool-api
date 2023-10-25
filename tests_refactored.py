@@ -81,7 +81,7 @@ class TestConfig(unittest.TestCase):
 
     def test_get_config_value(self):
         self.assertEqual(config.get_config_value(
-            Const.CONFIG_DEBUG_LOG), False)
+            Const.CONFIG_DEBUG_LOG), True)
         self.assertIsNone(config.get_config_value('Test'))
 
     def test_get_stock_exchange_id(self):

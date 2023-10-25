@@ -146,5 +146,10 @@ class Const:
     PARAM_QUERY = "query"
     PARAM_TREND = "trend"
 
+    SRV_INIT_BALANCE = 'init_balance'
+    SRV_STOP_LOSS_RATE = 'stop_loss_rate'
+    SRV_TAKE_PROFIT_RATE = 'take_profit_rate'
+    SRV_FEE_RATE = 'fee_rate'
+
     # API fields
     END_TIME = 'endTime'
