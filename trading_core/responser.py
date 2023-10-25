@@ -19,7 +19,7 @@ from .core import logger, runtime_buffer, Symbol, Signal
 from .model import model, Symbols
 from .strategy import StrategyFactory, SignalFactory
 # from .simulator import Simulator
-from .mongodb import MongoJobs, MongoAlerts, MongoOrders
+from .mongodb import MongoJobs, MongoAlerts, MongoOrders, MongoSimulations
 
 load_dotenv()
 
@@ -244,6 +244,9 @@ class ResponserBase():
     def get_orders(self, symbol: str, interval: str) -> list:
         return MongoOrders().get_orders(symbol=symbol,
                                         interval=interval)
+
+    def get_simulations(self, symbols: list, intervals: list, strategies: list) -> list:
+        return MongoSimulations().get_simulations(symbols=symbols, intervals=intervals, strategies=strategies)                                
 
 
 class ResponserWeb(ResponserBase):

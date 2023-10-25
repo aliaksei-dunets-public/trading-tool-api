@@ -19,7 +19,7 @@ except KeyError:
         'Mongo Config is not maintained in the environment values')
 
 client = pymongo.MongoClient(mongodb_uri)
-database = client['ClusterShared']
+database = client[Const.DB_NAME]
 
 
 class MongoBase():
@@ -74,6 +74,12 @@ class MongoBase():
     def add_param_to_query(self, query: dict, param: str, value: str) -> dict:
         if value:
             query[param] = value
+
+        return query
+
+    def add_multi_pram_to_query(self, query: dict, param: str, values: list) -> dict:
+        if values:
+            query[param] = {'$in': values}
 
         return query
 
@@ -180,3 +186,15 @@ class MongoSimulations(MongoBase):
             raise Exception(f'DB: _id is missed')
 
         return id
+
+    def get_simulations(self, symbols: list, intervals: list, strategies: list) -> list:
+        query = {}
+
+        self.add_multi_pram_to_query(
+            query=query, param=Const.DB_SYMBOL, values=symbols)
+        self.add_multi_pram_to_query(
+            query=query, param=Const.DB_INTERVAL, values=intervals)
+        self.add_multi_pram_to_query(
+            query=query, param=Const.DB_STRATEGY, values=strategies)
+
+        return MongoSimulations().get_many(query)

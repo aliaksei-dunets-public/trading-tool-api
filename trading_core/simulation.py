@@ -482,7 +482,7 @@ class Executor:
 
             summary = simulator.get_summary()
 
-            if ( summary[Const.DB_PROFIT] / summary[Const.DB_INIT_BALANCE] ) * 100 >= 5:
+            if ( summary[Const.DB_PROFIT] / summary[Const.DB_INIT_BALANCE] ) * 100 >= 20:
                 query = summary
                 query.update(simulator.get_analysis())
 

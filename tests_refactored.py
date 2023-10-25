@@ -11,7 +11,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 
 from trading_core.constants import Const
 from trading_core.core import config, Symbol, CandelBar, CandelBarSignal, HistoryData, SimulateOptions, Signal, RuntimeBufferStore
-from trading_core.model import model, Symbols
+from trading_core.model import model, Symbols, ParamBase, ParamSymbol
 from trading_core.mongodb import MongoBase, MongoAlerts, MongoJobs, MongoOrders
 from trading_core.handler import CurrencyComApi, StockExchangeHandler
 from trading_core.indicator import IndicatorBase, Indicator_CCI
@@ -175,7 +175,8 @@ class SimulateOptionsTestCase(unittest.TestCase):
         self.assertEqual(simulate_options.init_balance, self.balance)
         self.assertEqual(simulate_options.limit, self.limit)
         self.assertEqual(simulate_options.stop_loss_rate, self.stopLossRate)
-        self.assertEqual(simulate_options.take_profit_rate, self.takeProfitRate)
+        self.assertEqual(simulate_options.take_profit_rate,
+                         self.takeProfitRate)
         self.assertEqual(simulate_options.fee_rate, self.feeRate)
 
 
@@ -554,6 +555,55 @@ class TestModel(unittest.TestCase):
         ]
         self.assertEqual(model.get_sorted_strategy_codes(
             strategies, desc=False), expected_result)
+
+
+class TestParamBase(unittest.TestCase):
+
+    def test_copy_instance(self):
+        # Create an instance of ParamBase
+        param_base = ParamBase()
+
+        # Copy the instance using copy_instance
+        copied_param_base = ParamBase.copy_instance(param_base)
+
+        # Check if the original and copied instances are not the same object
+        self.assertIsNot(param_base, copied_param_base)
+
+
+class TestParamSymbol(unittest.TestCase):
+
+    def test_init(self):
+        # Test initializing ParamSymbol with consistency_check=True
+        symbol = "BABA"
+        param_symbol = ParamSymbol(symbol)
+
+        # Check if the symbol attribute is set correctly
+        self.assertEqual(param_symbol.symbol, symbol)
+
+    def test_get_symbol_config(self):
+        # Test get_symbol_config when symbol config exists
+        symbol = "BABA"
+        param_symbol = ParamSymbol(symbol, consistency_check=False)
+
+        # Manually set the symbol_config for testing
+        param_symbol._ParamSymbol__symbol_config = "MockSymbolConfig"
+
+        symbol_config = param_symbol.get_symbol_config()
+
+        # Check if get_symbol_config returns the correct symbol config
+        self.assertEqual(symbol_config, "MockSymbolConfig")
+
+    def test_get_symbol_config_exception(self):
+        # Test get_symbol_config when symbol config doesn't exist
+        symbol = "INVALID_SYMBOL"
+        param_symbol = ParamSymbol(symbol, consistency_check=False)
+
+        # Ensure that symbol_config is None (not set manually)
+        self.assertIsNone(param_symbol._ParamSymbol__symbol_config)
+
+        # Attempt to get the symbol config and expect an exception
+        with self.assertRaises(Exception):
+            param_symbol.get_symbol_config()
 
 
 class MongoBaseTestCase(unittest.TestCase):
@@ -1345,7 +1395,7 @@ class SymbolsTestCase(unittest.TestCase):
             'ETH': Symbol('ETH', 'Ethereum', 'active', 'crypto', '08:00-16:00'),
             'LTC': Symbol('LTC', 'Litecoin', 'inactive', 'crypto', '10:00-18:00')
         })
-    
+
     def tearDown(self) -> None:
         RuntimeBufferStore().clearSymbolsBuffer()
 
@@ -1803,12 +1853,6 @@ class MessagesTestCase(unittest.TestCase):
         self.assertEqual(result[self.channel_id], message_inst)
 
 
-
-
-
-
-
-
 # class CandelBarTestCase(unittest.TestCase):
 
 #     def test_candle_bar_init(self):
@@ -1936,8 +1980,8 @@ class MessagesTestCase(unittest.TestCase):
 #         open_date_time = datetime(2022, 1, 1, 12, 0, 0)
 #         open_price = 100.0
 
-#         self.simulation_base.open_simulation(type=Const.LONG, 
-#                                              open_date_time=open_date_time, 
+#         self.simulation_base.open_simulation(type=Const.LONG,
+#                                              open_date_time=open_date_time,
 #                                              open_price=open_price)
 
 #         self.assertIsInstance(self.simulation_base._order, Order)
@@ -1951,17 +1995,17 @@ class MessagesTestCase(unittest.TestCase):
 #         self.assertEqual(self.simulation_base.min_price, open_price)
 
 #     def test_simulation_base_close_simulation(self):
-#         candler_bar = CandelBarSignal(date_time=datetime(2022, 1, 1, 12, 0, 0), 
-#                                       open=100.0, 
-#                                       high=110.0, 
-#                                       low=90.0, 
-#                                       close=105.0, 
-#                                       volume=1000.0, 
+#         candler_bar = CandelBarSignal(date_time=datetime(2022, 1, 1, 12, 0, 0),
+#                                       open=100.0,
+#                                       high=110.0,
+#                                       low=90.0,
+#                                       close=105.0,
+#                                       volume=1000.0,
 #                                       signal=Const.STRONG_BUY)
 
-#         self.simulation_base._order = Order(type=Const.LONG, 
-#                                             open_date_time=datetime(2022, 1, 1, 12, 0, 0), 
-#                                             open_price=100.0, 
+#         self.simulation_base._order = Order(type=Const.LONG,
+#                                             open_date_time=datetime(2022, 1, 1, 12, 0, 0),
+#                                             open_price=100.0,
 #                                             quantity=10.0)
 
 #         self.simulation_base.close_simulation(candler_bar)
@@ -2125,11 +2169,6 @@ class MessagesTestCase(unittest.TestCase):
 #             self.simulation_short._order.close_price, candler_bar.close)
 #         self.assertEqual(self.simulation_short.close_reason,
 #                          Const.ORDER_CLOSE_REASON_SIGNAL)
-
-
-
-
-
 
 
 class FlaskAPITestCase(unittest.TestCase):

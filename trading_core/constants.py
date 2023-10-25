@@ -20,10 +20,13 @@ class Const:
     TA_STRATEGY_CCI_20_TREND_100 = "CCI_20_TREND_100"
     TA_STRATEGY_CCI_50_TREND_0 = "CCI_50_TREND_0"
 
+    #Database Name
+    DB_NAME = 'ClusterShared'
+
     # Collections name
-    DB_COLLECTION_JOBS = 'jobs_temp'
-    DB_COLLECTION_ALERTS = 'alerts_temp'
-    DB_COLLECTION_ORDERS = 'orders_temp'
+    DB_COLLECTION_JOBS = 'jobs'
+    DB_COLLECTION_ALERTS = 'alerts'
+    DB_COLLECTION_ORDERS = 'orders'
     DB_COLLECTION_SIMULATION = 'simulations'
 
     # DB fields

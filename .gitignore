@@ -106,7 +106,6 @@ venv.bak/
 executor.ipynb
 
 logs/
-tests/
 local/
 
 

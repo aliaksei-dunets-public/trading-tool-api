@@ -243,6 +243,14 @@ def create_order():
 def remove_order(_id):
     return responser.remove_order(_id)
 
+@app.route('/simulations', methods=['GET'])
+def get_simulations():
+    symbols = request.args.getlist('symbol', None)
+    intervals = request.args.getlist('interval', None)
+    strategies = request.args.getlist('strategies', None)
+
+    return responser.get_simulations(symbols=symbols, intervals=intervals, strategies=strategies)
+
 
 @app.route('/dashboard', methods=['GET'])
 def get_dashboard():
@@ -262,13 +270,7 @@ def get_dashboard():
 #     return resp.getSimulate(symbols, intervals, codes)
 
 
-# @app.route('/simulations', methods=['GET'])
-# def getSimulations():
-#     symbols = request.args.getlist('symbol', None)
-#     intervals = request.args.getlist('interval', None)
-#     codes = request.args.getlist('code', None)
 
-#     return resp.getSimulations(symbols, intervals, codes)
 
 
 # @app.route('/signalsBySimulation', methods=['GET'])
