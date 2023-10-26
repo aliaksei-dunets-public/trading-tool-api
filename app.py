@@ -237,7 +237,7 @@ def remove_order(_id):
 def get_simulations():
     symbols = request.args.getlist('symbol', None)
     intervals = request.args.getlist('interval', None)
-    strategies = request.args.getlist('strategies', None)
+    strategies = request.args.getlist('strategy', None)
 
     return responser.get_simulations(symbols=symbols, intervals=intervals, strategies=strategies)
 

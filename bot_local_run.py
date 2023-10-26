@@ -6,7 +6,7 @@ import telebot
 
 load_dotenv()
 
-BOT_TOKEN = os.getenv('BOT_TOKEN_LOCAL')
+BOT_TOKEN = os.getenv('BOT_TOKEN')
 if not BOT_TOKEN:
     logging.error('Bot token is not maintained in the environment values')
 
