@@ -1,12 +1,13 @@
 import os
 from dotenv import load_dotenv
 
-import logging
 import telebot
+import logging
+import bot_handler
 
 load_dotenv()
 
-BOT_TOKEN = os.getenv('BOT_TOKEN_LOCAL')
+BOT_TOKEN = os.getenv('BOT_TOKEN')
 if not BOT_TOKEN:
     logging.error('Bot token is not maintained in the environment values')
 
@@ -20,12 +21,11 @@ WEBHOOK_URL = f'{WEBHOOK_HOST}{WEBHOOK_PATH}'
 logger = telebot.logger
 telebot.logger.setLevel(logging.INFO)
 
-bot = telebot.TeleBot(BOT_TOKEN)
 
-@bot.message_handler(commands=["start"])
-def start(message: telebot.types.Message):
-    logger.info(f'Get message from: {message.from_user.id}')
-    bot.send_message(message.from_user.id, f'Hello {message.chat.username}')
+storage = telebot.StateMemoryStorage()
+bot = telebot.TeleBot(BOT_TOKEN, state_storage=storage)
+bot_handler.register_handlers(bot)
+
 
 def set_webhook():
     result = bot.set_webhook(url=WEBHOOK_URL)
@@ -36,6 +36,7 @@ def set_webhook():
         logging.error(f'Activation of the webhook: {WEBHOOK_URL} is failed')
         return f'{WEBHOOK_URL} is failed'
 
+
 def remove_webhook():
     result = bot.remove_webhook()
     if result:
@@ -45,8 +46,10 @@ def remove_webhook():
         logging.error(f'Removing of the webhook: {WEBHOOK_URL} is failed')
         return f'{WEBHOOK_URL} is failed'
 
+
 def get_webhook_info():
     return bot.get_webhook_info()
+
 
 if __name__ == "__main__":
     bot.infinity_polling()
