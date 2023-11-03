@@ -342,18 +342,33 @@ class Config:
         return [{Const.CODE: Const.TA_INDICATOR_CCI, Const.NAME: "Commodity Channel Index"}]
 
     def get_strategies_config(self):
-        strategies = {Const.TA_STRATEGY_CCI_14_TREND_100: {Const.CODE: Const.TA_STRATEGY_CCI_14_TREND_100,
-                                                           Const.NAME: "CCI(14): Indicator value +/- 100",
-                                                           Const.LENGTH: 14,
-                                                           Const.VALUE: 100},
-                      Const.TA_STRATEGY_CCI_20_TREND_100: {Const.CODE: Const.TA_STRATEGY_CCI_20_TREND_100,
-                                                           Const.NAME: "CCI(20): Indicator value +/- 100",
-                                                           Const.LENGTH: 20,
-                                                           Const.VALUE: 100},
-                      Const.TA_STRATEGY_CCI_50_TREND_0: {Const.CODE: Const.TA_STRATEGY_CCI_50_TREND_0,
-                                                         Const.NAME: "CCI(50): Indicator value 0",
-                                                         Const.LENGTH: 50,
-                                                         Const.VALUE: 0}}
+        strategies = {
+            Const.TA_STRATEGY_CCI_14_TREND_100: {
+                Const.CODE: Const.TA_STRATEGY_CCI_14_TREND_100,
+                Const.NAME: "CCI(14): Indicator against Trend +/- 100",
+                Const.LENGTH: 14,
+                Const.VALUE: 100
+            },
+            Const.TA_STRATEGY_CCI_14_TREND_170_165: {
+                Const.CODE: Const.TA_STRATEGY_CCI_14_TREND_170_165,
+                Const.NAME: "CCI(14): Indicator direction Trend +/- 170 | 165",
+                Const.LENGTH: 14,
+                Const.VALUE: 170,
+                Const.OPEN_VALUE: 170,
+                Const.CLOSE_VALUE: 165,
+            },
+            Const.TA_STRATEGY_CCI_20_TREND_100: {
+                Const.CODE: Const.TA_STRATEGY_CCI_20_TREND_100,
+                Const.NAME: "CCI(20): Indicator against Trend +/- 100",
+                Const.LENGTH: 20,
+                Const.VALUE: 100
+            },
+            Const.TA_STRATEGY_CCI_50_TREND_0: {
+                Const.CODE: Const.TA_STRATEGY_CCI_50_TREND_0,
+                Const.NAME: "CCI(50): Indicator direction Trend 0",
+                Const.LENGTH: 50,
+                Const.VALUE: 0
+            }}
 
         return strategies
 

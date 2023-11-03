@@ -17,6 +17,7 @@ class Const:
 
     # Strategies
     TA_STRATEGY_CCI_14_TREND_100 = "CCI_14_TREND_100"
+    TA_STRATEGY_CCI_14_TREND_170_165 = "CCI_14_TREND_170_165"
     TA_STRATEGY_CCI_20_TREND_100 = "CCI_20_TREND_100"
     TA_STRATEGY_CCI_50_TREND_0 = "CCI_50_TREND_0"
 
@@ -145,7 +146,10 @@ class Const:
     PARAM_SYMBOL_TYPE = "type"
     PARAM_QUERY = "query"
     PARAM_TREND = "trend"
+    OPEN_VALUE = "open_value"
+    CLOSE_VALUE = "close_value"
 
+    # Service params
     SRV_INIT_BALANCE = 'init_balance'
     SRV_STOP_LOSS_RATE = 'stop_loss_rate'
     SRV_TAKE_PROFIT_RATE = 'take_profit_rate'
