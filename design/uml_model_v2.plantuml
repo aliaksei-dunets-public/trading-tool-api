@@ -75,7 +75,7 @@ class SymbolModel {
   tradingTime: str
   order_type: OrderType
   currency: str
-  exchange_fee: float
+  trading_fee: float
 }
 
 SymbolStatus <.. SymbolModel

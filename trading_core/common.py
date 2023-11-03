@@ -79,7 +79,7 @@ class SymbolModel(SymbolIdModel):
     trading_time: str
     # order_type: OrderType
     currency: str
-    exchange_fee: float = 0
+    trading_fee: float = 0
 
     @property
     def descr(self):
@@ -121,12 +121,14 @@ class UserModel(IdentifierModel, AdminModel):
     email: EmailStr
     first_name: str
     second_name: str
+    technical_user: bool = False
 
     def to_mongodb_doc(self):
         return {
             "email": self.email,
             "first_name": self.first_name,
             "second_name": self.second_name,
+            "technical_user": self.technical_user,
         }
 
 

@@ -12,8 +12,10 @@ from enum import Enum
 
 from .constants import Const
 from .core import logger, config, Symbol, HistoryData, RuntimeBufferStore
+from .api import ExchangeApiBase, DzengiComApi, DemoDzengiComApi
 from .common import (
     ExchangeId,
+    SymbolModel,
     UserModel,
     TraderModel,
     SessionModel,
@@ -31,6 +33,23 @@ from .mongodb import (
     MongoLeverage,
     MongoTransaction,
 )
+
+
+class BufferBaseHandler:
+    def __init__(self):
+        self.__buffer = {}
+
+    def get_buffer(self) -> dict:
+        return self.__buffer
+
+    def is_data_in_buffer(self, **kwargs) -> bool:
+        return True if self.__buffer else False
+
+    def set_buffer(self, buffer: dict):
+        self.__buffer = buffer
+
+    def clear_buffer(self):
+        self.__buffer.clear()
 
 
 class UserHandler:
@@ -53,10 +72,17 @@ class UserHandler:
 
     @staticmethod
     def get_user_by_email(email: str) -> UserModel:
-        user_db = MongoUser().get_many({"email": email})
-        if not user_db:
+        user_db_list = MongoUser().get_many({"email": email})
+        if not user_db_list:
             raise Exception(f"User {email} doesn't exists")
-        return UserModel(**user_db[0])
+        return UserModel(**user_db_list[0])
+
+    @staticmethod
+    def get_technical_user() -> UserModel:
+        technical_user_db_list = MongoUser().get_many({"technical_user": True})
+        if not technical_user_db_list:
+            raise Exception(f"Technical User is maintained")
+        return UserModel(**technical_user_db_list[0])
 
     @staticmethod
     def get_users(search: str = None) -> list:
@@ -74,8 +100,8 @@ class UserHandler:
                 ]
             }
 
-        users_db = MongoUser().get_many(search_query)
-        users = [UserModel(**user_db).model_dump() for user_db in users_db]
+        user_db_list = MongoUser().get_many(search_query)
+        users = [UserModel(**user_db).model_dump() for user_db in user_db_list]
 
         return users
 
@@ -94,11 +120,20 @@ class TraderHandler:
         return TraderModel(**entry)
 
     @staticmethod
-    def get_traders(user_id: str = None):
-        query = {"user_id": user_id} if user_id else {}
-        entries_db = MongoTrader().get_many(query)
-        result = [TraderModel(**entry).model_dump() for entry in entries_db]
+    def get_default_trader(user_id: str) -> TraderModel:
+        trader_model_list = TraderHandler._read_traders(user_id=user_id, default=True)
+        if not trader_model_list:
+            raise Exception(f"User {user_id} doesn't have default trader")
+        return trader_model_list[0]
 
+    @staticmethod
+    def get_traders(user_id: str = None) -> list[TraderModel]:
+        return TraderHandler._read_traders(user_id=user_id)
+
+    @staticmethod
+    def _read_traders(**kwargs) -> list[TraderModel]:
+        entries_db = MongoTrader().get_many(kwargs)
+        result = [TraderModel(**entry).model_dump() for entry in entries_db]
         return result
 
 
@@ -212,42 +247,21 @@ class TransactionHandler:
         return result
 
 
-class BufferBaseHandler:
-    def __init__(self):
-        self.__buffer = {}
+class SymbolHandler:
+    def __init__(self, trader_id: str = None):
+        self._buffer_symbols: BufferBaseHandler = BufferBaseHandler()
+        self._exchange_handler: ExchangeHandler = ExchangeHandler.get_handler(
+            trader_id=trader_id
+        )
 
-    def get_buffer(self) -> dict:
-        return self.__buffer
+    def is_valid_symbol(self, symbol: str) -> bool:
+        return symbol in self.get_symbols()
 
-    def is_data_in_buffer(self, **kwargs) -> bool:
-        return True if self.__buffer else False
+    def get_symbol(self, symbol: str) -> SymbolModel:
+        symbol_model = self.get_symbols()[symbol]
+        return symbol_model
 
-    def set_buffer(self, buffer: dict):
-        self.__buffer = buffer
-
-    def clear_buffer(self):
-        self.__buffer.clear()
-
-
-class ExchangeHandler:
-    def __init__(self, trader_model: TraderModel):
-        self._api: StockExchangeApiBase = None
-
-        if not trader_model.exchange_id:
-            raise Exception(f"ExchangeHandler: Exchange Id is missed")
-
-        if trader_model.exchange_id == ExchangeId.dzengi_com:
-            self._api = CurrencyComApi()
-        elif trader_model.exchange_id == ExchangeId.demo_dzengi_com:
-            self._api = DemoCurrencyComApi()
-        else:
-            raise Exception(
-                f"ExchangeHandler: {trader_model.exchange_id} implementation is missed"
-            )
-
-        self._buffer_symbols = BufferBaseHandler()
-
-    def get_symbols(self) -> dict[Symbol]:
+    def get_symbols(self) -> dict[SymbolModel]:
         symbols = {}
 
         # If buffer data is existing -> get symbols from the buffer
@@ -256,11 +270,81 @@ class ExchangeHandler:
             symbols = self._buffer_symbols.get_buffer()
         else:
             # Send a request to an API to get symbols
-            symbols = self._api.getSymbols()
+            symbols = self._exchange_handler.get_symbols()
             # Set fetched symbols to the buffer
             self._buffer_symbols.set_buffer(symbols)
 
         return symbols
+
+    def get_symbol_list(self, **kwargs) -> list:
+        symbol_list = []
+        symbol_models = self.get_symbols()
+
+        symbol = kwargs.get(Const.DB_SYMBOL, None)
+        name = kwargs.get(Const.DB_NAME, None)
+        status = kwargs.get(Const.DB_STATUS, None)
+        type = kwargs.get(Const.DB_TYPE, None)
+        currency = kwargs.get(Const.DB_CURRENCY, None)
+
+        for symbol_model in symbol_models.values():
+            if symbol and symbol != symbol_model.symbol:
+                continue
+            if name and name.lower() not in symbol_model.name.lower():
+                continue
+            if status and status != symbol_model.status:
+                continue
+            if type and type != symbol_model.type:
+                continue
+            if currency and currency != symbol_model.currency:
+                continue
+            else:
+                symbol_list.append(symbol_model.model_dump())
+
+        return symbol_list
+
+    def get_symbol_id_list(self, **kwargs) -> list:
+        symbol_id_list = []
+        symbol_list = self.get_symbol_list(**kwargs)
+
+        symbol_id_list = [element[Const.DB_SYMBOL] for element in symbol_list]
+
+        return symbol_id_list
+
+
+class ExchangeHandler:
+    def __init__(self, trader_id: str):
+        self._api: ExchangeApiBase = None
+        self.__trader_model: TraderModel = TraderHandler.get_trader(trader_id)
+
+        if not self.__trader_model.exchange_id:
+            raise Exception(f"ExchangeHandler: Exchange Id is missed")
+
+        if self.__trader_model.exchange_id == ExchangeId.dzengi_com:
+            self._api = DzengiComApi(self.__trader_model)
+        elif self.__trader_model.exchange_id == ExchangeId.demo_dzengi_com:
+            self._api = DemoDzengiComApi(self.__trader_model)
+        else:
+            raise Exception(
+                f"ExchangeHandler: {self.__trader_model.exchange_id} implementation is missed"
+            )
+
+    @staticmethod
+    def get_handler(trader_id: str = None, user_id: str = None):
+        if trader_id:
+            return ExchangeHandler(trader_id)
+        elif user_id:
+            trader = TraderHandler.get_default_trader(user_id)
+            trader_id = trader.id
+        else:
+            technical_user = UserHandler.get_technical_user()
+            trader = TraderHandler.get_default_trader(technical_user.id)
+            trader_id = trader.id
+
+        return ExchangeHandler(trader.id)
+
+    def get_symbols(self) -> dict[Symbol]:
+        # Send a request to an API to get symbols
+        return self._api.get_symbols()
 
 
 ########################### Legacy code ####################################

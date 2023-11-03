@@ -23,12 +23,11 @@ class Const:
     TA_STRATEGY_CCI_50_TREND_0 = "CCI_50_TREND_0"
 
     # Database Name
-    DB_NAME = "ClusterShared"
+    DATABASE_NAME = "ClusterShared"
 
-    # Collections name
+    # DB Collections name
     DB_COLLECTION_JOBS = "jobs"
     DB_COLLECTION_ALERTS = "alerts"
-    # DB_COLLECTION_ORDERS = "orders"
     DB_COLLECTION_SIMULATIONS = "simulations"
     DB_COLLECTION_USERS = "users"
     DB_COLLECTION_CHANNELS = "channels"
@@ -41,6 +40,14 @@ class Const:
 
     # DB fields
     DB_ID = "_id"
+    DB_SYMBOL = "symbol"
+    DB_NAME = "name"
+    DB_STATUS = "status"
+    DB_TYPE = "type"
+    DB_CURRENCY = "currency"
+
+    ########################### Legacy code ####################################
+
     DB_JOB_TYPE = "job_type"
     DB_INTERVAL = "interval"
     DB_IS_ACTIVE = "is_active"
@@ -49,7 +56,6 @@ class Const:
     DB_CHANGED_AT = "changed_at"
     DB_CHANGED_BY = "changed_by"
     DB_CHANNEL_ID = "channel_id"
-    DB_SYMBOL = "symbol"
     DB_STRATEGIES = "strategies"
     DB_STRATEGY = "strategy"
     DB_SIGNALS = "signals"

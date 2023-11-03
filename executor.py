@@ -1,13 +1,28 @@
 ########################## New Model ###############################################
-from trading_core.handler import ExchangeId, TraderModel, TraderHandler, ExchangeHandler
+from trading_core.handler import (
+    ExchangeId,
+    TraderModel,
+    SymbolHandler,
+    TraderHandler,
+    ExchangeHandler,
+)
 
-trader_model = TraderHandler.get_trader("65443f637b025235de0fb5d7")
+# trader_model = TraderHandler.get_trader("65443f637b025235de0fb5d7")
 
-handler = ExchangeHandler(trader_model)
+handler = SymbolHandler(trader_id="65443f637b025235de0fb5d7")
 
-symbols = handler.get_symbols()
 symbols = handler.get_symbols()
 print(len(symbols))
+
+symbols = handler.get_symbol_list(name="Bitcoin")
+print(symbols)
+
+symbol = handler.get_symbol("EPAM")
+print(symbol)
+
+# symbol_ids = handler.get_symbol_id_list()
+# print(symbol_ids)
+
 
 ########################## New Model ###############################################
 

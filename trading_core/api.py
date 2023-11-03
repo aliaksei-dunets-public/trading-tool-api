@@ -90,7 +90,7 @@ class DzengiComApi(ExchangeApiBase):
             # Create an instance of Symbol and add to the list
             for row in json_api_response["symbols"]:
                 if (
-                    row["quoteAssetId"] == "USD"
+                    row["quoteAsset"] == "USD"
                     and row["assetType"] in ["CRYPTOCURRENCY", "EQUITY", "COMMODITY"]
                     and "REGULAR" in row["marketModes"]
                 ):
@@ -107,7 +107,7 @@ class DzengiComApi(ExchangeApiBase):
                         "type": row["marketType"],
                         "trading_time": row["tradingHours"],
                         "currency": row["quoteAssetId"],
-                        "exchange_fee": row["exchangeFee"],
+                        # "trading_fee": row["tradingFee"],
                     }
 
                     symbol_model = SymbolModel(**symbol_data)
@@ -142,3 +142,8 @@ class DzengiComApi(ExchangeApiBase):
     #         raise Exception(
     #             f"STOCK_EXCHANGE: {self.getStockExchangeName()} - GET /{path} -> {response.status_code}: {response.text}"
     #         )
+
+
+class DemoDzengiComApi(DzengiComApi):
+    def get_api_endpoints(self) -> str:
+        return "https://demo-api-adapter.backend.currency.com/api/v2/"

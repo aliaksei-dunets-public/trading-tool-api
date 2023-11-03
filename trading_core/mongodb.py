@@ -7,7 +7,7 @@ from trading_core.core import config
 
 mongodb_uri = config.get_env_value("MONGO_CONFIG")
 client = pymongo.MongoClient(mongodb_uri)
-database = client[Const.DB_NAME]
+database = client[Const.DATABASE_NAME]
 
 # indexes:
 # users -> email_asc | REGULAR | UNIQUE
