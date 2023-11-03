@@ -21,6 +21,26 @@ from .strategy import StrategyFactory, SignalFactory
 from .simulation import Executor
 from .mongodb import MongoJobs, MongoAlerts, MongoOrders, MongoSimulations
 
+from trading_core.common import (
+    BaseModel,
+    UserModel,
+    TraderModel,
+    SessionModel,
+    BalanceModel,
+    OrderModel,
+    LeverageModel,
+    TransactionModel,
+)
+from trading_core.handler import (
+    UserHandler,
+    TraderHandler,
+    SessionHandler,
+    BalanceHandler,
+    OrderHandler,
+    LeverageHandler,
+    TransactionHandler,
+)
+
 load_dotenv()
 
 
@@ -31,11 +51,14 @@ def decorator_json(func) -> str:
 
             if isinstance(value, pd.DataFrame):
                 return value.to_json(orient="table", index=True), 200
+            elif isinstance(value, BaseModel):
+                return jsonify(value.model_dump()), 200
             else:
                 return json_util.dumps(value), 200
 
         except Exception as error:
-            return jsonify({"error": f'{error}'}), 500
+            logger.error(f"{func} - {error}")
+            return jsonify({"error": f"{error}"}), 400
 
     return wrapper
 
@@ -53,10 +76,8 @@ def job_func_initialise_runtime_data():
 
 
 def job_func_send_bot_notification(interval):
-
     if config.get_config_value(Const.CONFIG_DEBUG_LOG):
-        logger.info(
-            f"JOB: {Const.JOB_TYPE_BOT} is triggered for interval - {interval}")
+        logger.info(f"JOB: {Const.JOB_TYPE_BOT} is triggered for interval - {interval}")
 
     responser = ResponserBot()
     notificator = NotificationBot()
@@ -65,8 +86,9 @@ def job_func_send_bot_notification(interval):
     order_messages = responser.get_signals_for_orders(orders_db)
     notificator.send(order_messages)
 
-    alerts_db = MongoAlerts().get_alerts(alert_type=Const.ALERT_TYPE_BOT,
-                                         interval=interval)
+    alerts_db = MongoAlerts().get_alerts(
+        alert_type=Const.ALERT_TYPE_BOT, interval=interval
+    )
 
     alert_messages = responser.get_signals_for_alerts(alerts_db)
     notificator.send(alert_messages)
@@ -75,13 +97,16 @@ def job_func_send_bot_notification(interval):
 def job_func_send_email_notification(interval):
     if config.get_config_value(Const.CONFIG_DEBUG_LOG):
         logger.info(
-            f"JOB: {Const.JOB_TYPE_EMAIL} is triggered for interval - {interval}")
+            f"JOB: {Const.JOB_TYPE_EMAIL} is triggered for interval - {interval}"
+        )
 
-    messages = ResponserEmail().get_signals(symbols=[],
-                                            intervals=[interval],
-                                            strategies=[],
-                                            signals_config=[],
-                                            closed_bars=True)
+    messages = ResponserEmail().get_signals(
+        symbols=[],
+        intervals=[interval],
+        strategies=[],
+        signals_config=[],
+        closed_bars=True,
+    )
 
     NotificationEmail().send(messages)
 
@@ -106,8 +131,7 @@ class MessageBase:
 
 class MessageEmail(MessageBase):
     def __init__(self, channel_id: str, subject: str, message_text: str) -> None:
-        MessageBase.__init__(self, channel_id=channel_id,
-                             message_text=message_text)
+        MessageBase.__init__(self, channel_id=channel_id, message_text=message_text)
         self._subject = subject
 
     def get_subject(self) -> str:
@@ -160,15 +184,19 @@ class Messages:
         return message
 
 
-class ResponserBase():
+class ResponserBase:
     def get_param_bool(self, param_value):
-        return bool(param_value.lower() == 'true')
+        return bool(param_value.lower() == "true")
 
     def get_symbol(self, code: str) -> Symbol:
         return Symbols(from_buffer=True).get_symbol(code)
 
-    def get_symbol_list(self, code: str, name: str, status: str, type: str, from_buffer: bool) -> list[Symbol]:
-        return Symbols(from_buffer).get_symbol_list_json(code=code, name=name, status=status, type=type)
+    def get_symbol_list(
+        self, code: str, name: str, status: str, type: str, from_buffer: bool
+    ) -> list[Symbol]:
+        return Symbols(from_buffer).get_symbol_list_json(
+            code=code, name=name, status=status, type=type
+        )
 
     def get_intervals(self, importances: list = None) -> list:
         return model.get_intervals_config(importances)
@@ -179,17 +207,56 @@ class ResponserBase():
     def get_strategies(self) -> list:
         return model.get_strategies()
 
-    def get_history_data(self, symbol: str, interval: str, limit: int, from_buffer: bool, closed_bars: bool) -> pd.DataFrame:
+    def get_history_data(
+        self,
+        symbol: str,
+        interval: str,
+        limit: int,
+        from_buffer: bool,
+        closed_bars: bool,
+    ) -> pd.DataFrame:
         history_data_inst = model.get_handler().getHistoryData(
-            symbol=symbol, interval=interval, limit=limit, from_buffer=from_buffer, closed_bars=closed_bars)
+            symbol=symbol,
+            interval=interval,
+            limit=limit,
+            from_buffer=from_buffer,
+            closed_bars=closed_bars,
+        )
         return history_data_inst.getDataFrame()
 
-    def get_strategy_data(self, code: str, symbol: str, interval: str, limit: int, from_buffer: bool, closed_bars: bool) -> pd.DataFrame:
+    def get_strategy_data(
+        self,
+        code: str,
+        symbol: str,
+        interval: str,
+        limit: int,
+        from_buffer: bool,
+        closed_bars: bool,
+    ) -> pd.DataFrame:
         strategy_inst = StrategyFactory(code)
-        return strategy_inst.get_strategy_data(symbol=symbol, interval=interval, limit=limit, from_buffer=from_buffer, closed_bars=closed_bars)
+        return strategy_inst.get_strategy_data(
+            symbol=symbol,
+            interval=interval,
+            limit=limit,
+            from_buffer=from_buffer,
+            closed_bars=closed_bars,
+        )
 
-    def get_signals(self, symbols: list, intervals: list, strategies: list, signals_config: list, closed_bars: bool) -> list[Signal]:
-        return SignalFactory().get_signals(symbols=symbols, intervals=intervals, strategies=strategies, signals_config=signals_config, closed_bars=closed_bars)
+    def get_signals(
+        self,
+        symbols: list,
+        intervals: list,
+        strategies: list,
+        signals_config: list,
+        closed_bars: bool,
+    ) -> list[Signal]:
+        return SignalFactory().get_signals(
+            symbols=symbols,
+            intervals=intervals,
+            strategies=strategies,
+            signals_config=signals_config,
+            closed_bars=closed_bars,
+        )
 
     def create_job(self, job_type: str, interval: str) -> str:
         return JobScheduler().create_job(job_type=job_type, interval=interval)
@@ -206,60 +273,95 @@ class ResponserBase():
     def deactivate_job(self, job_id) -> bool:
         return JobScheduler().deactivate_job(job_id)
 
-    def create_alert(self, alert_type: str, channel_id: str, symbol: str, interval: str, strategies: list, signals: list, comment: str) -> str:
-        return MongoAlerts().create_alert(alert_type=alert_type,
-                                          channel_id=channel_id,
-                                          symbol=symbol,
-                                          interval=interval,
-                                          strategies=strategies,
-                                          signals=signals,
-                                          comment=comment
-                                          )
+    def create_alert(
+        self,
+        alert_type: str,
+        channel_id: str,
+        symbol: str,
+        interval: str,
+        strategies: list,
+        signals: list,
+        comment: str,
+    ) -> str:
+        return MongoAlerts().create_alert(
+            alert_type=alert_type,
+            channel_id=channel_id,
+            symbol=symbol,
+            interval=interval,
+            strategies=strategies,
+            signals=signals,
+            comment=comment,
+        )
 
-    def update_alert(self, id: str, interval: str, strategies: list, signals: list, comment: str) -> bool:
-        return MongoAlerts().update_alert(id=id,
-                                          interval=interval,
-                                          strategies=strategies,
-                                          signals=signals,
-                                          comment=comment)
+    def update_alert(
+        self, id: str, interval: str, strategies: list, signals: list, comment: str
+    ) -> bool:
+        return MongoAlerts().update_alert(
+            id=id,
+            interval=interval,
+            strategies=strategies,
+            signals=signals,
+            comment=comment,
+        )
 
     def remove_alert(self, id: str) -> bool:
         return MongoAlerts().delete_one(id)
 
     def get_alerts(self, alert_type: str, symbol: str, interval: str) -> list:
-        return MongoAlerts().get_alerts(alert_type=alert_type,
-                                        symbol=symbol,
-                                        interval=interval)
+        return MongoAlerts().get_alerts(
+            alert_type=alert_type, symbol=symbol, interval=interval
+        )
 
-    def create_order(self, order_type: str, open_date_time: str,  symbol: str, interval: str, price: float, quantity: float, strategies: list) -> str:
-        return MongoOrders().create_order(order_type=order_type,
-                                          open_date_time=open_date_time,
-                                          symbol=symbol,
-                                          interval=interval,
-                                          price=price,
-                                          quantity=quantity,
-                                          strategies=strategies)
+    def create_order(
+        self,
+        order_type: str,
+        open_date_time: str,
+        symbol: str,
+        interval: str,
+        price: float,
+        quantity: float,
+        strategies: list,
+    ) -> str:
+        return MongoOrders().create_order(
+            order_type=order_type,
+            open_date_time=open_date_time,
+            symbol=symbol,
+            interval=interval,
+            price=price,
+            quantity=quantity,
+            strategies=strategies,
+        )
 
     def remove_order(self, id: str) -> bool:
         return MongoOrders().delete_one(id)
 
     def get_orders(self, symbol: str, interval: str) -> list:
-        return MongoOrders().get_orders(symbol=symbol,
-                                        interval=interval)
+        return MongoOrders().get_orders(symbol=symbol, interval=interval)
 
     def get_simulations(self, symbols: list, intervals: list, strategies: list) -> list:
-        return MongoSimulations().get_simulations(symbols=symbols, intervals=intervals, strategies=strategies)    
+        return MongoSimulations().get_simulations(
+            symbols=symbols, intervals=intervals, strategies=strategies
+        )
 
     def get_simulate(self, params: ParamSimulationList) -> list:
         simulations = []
         executor = Executor()
-        simulators = executor.simulate_many(params=params) 
+        simulators = executor.simulate_many(params=params)
 
         for simulator in simulators:
             simulation = simulator.get_simulation()
             simulations.append(simulation)
 
-        return simulations                           
+        return simulations
+
+    def get_user(self, id: str):
+        return UserHandler.get_user_by_id(id)
+
+    def get_users(self, search: str):
+        return UserHandler.get_users(search)
+
+    def create_user(self, user_model: UserModel):
+        return UserHandler.create_user(user_model)
 
 
 class ResponserWeb(ResponserBase):
@@ -272,8 +374,12 @@ class ResponserWeb(ResponserBase):
             raise Exception(f"Symbol: {code} can't be detected")
 
     @decorator_json
-    def get_symbol_list(self, code: str, name: str, status: str, type: str, from_buffer: bool) -> json:
-        return super().get_symbol_list(code=code, name=name, status=status, type=type, from_buffer=from_buffer)
+    def get_symbol_list(
+        self, code: str, name: str, status: str, type: str, from_buffer: bool
+    ) -> json:
+        return super().get_symbol_list(
+            code=code, name=name, status=status, type=type, from_buffer=from_buffer
+        )
 
     @decorator_json
     def get_intervals(self, importances: list = None) -> json:
@@ -288,18 +394,58 @@ class ResponserWeb(ResponserBase):
         return super().get_strategies()
 
     @decorator_json
-    def get_history_data(self, symbol: str, interval: str, limit: int, from_buffer: bool, closed_bars: bool) -> json:
-        return super().get_history_data(symbol=symbol, interval=interval, limit=limit, from_buffer=from_buffer, closed_bars=closed_bars)
+    def get_history_data(
+        self,
+        symbol: str,
+        interval: str,
+        limit: int,
+        from_buffer: bool,
+        closed_bars: bool,
+    ) -> json:
+        return super().get_history_data(
+            symbol=symbol,
+            interval=interval,
+            limit=limit,
+            from_buffer=from_buffer,
+            closed_bars=closed_bars,
+        )
 
     @decorator_json
-    def get_strategy_data(self, code: str, symbol: str, interval: str, limit: int, from_buffer: bool, closed_bars: bool) -> json:
-        return super().get_strategy_data(code=code, symbol=symbol, interval=interval, limit=limit, from_buffer=from_buffer, closed_bars=closed_bars)
+    def get_strategy_data(
+        self,
+        code: str,
+        symbol: str,
+        interval: str,
+        limit: int,
+        from_buffer: bool,
+        closed_bars: bool,
+    ) -> json:
+        return super().get_strategy_data(
+            code=code,
+            symbol=symbol,
+            interval=interval,
+            limit=limit,
+            from_buffer=from_buffer,
+            closed_bars=closed_bars,
+        )
 
     @decorator_json
-    def get_signals(self, symbols: list, intervals: list, strategies: list, signals_config: list, closed_bars: bool) -> json:
+    def get_signals(
+        self,
+        symbols: list,
+        intervals: list,
+        strategies: list,
+        signals_config: list,
+        closed_bars: bool,
+    ) -> json:
         signals = []
-        signals_list = super().get_signals(symbols=symbols, intervals=intervals,
-                                           strategies=strategies, signals_config=signals_config, closed_bars=closed_bars)
+        signals_list = super().get_signals(
+            symbols=symbols,
+            intervals=intervals,
+            strategies=strategies,
+            signals_config=signals_config,
+            closed_bars=closed_bars,
+        )
 
         for signal_inst in signals_list:
             signals.append(signal_inst.get_signal_dict())
@@ -314,135 +460,259 @@ class ResponserWeb(ResponserBase):
     @decorator_json
     def remove_job(self, job_id: str) -> json:
         if super().remove_job(job_id):
-            return {'message': f'Job {job_id} has been deleted'}
+            return {"message": f"Job {job_id} has been deleted"}
         else:
-            raise Exception(f'Error during deletion of the job id: {job_id}')
+            raise Exception(f"Error during deletion of the job id: {job_id}")
 
     @decorator_json
     def activate_job(self, job_id) -> json:
         if super().activate_job(job_id):
-            return {'message': f'Job {job_id} has been activated'}
+            return {"message": f"Job {job_id} has been activated"}
         else:
-            raise Exception(f'Error during activation of the job id: {job_id}')
+            raise Exception(f"Error during activation of the job id: {job_id}")
 
     @decorator_json
     def deactivate_job(self, job_id) -> json:
         if super().deactivate_job(job_id):
-            return {'message': f'Job {job_id} has been deactivated'}
+            return {"message": f"Job {job_id} has been deactivated"}
         else:
-            raise Exception(
-                f'Error during deactivation of the job id: {job_id}')
+            raise Exception(f"Error during deactivation of the job id: {job_id}")
 
     @decorator_json
-    def create_alert(self, alert_type: str, channel_id: str, symbol: str, interval: str, strategies: list, signals: list, comment: str):
-        alert_id = super().create_alert(alert_type=alert_type,
-                                        channel_id=channel_id,
-                                        symbol=symbol,
-                                        interval=interval,
-                                        strategies=strategies,
-                                        signals=signals,
-                                        comment=comment
-                                        )
+    def create_alert(
+        self,
+        alert_type: str,
+        channel_id: str,
+        symbol: str,
+        interval: str,
+        strategies: list,
+        signals: list,
+        comment: str,
+    ):
+        alert_id = super().create_alert(
+            alert_type=alert_type,
+            channel_id=channel_id,
+            symbol=symbol,
+            interval=interval,
+            strategies=strategies,
+            signals=signals,
+            comment=comment,
+        )
 
         return {Const.DB_ID: alert_id}
 
     @decorator_json
-    def update_alert(self, id: str, interval: str, strategies: list, signals: list, comment: str):
-        if super().update_alert(id=id,
-                                interval=interval,
-                                strategies=strategies,
-                                signals=signals,
-                                comment=comment
-                                ):
-            return {'message': f'Alert {id} has been updated'}
+    def update_alert(
+        self, id: str, interval: str, strategies: list, signals: list, comment: str
+    ):
+        if super().update_alert(
+            id=id,
+            interval=interval,
+            strategies=strategies,
+            signals=signals,
+            comment=comment,
+        ):
+            return {"message": f"Alert {id} has been updated"}
         else:
-            raise Exception(f'Error during update of the alert: {id}')
+            raise Exception(f"Error during update of the alert: {id}")
 
     @decorator_json
     def remove_alert(self, id: str):
         if super().remove_alert(id):
-            return {'message': f'Alert {id} has been deleted'}
+            return {"message": f"Alert {id} has been deleted"}
         else:
-            raise Exception(f'Error during deletion of the alert: {id}')
+            raise Exception(f"Error during deletion of the alert: {id}")
 
     @decorator_json
     def get_alerts(self, alert_type: str, symbol: str, interval: str):
-        return super().get_alerts(alert_type=alert_type,
-                                  symbol=symbol,
-                                  interval=interval)
+        return super().get_alerts(
+            alert_type=alert_type, symbol=symbol, interval=interval
+        )
 
     @decorator_json
-    def create_order(self, order_type: str, open_date_time: str, symbol: str, interval: str, price: float, quantity: float, strategies: list) -> json:
-        order_id = super().create_order(order_type=order_type,
-                                        open_date_time=open_date_time,
-                                        symbol=symbol,
-                                        interval=interval,
-                                        price=price,
-                                        quantity=quantity,
-                                        strategies=strategies)
+    def create_order(
+        self,
+        order_type: str,
+        open_date_time: str,
+        symbol: str,
+        interval: str,
+        price: float,
+        quantity: float,
+        strategies: list,
+    ) -> json:
+        order_id = super().create_order(
+            order_type=order_type,
+            open_date_time=open_date_time,
+            symbol=symbol,
+            interval=interval,
+            price=price,
+            quantity=quantity,
+            strategies=strategies,
+        )
 
         return {Const.DB_ID: order_id}
 
     @decorator_json
     def remove_order(self, id: str) -> json:
         if super().remove_order(id):
-            return {'message': f'Order {id} has been deleted'}
+            return {"message": f"Order {id} has been deleted"}
         else:
-            raise Exception(f'Error during deletion of the order: {id}')
+            raise Exception(f"Error during deletion of the order: {id}")
 
     @decorator_json
     def get_orders(self, symbol: str, interval: str) -> json:
-        return super().get_orders(symbol=symbol,
-                                  interval=interval)
+        return super().get_orders(symbol=symbol, interval=interval)
 
     @decorator_json
     def get_dashboard(self, symbol: str):
         response = {}
 
-        response["symbol"] = Symbols(from_buffer=True).get_symbol(
-            code=symbol).get_symbol_json()
+        response["symbol"] = (
+            Symbols(from_buffer=True).get_symbol(code=symbol).get_symbol_json()
+        )
         response["history_data"] = []
         response["strategy_data"] = []
         response["signals"] = []
         response["trends"] = []
 
-        signals_list = super().get_signals(symbols=[symbol],
-                                           intervals=[],
-                                           strategies=[],
-                                           signals_config=[Const.STRONG_BUY, Const.STRONG_SELL],
-                                           closed_bars=True)
+        signals_list = super().get_signals(
+            symbols=[symbol],
+            intervals=[],
+            strategies=[],
+            signals_config=[Const.STRONG_BUY, Const.STRONG_SELL],
+            closed_bars=True,
+        )
 
         for signal_inst in signals_list:
             response["signals"].append(signal_inst.get_signal_dict())
-        
-
 
         return response
 
+    @decorator_json
+    def get_user(self, id: str) -> json:
+        return UserHandler.get_user_by_id(id)
+
+    @decorator_json
+    def get_users(self, search: str = None) -> json:
+        return UserHandler.get_users(search)
+
+    @decorator_json
+    def create_user(self, user_model: UserModel) -> json:
+        return UserHandler.create_user(user_model)
+
+    @decorator_json
+    def get_trader(self, id: str) -> json:
+        return TraderHandler.get_trader(id)
+
+    @decorator_json
+    def get_traders(self, user_id: str = None) -> json:
+        return TraderHandler.get_traders(user_id)
+
+    @decorator_json
+    def create_trader(self, trader_model: TraderModel) -> json:
+        return TraderHandler.create_trader(trader_model)
+
+    @decorator_json
+    def get_session(self, id: str) -> json:
+        return SessionHandler.get_session(id)
+
+    @decorator_json
+    def get_sessions(self, user_id: str = None) -> json:
+        return SessionHandler.get_sessions(user_id)
+
+    @decorator_json
+    def create_session(self, session_model: SessionModel) -> json:
+        return SessionHandler.create_session(session_model)
+
+    @decorator_json
+    def get_balance(self, id: str) -> json:
+        return BalanceHandler.get_balance(id)
+
+    @decorator_json
+    def get_balances(self, session_id: str = None) -> json:
+        return BalanceHandler.get_balances(session_id)
+
+    @decorator_json
+    def create_balance(self, balance_model: BalanceModel) -> json:
+        return BalanceHandler.create_balance(balance_model)
+
+    @decorator_json
+    def get_order(self, id: str) -> json:
+        return OrderHandler.get_order(id)
+
+    @decorator_json
+    def get_orders(self, session_id: str = None) -> json:
+        return OrderHandler.get_orders(session_id)
+
+    @decorator_json
+    def create_order(self, order_model: OrderModel) -> json:
+        return OrderHandler.create_order(order_model)
+
+    @decorator_json
+    def get_leverage(self, id: str) -> json:
+        return LeverageHandler.get_leverage(id)
+
+    @decorator_json
+    def get_leverages(self, session_id: str = None) -> json:
+        return LeverageHandler.get_leverages(session_id)
+
+    @decorator_json
+    def create_leverage(self, leverage_model: LeverageModel) -> json:
+        return LeverageHandler.create_leverage(leverage_model)
+
+    @decorator_json
+    def get_transaction(self, id: str) -> json:
+        return TransactionHandler.get_transaction(id)
+
+    @decorator_json
+    def get_transactions(self, order_id: str = None) -> json:
+        return TransactionHandler.get_transactions(order_id)
+
+    @decorator_json
+    def create_transaction(self, transaction_model: TransactionModel) -> json:
+        return TransactionHandler.create_transaction(transaction_model)
+
 
 class ResponserEmail(ResponserBase):
-    def get_signals(self, symbols: list, intervals: list, strategies: list, signals_config: list, closed_bars: bool) -> Messages:
-        signals_list = super().get_signals(symbols=symbols, intervals=intervals,
-                                           strategies=strategies, signals_config=signals_config, closed_bars=closed_bars)
+    def get_signals(
+        self,
+        symbols: list,
+        intervals: list,
+        strategies: list,
+        signals_config: list,
+        closed_bars: bool,
+    ) -> Messages:
+        signals_list = super().get_signals(
+            symbols=symbols,
+            intervals=intervals,
+            strategies=strategies,
+            signals_config=signals_config,
+            closed_bars=closed_bars,
+        )
 
         # Create the HTML table
         table_html = '<table border="1">'
-        table_html += '<tr><th>DateTime</th><th>Symbol</th><th>Interval</th><th>Strategy</th><th>Signal</th></tr>'
+        table_html += "<tr><th>DateTime</th><th>Symbol</th><th>Interval</th><th>Strategy</th><th>Signal</th></tr>"
         for signal_inst in signals_list:
-            table_html += '<tr>'
-            table_html += f'<td>{signal_inst.get_date_time().isoformat()}</td>'
-            table_html += f'<td>{signal_inst.get_symbol()}</td>'
-            table_html += f'<td>{signal_inst.get_interval()}</td>'
-            table_html += f'<td>{signal_inst.get_strategy()}</td>'
-            table_html += f'<td>{signal_inst.get_signal()}</td>'
-            table_html += '</tr>'
-        table_html += '</table>'
+            table_html += "<tr>"
+            table_html += f"<td>{signal_inst.get_date_time().isoformat()}</td>"
+            table_html += f"<td>{signal_inst.get_symbol()}</td>"
+            table_html += f"<td>{signal_inst.get_interval()}</td>"
+            table_html += f"<td>{signal_inst.get_strategy()}</td>"
+            table_html += f"<td>{signal_inst.get_signal()}</td>"
+            table_html += "</tr>"
+        table_html += "</table>"
 
         # Create the email body as HTML
-        message_text = f'<h4>Alert signals for {signal_inst.get_interval()}</h4>{table_html}'
+        message_text = (
+            f"<h4>Alert signals for {signal_inst.get_interval()}</h4>{table_html}"
+        )
 
         message_inst = MessageEmail(
-            channel_id='None', subject=f'[TradingTool]: Alert signals for {intervals[0]}', message_text=message_text)
+            channel_id="None",
+            subject=f"[TradingTool]: Alert signals for {intervals[0]}",
+            message_text=message_text,
+        )
 
         messages_inst = Messages()
         messages_inst.add_message(message_inst)
@@ -452,7 +722,6 @@ class ResponserEmail(ResponserBase):
 
 class ResponserBot(ResponserBase):
     def get_signals_for_alerts(self, alerts_db: dict) -> Messages:
-
         messages_inst = Messages()
 
         for alert_db in alerts_db:
@@ -463,69 +732,78 @@ class ResponserBot(ResponserBase):
             signals_config = alert_db[Const.DB_SIGNALS]
             comment = alert_db[Const.DB_COMMENT]
 
-            comments_text = f' | {comment}' if comment else ''
+            comments_text = f" | {comment}" if comment else ""
 
-            signals_list = super().get_signals(symbols=[symbol], intervals=[
-                interval], strategies=strategies, signals_config=signals_config, closed_bars=True)
+            signals_list = super().get_signals(
+                symbols=[symbol],
+                intervals=[interval],
+                strategies=strategies,
+                signals_config=signals_config,
+                closed_bars=True,
+            )
 
             for signal_inst in signals_list:
-                signal_text = f'<b>{signal_inst.get_signal()}</b>'
-                message_text = f'{signal_inst.get_date_time().isoformat()} - <b>{signal_inst.get_symbol()} - {signal_inst.get_interval()}</b>: ({signal_inst.get_strategy()}) - {signal_text}{comments_text}\n\n'
+                signal_text = f"<b>{signal_inst.get_signal()}</b>"
+                message_text = f"{signal_inst.get_date_time().isoformat()} - <b>{signal_inst.get_symbol()} - {signal_inst.get_interval()}</b>: ({signal_inst.get_strategy()}) - {signal_text}{comments_text}\n\n"
 
                 # Add header of the message before the first content
                 if not messages_inst.check_message(channel_id):
-                    message_text = f'<b>Local: Alert signals for {interval}: \n</b>{message_text}'
+                    message_text = (
+                        f"<b>Local: Alert signals for {interval}: \n</b>{message_text}"
+                    )
 
-                messages_inst.add_message_text(
-                    channel_id=channel_id, text=message_text)
+                messages_inst.add_message_text(channel_id=channel_id, text=message_text)
 
         return messages_inst
 
     def get_signals_for_orders(self, orders_db: dict) -> Messages:
-
         messages_inst = Messages()
 
         for order_db in orders_db:
-            channel_id = '1658698044'
+            channel_id = "1658698044"
             order_type = order_db[Const.DB_ORDER_TYPE]
             symbol = order_db[Const.DB_SYMBOL]
             interval = order_db[Const.DB_INTERVAL]
             strategies = order_db[Const.DB_STRATEGIES]
 
-            signals_list = super().get_signals(symbols=[symbol], intervals=[
-                interval], strategies=strategies, signals_config=[], closed_bars=True)
+            signals_list = super().get_signals(
+                symbols=[symbol],
+                intervals=[interval],
+                strategies=strategies,
+                signals_config=[],
+                closed_bars=True,
+            )
 
             for signal_inst in signals_list:
-
                 signal_value = signal_inst.get_signal()
-                signal_text = f'<b>{signal_value}</b>'
-                comment_text = self.get_comment_of_order(
-                    order_type, signal_value)
+                signal_text = f"<b>{signal_value}</b>"
+                comment_text = self.get_comment_of_order(order_type, signal_value)
 
-                message_text = f'{signal_inst.get_date_time().isoformat()} - <b>{signal_inst.get_symbol()} - {signal_inst.get_interval()}</b>: ({signal_inst.get_strategy()}) - {signal_text}{comment_text}\n'
+                message_text = f"{signal_inst.get_date_time().isoformat()} - <b>{signal_inst.get_symbol()} - {signal_inst.get_interval()}</b>: ({signal_inst.get_strategy()}) - {signal_text}{comment_text}\n"
 
                 # Add header of the message before the first content
                 if not messages_inst.check_message(channel_id):
-                    message_text = f'<b>Local: Order signals for {interval}: \n</b>{message_text}'
+                    message_text = (
+                        f"<b>Local: Order signals for {interval}: \n</b>{message_text}"
+                    )
 
-                messages_inst.add_message_text(
-                    channel_id=channel_id, text=message_text)
+                messages_inst.add_message_text(channel_id=channel_id, text=message_text)
 
         return messages_inst
 
     def get_comment_of_order(self, order_type: str, signal_value: str) -> str:
         if order_type == Const.LONG:
             if signal_value in (Const.BUY, Const.STRONG_BUY):
-                return f' | <b>You can open more LONG positions</b>'
+                return f" | <b>You can open more LONG positions</b>"
             elif signal_value in (Const.SELL, Const.STRONG_SELL):
-                return f' | <b>CLOSE all postions</b>'
+                return f" | <b>CLOSE all postions</b>"
         elif order_type == Const.SHORT:
             if signal_value in (Const.BUY, Const.STRONG_BUY):
-                return f' | <b>CLOSE all postions</b>'
+                return f" | <b>CLOSE all postions</b>"
             elif signal_value in (Const.SELL, Const.STRONG_SELL):
-                return f' | <b>You can open more SHORT positions</b>'
+                return f" | <b>You can open more SHORT positions</b>"
         else:
-            return ''
+            return ""
 
 
 class JobScheduler:
@@ -538,7 +816,6 @@ class JobScheduler:
         return class_._instance
 
     def init(self) -> None:
-
         self.__db_inst = MongoJobs()
         self.__scheduler = BackgroundScheduler()
         self.__scheduler.start()
@@ -548,7 +825,6 @@ class JobScheduler:
         return self.__scheduler
 
     def get_jobs(self):
-
         jobs = []
 
         # Get jobs from DB
@@ -557,11 +833,13 @@ class JobScheduler:
         for db_job in db_jobs:
             job_id = str(db_job[Const.DB_ID])
 
-            job_details = {Const.JOB_ID: job_id,
-                           Const.DB_JOB_TYPE: db_job[Const.DB_JOB_TYPE],
-                           Const.INTERVAL: db_job[Const.DB_INTERVAL],
-                           Const.DB_IS_ACTIVE: db_job[Const.DB_IS_ACTIVE],
-                           Const.DATETIME: ''}
+            job_details = {
+                Const.JOB_ID: job_id,
+                Const.DB_JOB_TYPE: db_job[Const.DB_JOB_TYPE],
+                Const.INTERVAL: db_job[Const.DB_INTERVAL],
+                Const.DB_IS_ACTIVE: db_job[Const.DB_IS_ACTIVE],
+                Const.DATETIME: "",
+            }
 
             job = runtime_buffer.get_job_from_buffer(job_id)
             if job:
@@ -574,7 +852,8 @@ class JobScheduler:
     def create_job(self, job_type: str, interval: str) -> str:
         # Create job entry in the DB -> get job_id
         job_id = self.__db_inst.create_job(
-            job_type=job_type, interval=interval, is_active=False)
+            job_type=job_type, interval=interval, is_active=False
+        )
 
         # Schedule and add job to the buffer
         self.__add_job(job_id=job_id, job_type=job_type, interval=interval)
@@ -607,9 +886,8 @@ class JobScheduler:
             runtime_buffer.remove_job_from_buffer(job_id)
             return self.__db_inst.delete_job(job_id)
         except JobLookupError as error:
-            logger.error(f'JOB: Error during remove job: {job_id} - {error}')
-            raise Exception(
-                f'JOB: Error during remove job: {job_id} - {error}')
+            logger.error(f"JOB: Error during remove job: {job_id} - {error}")
+            raise Exception(f"JOB: Error during remove job: {job_id} - {error}")
 
     def __init_jobs(self):
         # Get jobs from the DB
@@ -623,56 +901,73 @@ class JobScheduler:
             self.__add_job(job_id=job_id, job_type=job_type, interval=interval)
 
     def __add_job(self, job_id: str, job_type: str, interval: str) -> Job:
-
         # Schedule a job based on a job type
         if job_type == Const.JOB_TYPE_BOT:
             job = self.__scheduler.add_job(
-                job_func_send_bot_notification, self.__generateCronTrigger(interval), id=job_id, args=(interval,))
+                job_func_send_bot_notification,
+                self.__generateCronTrigger(interval),
+                id=job_id,
+                args=(interval,),
+            )
         elif job_type == Const.JOB_TYPE_EMAIL:
             job = self.__scheduler.add_job(
-                job_func_send_email_notification, self.__generateCronTrigger(interval), id=job_id, args=(interval,))
+                job_func_send_email_notification,
+                self.__generateCronTrigger(interval),
+                id=job_id,
+                args=(interval,),
+            )
         elif job_type == Const.JOB_TYPE_INIT:
             job = self.__scheduler.add_job(
-                job_func_initialise_runtime_data, CronTrigger(day_of_week='mon-fri', hour='2', jitter=60, timezone='UTC'), id=job_id)
+                job_func_initialise_runtime_data,
+                CronTrigger(day_of_week="mon-fri", hour="2", jitter=60, timezone="UTC"),
+                id=job_id,
+            )
 
         # Add job to the runtime buffer
         runtime_buffer.set_job_to_buffer(job)
 
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
             logger.info(
-                f"JOB: {job_type} is scheduled for interval: {interval} at {job.next_run_time}")
+                f"JOB: {job_type} is scheduled for interval: {interval} at {job.next_run_time}"
+            )
 
         return job
 
     def __generateCronTrigger(self, interval) -> CronTrigger:
-        day_of_week = '*'
+        day_of_week = "*"
         hour = None
-        minute = '0'
-        second = '40'
+        minute = "0"
+        second = "40"
 
         if interval == Const.TA_INTERVAL_5M:
-            minute = '*/5'
+            minute = "*/5"
         elif interval == Const.TA_INTERVAL_15M:
-            minute = '*/15'
+            minute = "*/15"
         elif interval == Const.TA_INTERVAL_30M:
-            minute = '*/30'
+            minute = "*/30"
         elif interval == Const.TA_INTERVAL_1H:
-            hour = '*'
-            minute = '1'
+            hour = "*"
+            minute = "1"
         elif interval == Const.TA_INTERVAL_4H:
-            hour = '0,4,8,12,16,20'
-            minute = '1'
+            hour = "0,4,8,12,16,20"
+            minute = "1"
         elif interval == Const.TA_INTERVAL_1D:
-            hour = '8'
-            minute = '1'
+            hour = "8"
+            minute = "1"
         elif interval == Const.TA_INTERVAL_1WK:
-            day_of_week = 'mon'
-            hour = '8'
-            minute = '1'
+            day_of_week = "mon"
+            hour = "8"
+            minute = "1"
         else:
-            Exception('Incorrect interval for subscription')
+            Exception("Incorrect interval for subscription")
 
-        return CronTrigger(day_of_week=day_of_week, hour=hour, minute=minute, second=second, timezone='UTC')
+        return CronTrigger(
+            day_of_week=day_of_week,
+            hour=hour,
+            minute=minute,
+            second=second,
+            timezone="UTC",
+        )
 
 
 class NotificationBase:
@@ -682,27 +977,25 @@ class NotificationBase:
 
 class NotificationEmail(NotificationBase):
     def send(self, messages_inst: Messages):
-
         # Email configuration
         sender_email = os.getenv("SMTP_USERNAME")
 
         # SMTP server configuration
-        smtp_server = 'smtp.gmail.com'
+        smtp_server = "smtp.gmail.com"
         smtp_port = 587
         smtp_username = sender_email
         smtp_password = os.getenv("SMTP_PASSWORD")
 
         for message_inst in messages_inst.get_messages().values():
-
             # message_inst.get_channel_id()
-            receiver_email = os.getenv("RECEIVER_EMAIL").split(';')
+            receiver_email = os.getenv("RECEIVER_EMAIL").split(";")
 
             # Create a MIME message object
             msg = MIMEMultipart()
-            msg['From'] = sender_email
-            msg['To'] = ', '.join(receiver_email)
-            msg['Subject'] = message_inst.get_subject()
-            body = MIMEText(message_inst.get_message_text(), 'html')
+            msg["From"] = sender_email
+            msg["To"] = ", ".join(receiver_email)
+            msg["Subject"] = message_inst.get_subject()
+            body = MIMEText(message_inst.get_message_text(), "html")
             msg.attach(body)
 
             try:
@@ -715,11 +1008,14 @@ class NotificationEmail(NotificationBase):
                 server.sendmail(sender_email, receiver_email, msg.as_string())
                 if config.get_config_value(Const.CONFIG_DEBUG_LOG):
                     logger.info(
-                        f'NOTIFICATION: EMAIL - Sent successfully to {receiver_email}.')
+                        f"NOTIFICATION: EMAIL - Sent successfully to {receiver_email}."
+                    )
 
             except Exception as e:
                 logger.error(
-                    'NOTIFICATION: EMAIL - An error occurred while sending the email:', str(e))
+                    "NOTIFICATION: EMAIL - An error occurred while sending the email:",
+                    str(e),
+                )
 
             finally:
                 # Close the SMTP server connection
@@ -727,30 +1023,31 @@ class NotificationEmail(NotificationBase):
 
 
 class NotificationBot(NotificationBase):
-
     def send(self, messages_inst: Messages):
         bot_token = os.getenv("BOT_TOKEN")
-        bot_url = f'https://api.telegram.org/bot{bot_token}/sendMessage'
+        bot_url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
 
         if not bot_token:
-            logger.error(
-                'Bot token is not maintained in the environment values')
+            logger.error("Bot token is not maintained in the environment values")
 
         for message_inst in messages_inst.get_messages().values():
-
             channel_id = message_inst.get_channel_id()
 
-            params = {'chat_id': channel_id,
-                      'text': message_inst.get_message_text(),
-                      'parse_mode': 'HTML'}
+            params = {
+                "chat_id": channel_id,
+                "text": message_inst.get_message_text(),
+                "parse_mode": "HTML",
+            }
             response = requests.post(bot_url, data=params)
             if response.ok:
                 if config.get_config_value(Const.CONFIG_DEBUG_LOG):
                     logger.info(
-                        f"NOTIFICATION: BOT - Sent successfully to chat bot: {channel_id}")
+                        f"NOTIFICATION: BOT - Sent successfully to chat bot: {channel_id}"
+                    )
             else:
                 logger.error(
-                    f"NOTIFICATION: BOT - Failed to send message to chat bot: {channel_id} - {response.text}")
+                    f"NOTIFICATION: BOT - Failed to send message to chat bot: {channel_id} - {response.text}"
+                )
 
 
 # @decorator_json

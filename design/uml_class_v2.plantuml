@@ -1,0 +1,42 @@
+@startuml Class
+
+class Session
+
+class Balance
+
+class Order {
+  "symbol":"BTC/USD",
+  "orderId":"00000000-0000-0002-0000-0000000b3302",
+  "price":"6600",
+  "origQty":"0.01",
+  "executedQty":"0.0",
+  "status":"NEW",
+  "timeInForce":"GTC",
+  "type":"LIMIT",
+  "side":"BUY",
+  "time":1586958863147,
+  "updateTime":1586958863147,
+  "leverage":false,
+  "working":true
+}
+
+
+class Transaction
+
+
+
+class SimulateOptions {
+  # get_fee_value()
+  # get_balance()
+  # get_quantity(open_price: float)
+  # get_stop_loss_value(open_price: float)
+  # get_take_profit_value(open_price: float)
+  # set_init_balance(init_balance: float)
+}
+
+class Order {
+  + __init__(type: str, open_date_time: datetime, open_price: float, quantity: float)
+  + close(close_date_time: datetime, close_price: float)
+}
+
+@enduml

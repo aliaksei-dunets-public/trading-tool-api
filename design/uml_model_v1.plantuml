@@ -1,0 +1,126 @@
+@startuml Model
+
+User -- Trader: 1 .. M
+User -- Channel: 1 .. M
+Trader -- Session: 1 .. M
+Session -- Balance: 1 .. M
+Session -- Order: 1 .. M
+Session -- Leverage: 1 .. M
+Session -- Transaction: 1 .. M
+Order -- Transaction: 1 .. M
+Leverage -- Transaction: 1 .. M
+
+object User {
+  *id
+  first_name
+  second_name
+}
+
+object Channel {
+  *id
+  user_id
+  type
+  name
+  descr
+}
+
+object Trader {
+  *id
+  exchange
+  status
+  user_id
+  api_key
+  api_secret
+  expired_datetime
+  created on
+  created_at
+}
+
+object Session {
+  *id
+  trader_id
+  user_id
+  status
+  created_on
+  created_at
+
+  account_id
+  symbol
+  interval
+  strategy
+  type: Order/Leverage
+  
+  init_balance
+  take_profit_rate
+  stop_loss_rate
+}
+
+object Balance {
+  account_id
+  currency
+  balance
+
+}
+
+object Order {
+  *order_id
+  session_id
+  symbol
+  type
+  side  
+  status  
+  currency
+  fee
+  quantity
+
+  ' Open part
+  open_price
+  open_df
+
+  ' Close part
+  close_price
+  close_dt
+
+  created_dt
+  last_updated_dt
+  
+}
+
+Object Leverage {
+  *position_id
+  order_id
+  session_id
+  symbol
+  account_id
+  type
+  side  
+  status  
+  currency
+  fee
+  quantity
+  stopLoss
+  takeProfit
+
+  ' Open part
+  open_price
+  open_df
+
+  ' Close part
+  close_price
+  close_dt
+
+  created_dt
+  last_updated_dt
+}
+
+Object Transaction {
+  *id
+  session_id
+  order_id
+  action: Open/Close
+  price
+  quantity
+  created_dt
+}
+
+@enduml

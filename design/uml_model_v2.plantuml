@@ -1,0 +1,212 @@
+@startuml Model
+
+enum SymbolType {
+  leverage = "LEVERAGE"
+  spot = "SPOT"
+}
+
+enum ChannelType {
+  email = "EMAIL"
+  telegram_bot = "TELEGRAM_BOT"
+}
+
+enum SessionType {
+  order = "ORDER"
+  leverage = "LEVERAGE"
+}
+
+enum OrderType {
+  limit = "LIMIT"
+  market = "MARKET"
+  stop = "STOP"
+}
+
+enum SideType {
+  buy = "BUY"
+  sell = "SELL"
+}
+
+enum TransactionType {
+  open = "OPEN"
+  close = "CLOSE"
+}
+
+enum SymbolStatus {
+    open = "OPEN"
+    close = "CLOSE"
+}
+
+enum TraderStatus {
+  new = "NEW"
+  active = "ACTIVE"
+  inactive = "INACTIVE"
+  connected = "CONNECTED"
+  failed = "FAILED"
+  expired = "EXPIRED"
+}
+
+enum SessionStatus {
+  active = "ACTIVE"
+  closed = "CLOSED"
+  failed = "FAILED"
+}
+
+enum OrderStatus {
+  new = "NEW"
+  filled = "FILLED"
+  canceled = "CANCELED"
+  rejected = "REJECTED"
+}
+
+enum ExchangeId {
+  demo_dzengi_com = "DEMO_DZENGI_COM"
+  dzengi_com = "DZENGI_COM"
+}
+
+class SymbolIdModel {
+  + symbol: str
+}
+
+class SymbolModel {
+  name: str
+  descr: str
+  status: SymbolStatus
+  type: SymbolType
+  tradingTime: str
+  order_type: OrderType
+  currency: str
+  exchange_fee: float
+}
+
+SymbolStatus <.. SymbolModel
+SymbolType <.. SymbolModel
+SymbolIdModel <.. SymbolModel
+
+class IntervalIdModel {
+  + interval: str
+}
+
+class StrategyIdModel {
+  + strategy: str
+}
+
+class IdentifierModel {
+  + id: str = Field(alias="_id", default=None)
+  + convert_id_to_str(value: str): str
+}
+
+class AdminModel {
+  + created_at: datetime = None
+  + changed_at: datetime = None
+}
+
+class UserModel {
+  + email: EmailStr
+  + first_name: str
+  + second_name: str
+  + to_mongodb_doc(): dict
+}
+
+IdentifierModel <.. UserModel
+AdminModel <.. UserModel
+
+class ChannelModel {
+  + user_id: str
+  + name: str
+  + type: ChannelType
+  + value: str
+  + to_mongodb_doc(): dict
+}
+
+UserModel <-- ChannelModel: 0..m
+ChannelType <.. ChannelModel
+
+class TraderModel {
+  + user_id: str
+  + exchange: ExchangeId
+  + status: TraderStatus
+  + expired_dt: datetime
+  + api_key: str
+  + api_secret: str
+  + to_mongodb_doc(): dict
+}
+
+UserModel <-- TraderModel: 0..m
+ExchangeId <.. TraderModel
+TraderStatus <.. TraderModel
+
+class BalanceModel {
+  + session_id: str
+  + account_id: str
+  + currency: str
+  + init_balance: float
+  + total_balance: float
+  + total_fee: float
+  + to_mongodb_doc(): dict
+}
+
+BalanceModel <-- SessionModel: 1..1
+
+class SessionModel {
+  + trader_id: str
+  + user_id: str
+  + status: SessionStatus
+  + type: SessionType
+  + take_profit_rate: float = 0
+  + stop_loss_rate: float = 0
+  + to_mongodb_doc(): dict
+}
+
+SessionStatus <.. SessionModel
+SessionType <.. SessionModel
+SymbolIdModel <.. SessionModel
+IntervalIdModel <.. SessionModel
+StrategyIdModel <.. SessionModel
+TraderModel <-- SessionModel : 0..m
+
+class OrderModel {
+  + session_id: str
+  + type: OrderType
+  + side: SideType
+  + status: OrderStatus
+  + quantity: float
+  + fee: float = 0
+  + open_price: float
+  + open_datetime: datetime
+  + close_price: float = 0
+  + close_datetime: datetime
+  + to_mongodb_doc(): dict
+}
+
+OrderType <.. OrderModel
+SideType <.. OrderModel
+OrderStatus <.. OrderModel
+SymbolIdModel <.. OrderModel
+SessionModel <-- OrderModel: 0..m
+
+class LeverageModel {
+  + order_id: str
+  + account_id: str
+  + stop_loss: float
+  + take_profit: float
+  + to_mongodb_doc(): dict
+}
+
+OrderModel <.. LeverageModel
+SessionModel <-- LeverageModel: 0..m
+
+class TransactionModel {
+
+  + order_id: str
+  + session_id: str
+  + type: TransactionType
+  + price: float
+  + quantity: float
+  + to_mongodb_doc(): dict
+}
+
+OrderModel <-- TransactionModel
+LeverageModel <-- TransactionModel
+TransactionType <.. TransactionModel
+
+@enduml

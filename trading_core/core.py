@@ -1,4 +1,5 @@
 import os
+from dotenv import load_dotenv
 import pandas as pd
 from datetime import datetime
 import logging
@@ -6,6 +7,8 @@ from apscheduler.job import Job
 # from logging.handlers import TimedRotatingFileHandler
 
 from .constants import Const
+
+load_dotenv()
 
 # Set up logging
 log_file_prefix = f"{os.getcwd()}/static/logs/"
@@ -333,6 +336,12 @@ class Config:
             return self.__config_data[property]
         else:
             None
+
+    def get_env_value(self, property: str) -> str:
+        env_value = os.getenv(property)
+        if not env_value:
+            logger.error(f'CONFIG: {property} is not maintained in the environment values')
+        return env_value
 
     def get_stock_exchange_id(self) -> str:
         return Const.STOCK_EXCH_CURRENCY_COM

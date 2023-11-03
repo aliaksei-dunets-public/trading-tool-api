@@ -484,7 +484,7 @@ class Executor:
 
             if ( summary[Const.DB_PROFIT] / summary[Const.DB_INIT_BALANCE] ) * 100 >= 20:
                 query = summary
-                query.update(simulator.get_analysis())
+                # query.update(simulator.get_analysis())
 
                 db.upsert_one(id=simulator.get_simulation_id(),
                               query=query)

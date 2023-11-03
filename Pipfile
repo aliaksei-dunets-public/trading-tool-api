@@ -14,6 +14,7 @@ python-dotenv = "~=0.21.1"
 apscheduler = "~=3.9.1"
 secure-smtplib = "*"
 pytelegrambotapi = "*"
+pydantic = {extras = ["email"], version = "*"}
 
 [dev-packages]
 autopep8 = "*"
@@ -21,4 +22,4 @@ ipykernel = "*"
 openpyxl = "*"
 
 [requires]
-python_version = "3.11"
+python_version = "3.12"

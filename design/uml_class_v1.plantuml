@@ -1,0 +1,129 @@
+@startuml Class
+
+class CandelBarSignal {
+  + __init__(date_time: datetime, open: float, high: float, low: float, close: float, volume: float, signal: str)
+}
+
+class SimulateOptions {
+  # get_fee_value()
+  # get_balance()
+  # get_quantity(open_price: float)
+  # get_stop_loss_value(open_price: float)
+  # get_take_profit_value(open_price: float)
+  # set_init_balance(init_balance: float)
+}
+
+class ParamSimulation {
+  + __init__(symbol: str, interval: str, strategy: str, simulation_options: SimulateOptions)
+}
+
+class ParamSimulationList {
+  + get_param_simulation_list()
+}
+
+class MongoSimulations {
+  + upsert_one(id: str, query: dict)
+}
+
+class StrategyFactory {
+  + get_strategy_data(symbol: str, interval: str, limit: int, from_buffer: bool, closed_bars: bool)
+}
+
+class Order {
+  + __init__(type: str, open_date_time: datetime, open_price: float, quantity: float)
+  + close(close_date_time: datetime, close_price: float)
+}
+
+class Simulator {
+  + __init__(param: ParamSimulation)
+  + execute()
+  + get_summary()
+  + get_orders()
+  + get_analysis()
+  + get_simulation()
+  + get_simulation_id()
+}
+
+class SimulationBase {
+  + __init__(options_inst: SimulateOptions)
+  + open_simulation(type: str, open_date_time: datetime, open_price: float)
+  + close_simulation(candler_bar: CandelBarSignal)
+  + get_order()
+  + get_simulation()
+}
+
+class SimulationLong {
+  + __init__(options_inst: SimulateOptions)
+  + open_simulation(open_date_time: datetime, open_price: float)
+  + close_simulation(candler_bar: CandelBarSignal)
+}
+
+class SimulationShort {
+  + __init__(options_inst: SimulateOptions)
+  + open_simulation(open_date_time: datetime, open_price: float)
+  + close_simulation(candler_bar: CandelBarSignal)
+}
+
+class Executor {
+  + simulate(param: ParamSimulation)
+  + simulate_many(params: ParamSimulationList)
+  + simulate_many_and_db_save(params: ParamSimulationList)
+}
+
+class StockExchangeHandler {
+  +getStockExchangeName(): string
+  +getHistoryData(symbol: string, interval: string, limit: int, from_buffer: bool, closed_bars: bool, **kwargs: any): HistoryData
+  +getSymbols(from_buffer: bool): dict[Symbol]
+  +get_intervals(): list
+  +getEndDatetime(interval: string, **kwargs: any): datetime
+  +is_trading_open(interval: string, trading_time: string): bool
+}
+
+class StockExchangeApiBase {
+  +getStockExchangeName(): string
+  +getApiEndpoint(): string
+  +getHistoryData(symbol: string, interval: string, limit: int, **kwargs: any): HistoryData
+  +getSymbols(): dict[Symbol]
+  +get_intervals(): list
+  +mapInterval(interval: string): string
+  +getEndDatetime(interval: string, original_datetime: datetime, **kwargs: any): datetime
+  +get_trading_timeframes(trading_time: string): dict
+  +is_trading_open(interval: string, trading_timeframes: dict): bool
+}
+
+class CurrencyComApi {
+  +getStockExchangeName(): string
+  +getApiEndpoint(): string
+  +getHistoryData(symbol: string, interval: string, limit: int, **kwargs: any): HistoryData
+  +get_api_klines(url_params: dict): dict
+  +get_intervals(): list
+  +convertResponseToDataFrame(api_response: list): pandas.DataFrame
+  +getOffseUnixTimeMsByInterval(interval: string): int
+  +getUnixTimeMsByDatetime(original_datetime: datetime): int
+  +getTimezoneDifference(): int
+  +getDatetimeByUnixTimeMs(timestamp: int): datetime
+}
+
+class LocalCurrencyComApi {
+  +write_symbols_to_local()
+  +write_history_data_to_local(symbol: string, interval: string, limit: int): bool
+  +get_api_klines(url_params: dict): dict
+  +__get_file_name(symbol: string, interval: string): string
+  +__get_file_path(file_name: string): string
+}
+
+ParamSimulation --> SimulateOptions
+Simulator --> StrategyFactory
+Simulator --> SimulationBase
+SimulationBase <|-- SimulationLong
+SimulationBase <|-- SimulationShort
+Executor --> Simulator
+Executor --> MongoSimulations
+
+StockExchangeHandler --> RuntimeBufferStore: __buffer_inst
+StockExchangeHandler --> StockExchangeApiBase: __api_inst
+
+StockExchangeApiBase <|-- CurrencyComApi
+StockExchangeApiBase <|-- LocalCurrencyComApi
+
+@enduml
