@@ -1,4 +1,5 @@
 from enum import Enum
+from bson import ObjectId
 from datetime import datetime, timedelta
 from pydantic import BaseModel, EmailStr, Field, validator
 
@@ -24,7 +25,7 @@ class OrderType(str, Enum):
     stop = "STOP"
 
 
-class SideType(str, Enum):
+class OrderSideType(str, Enum):
     buy = "BUY"
     sell = "SELL"
 
@@ -32,6 +33,22 @@ class SideType(str, Enum):
 class TransactionType(str, Enum):
     open = "OPEN"
     close = "CLOSE"
+
+
+class SignalType(str, Enum):
+    STRONG_BUY = "Strong Buy"
+    BUY = "Buy"
+    STRONG_SELL = "Strong Sell"
+    SELL = "Sell"
+    DEBUG_SIGNAL = "Debug"
+    TREND_CHANGED = "Trend Changed"
+
+
+class StrategyType(str, Enum):
+    CCI_14_TREND_100 = "CCI_14_TREND_100"
+    CCI_14_TREND_170_165 = "CCI_14_TREND_170_165"
+    CCI_20_TREND_100 = "CCI_20_TREND_100"
+    CCI_50_TREND_0 = "CCI_50_TREND_0"
 
 
 class SymbolStatus(str, Enum):
@@ -67,6 +84,20 @@ class ExchangeId(str, Enum):
     dzengi_com = "DZENGI_COM"
 
 
+class CandelBarModel(BaseModel):
+    date_time: datetime
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: float
+
+
+class SignalModel(CandelBarModel):
+    strategy: StrategyType
+    signal: SignalType = ""
+
+
 class SymbolIdModel(BaseModel):
     symbol: str
 
@@ -98,8 +129,12 @@ class SymbolIntervalIdModel(SymbolIdModel, IntervalIdModel):
     pass
 
 
-class SymbolIntervalStrategyModel(SymbolIdModel, IntervalIdModel, StrategyIdModel):
+class SymbolIntervalStrategyModel(SymbolIntervalIdModel, StrategyIdModel):
     pass
+
+
+class HistoryDataParam(SymbolIntervalIdModel):
+    limit: int
 
 
 class IdentifierModel(BaseModel):
@@ -199,17 +234,20 @@ class SessionModel(AdminModel, IdentifierModel, SymbolIntervalStrategyModel):
     user_id: str
     status: SessionStatus = SessionStatus.new
     type: SessionType
+    is_simulation: bool = True
 
     # Trading Details
+    leverage: int = 2
     take_profit_rate: float = 0
     stop_loss_rate: float = 0
 
     def to_mongodb_doc(self):
-        return {
+        {
             "trader_id": self.trader_id,
             "user_id": self.user_id,
             "status": self.status,
             "type": self.type,
+            "is_simulation": self.is_simulation,
             "symbol": self.symbol,
             "interval": self.interval,
             "strategy": self.strategy,
@@ -220,9 +258,9 @@ class SessionModel(AdminModel, IdentifierModel, SymbolIntervalStrategyModel):
 
 class OrderModel(AdminModel, IdentifierModel, SymbolIdModel):
     session_id: str
-    type: str = OrderType.market
-    side: str
-    status: str = OrderStatus.new
+    type: OrderType = OrderType.market
+    side: OrderSideType
+    status: OrderStatus = OrderStatus.new
     quantity: float
     fee: float = 0
     open_price: float
@@ -231,7 +269,7 @@ class OrderModel(AdminModel, IdentifierModel, SymbolIdModel):
     close_datetime: datetime = datetime.now()
 
     def to_mongodb_doc(self):
-        return {
+        order = {
             "session_id": self.session_id,
             "type": self.type,
             "side": self.side,
@@ -245,15 +283,21 @@ class OrderModel(AdminModel, IdentifierModel, SymbolIdModel):
             "close_datetime": self.close_datetime,
         }
 
+        if self.id:
+            order["_id"] = ObjectId(self.id)
+
+        return order
+
 
 class LeverageModel(OrderModel):
     order_id: str
     account_id: str
+    leverage: int
     stop_loss: float
     take_profit: float
 
     def to_mongodb_doc(self):
-        return {
+        leverage = {
             "order_id": self.order_id,
             "session_id": self.session_id,
             "account_id": self.account_id,
@@ -267,9 +311,15 @@ class LeverageModel(OrderModel):
             "open_datetime": self.open_datetime,
             "close_price": self.close_price,
             "close_datetime": self.close_datetime,
+            "leverage": self.leverage,
             "stop_loss": self.stop_loss,
             "take_profit": self.take_profit,
         }
+
+        if self.id:
+            leverage["_id"] = ObjectId(self.id)
+
+        return leverage
 
 
 class TransactionModel(AdminModel, IdentifierModel):

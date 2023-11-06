@@ -1,42 +1,59 @@
 @startuml Class
 
-class Session
+' 1. During creation of the session check/schedule a job based on interval
+' 2. The application job read active ssesions and procced the next steps for every session:
+' 2.1. Read orders from the database
+' 2.2. Read orders from exchange API
+' 2.3. Get signals based on session config
+' 2.4. Make a desicion regarding existing position/create a new position
+' 2.4.1. Call API for open/close a position
+' 2.4.2. Call DB
+' 2.4.2.1. Add transaction
+' 2.4.2.2. Update/Create the position
+' 2.4.2.3. Update Balance
 
-class Balance
+' The main class for trading - the first endpoint
+class Robot {
 
-class Order {
-  "symbol":"BTC/USD",
-  "orderId":"00000000-0000-0002-0000-0000000b3302",
-  "price":"6600",
-  "origQty":"0.01",
-  "executedQty":"0.0",
-  "status":"NEW",
-  "timeInForce":"GTC",
-  "type":"LIMIT",
-  "side":"BUY",
-  "time":1586958863147,
-  "updateTime":1586958863147,
-  "leverage":false,
-  "working":true
 }
 
+class SessionManager {
 
-class Transaction
-
-
-
-class SimulateOptions {
-  # get_fee_value()
-  # get_balance()
-  # get_quantity(open_price: float)
-  # get_stop_loss_value(open_price: float)
-  # get_take_profit_value(open_price: float)
-  # set_init_balance(init_balance: float)
 }
 
-class Order {
-  + __init__(type: str, open_date_time: datetime, open_price: float, quantity: float)
-  + close(close_date_time: datetime, close_price: float)
-}
+class TraderBase
+
+class PositionManagerBase
+
+class OrderManager extends PositionManagerBase
+class LeverageManager extends PositionManagerBase
+
+class PositionBase
+
+class Order extends PositionBase
+class LeverageShort extends PositionBase
+class LeverageLong extends PositionBase
+
+' class OrderManager extends PositionManagerBase
+' class LeverageManager extends PositionManagerBase
+
+class TraderManager extends TraderBase
+class TraderOrderManager extends TraderManager
+class TraderLeverageManager extends TraderManager
+
+class SimulatorManager extends TraderBase
+class SimulatorOrderManager extends SimulatorManager
+class SimulatorLeverageManager extends SimulatorManager
+
+class SimulationHistoryManager extends TraderBase
+
+' class SessionHandler
+' class HistoryDataHandler
+' class ExchangeHandler
+
+Robot --> SessionManager
+SessionManager --> TraderBase
+TraderBase --> PositionManagerBase
+PositionManagerBase --> PositionBase
 
 @enduml

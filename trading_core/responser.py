@@ -51,6 +51,10 @@ def decorator_json(func) -> str:
 
             if isinstance(value, pd.DataFrame):
                 return value.to_json(orient="table", index=True), 200
+            if isinstance(value, list) and all(
+                isinstance(item, BaseModel) for item in value
+            ):
+                return jsonify([item.model_dump() for item in value]), 200
             elif isinstance(value, BaseModel):
                 return jsonify(value.model_dump()), 200
             else:

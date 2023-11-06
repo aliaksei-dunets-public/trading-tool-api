@@ -21,7 +21,7 @@ enum OrderType {
   stop = "STOP"
 }
 
-enum SideType {
+enum OrderSideType {
   buy = "BUY"
   sell = "SELL"
 }
@@ -167,7 +167,7 @@ TraderModel <-- SessionModel : 0..m
 class OrderModel {
   + session_id: str
   + type: OrderType
-  + side: SideType
+  + side: OrderSideType
   + status: OrderStatus
   + quantity: float
   + fee: float = 0
@@ -179,7 +179,7 @@ class OrderModel {
 }
 
 OrderType <.. OrderModel
-SideType <.. OrderModel
+OrderSideType <.. OrderModel
 OrderStatus <.. OrderModel
 SymbolIdModel <.. OrderModel
 SessionModel <-- OrderModel: 0..m

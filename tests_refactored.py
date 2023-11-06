@@ -1353,7 +1353,7 @@ class CurrencyComApiTest(unittest.TestCase):
             timeframes["mon"][0][Const.START_TIME], datetime.strptime("01:05", "%H:%M")
         )
         self.assertEqual(
-            timeframes["mon"][0][Const.API_FIELD_END_TIME],
+            timeframes["mon"][0][Const.API_FLD_END_TIME],
             datetime.strptime("19:00", "%H:%M"),
         )
 

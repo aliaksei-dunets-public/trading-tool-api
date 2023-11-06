@@ -5,24 +5,33 @@ from trading_core.handler import (
     SymbolHandler,
     TraderHandler,
     ExchangeHandler,
+    HistoryDataParam,
+    HistoryDataHandler,
 )
 
 # trader_model = TraderHandler.get_trader("65443f637b025235de0fb5d7")
 
-handler = SymbolHandler(trader_id="65443f637b025235de0fb5d7")
+# handler = SymbolHandler(trader_id="65443f637b025235de0fb5d7")
 
-symbols = handler.get_symbols()
-print(len(symbols))
+exchange_handler = ExchangeHandler(trader_id="65443f637b025235de0fb5d7")
 
-symbols = handler.get_symbol_list(name="Bitcoin")
-print(symbols)
+history_data_handler = HistoryDataHandler(exchange_handler)
 
-symbol = handler.get_symbol("EPAM")
-print(symbol)
+history_data_param = HistoryDataParam(symbol="BTC/USD", interval="5m", limit=40)
 
-# symbol_ids = handler.get_symbol_id_list()
-# print(symbol_ids)
+history_data = history_data_handler.get_history_data(
+    history_data_param=history_data_param, closed_bar=True
+)
 
+print(history_data.getDataFrame())
+
+history_data_param = HistoryDataParam(symbol="BTC/USD", interval="5m", limit=20)
+
+history_data = history_data_handler.get_history_data(
+    history_data_param=history_data_param, closed_bar=True
+)
+
+print(history_data.getDataFrame())
 
 ########################## New Model ###############################################
 

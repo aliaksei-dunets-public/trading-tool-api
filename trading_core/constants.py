@@ -40,22 +40,54 @@ class Const:
 
     # DB fields
     DB_ID = "_id"
+    DB_USER_ID = "user_id"
+    DB_CHANNEL_ID = "channel_id"
+    DB_SESSION_ID = "session_id"
+    DB_ORDER_ID = "order_id"
     DB_SYMBOL = "symbol"
     DB_NAME = "name"
     DB_STATUS = "status"
     DB_TYPE = "type"
+    DB_SIDE = "side"
+    DB_ACCOUNT_ID = "account_id"
     DB_CURRENCY = "currency"
+    DB_QUANTITY = "quantity"
+    DB_FEE = "fee"
+    DB_OPEN_PRICE = "open_price"
+    DB_OPEN_DATETIME = "open_datetime"
+    DB_CLOSE_PRICE = "close_price"
+    DB_CLOSE_DATETIME = "close_datetime"
+    DB_LEVERAGE = "leverage"
+    DB_STOP_LOSS_RATE = "stop_loss_rate"
+    DB_TAKE_PROFIT_RATE = "take_profit_rate"
+    DB_STOP_LOSS = "stop_loss"
+    DB_TAKE_PROFIT = "take_profit"
+    DB_CREATED_AT = "created_at"
+    DB_CREATED_BY = "created_by"
+    DB_CHANGED_AT = "changed_at"
+    DB_CHANGED_BY = "changed_by"
+
+    # Fields
+    FLD_SYMBOL = DB_SYMBOL
+    FLD_ID = "id"
+    FLD_INTERVAL = "interval"
+    FLD_END_DATETIME = "end_datetime"
+    FLD_LIMIT = "limit"
+    FLD_IS_BUFFER = "is_buffer"
+    FLD_CLOSED_BAR = "closed_bar"
+
+    # API fields
+    API_FLD_SYMBOL = DB_SYMBOL
+    API_FLD_INTERVAL = FLD_INTERVAL
+    API_FLD_END_TIME = "endTime"
+    API_FLD_LIMIT = FLD_LIMIT
 
     ########################### Legacy code ####################################
 
     DB_JOB_TYPE = "job_type"
     DB_INTERVAL = "interval"
     DB_IS_ACTIVE = "is_active"
-    DB_CREATED_AT = "created_at"
-    DB_CREATED_BY = "created_by"
-    DB_CHANGED_AT = "changed_at"
-    DB_CHANGED_BY = "changed_by"
-    DB_CHANNEL_ID = "channel_id"
+
     DB_STRATEGIES = "strategies"
     DB_STRATEGY = "strategy"
     DB_SIGNALS = "signals"
@@ -64,15 +96,14 @@ class Const:
     DB_OPEN_DATE_TIME = "open_date_time"
     DB_OPEN_PRICE = "open_price"
     DB_CLOSE_DATE_TIME = "close_date_time"
-    DB_CLOSE_PRICE = "close_price"
+    # DB_CLOSE_PRICE = "close_price"
     DB_ALERT_TYPE = "alert_type"
     DB_INIT_BALANCE = "init_balance"
     DB_LIMIT = "limit"
-    DB_STOP_LOSS_RATE = "stop_loss_rate"
-    DB_TAKE_PROFIT_RATE = "take_profit_rate"
+
     DB_FEE_RATE = "fee_rate"
     DB_PRICE = "price"
-    DB_QUANTITY = "quantity"
+    # DB_QUANTITY = "quantity"
     DB_BALANCE = "balance"
     DB_PROFIT = "profit"
     DB_TOTAL = "total"
@@ -169,7 +200,3 @@ class Const:
     SRV_STOP_LOSS_RATE = "stop_loss_rate"
     SRV_TAKE_PROFIT_RATE = "take_profit_rate"
     SRV_FEE_RATE = "fee_rate"
-
-    # API fields
-    API_FIELD_END_TIME = "endTime"
-    API_FIELD_SYMBOL = "symbol"

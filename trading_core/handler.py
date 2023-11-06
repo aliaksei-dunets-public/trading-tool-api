@@ -14,6 +14,9 @@ from .constants import Const
 from .core import logger, config, Symbol, HistoryData, RuntimeBufferStore
 from .api import ExchangeApiBase, DzengiComApi, DemoDzengiComApi
 from .common import (
+    HistoryDataParam,
+    OrderStatus,
+    SessionStatus,
     ExchangeId,
     SymbolModel,
     UserModel,
@@ -37,19 +40,89 @@ from .mongodb import (
 
 class BufferBaseHandler:
     def __init__(self):
-        self.__buffer = {}
+        self._buffer = {}
 
-    def get_buffer(self) -> dict:
-        return self.__buffer
+    def get_buffer(self, **kwargs) -> dict:
+        return self._buffer
 
     def is_data_in_buffer(self, **kwargs) -> bool:
-        return True if self.__buffer else False
+        return True if self._buffer else False
 
     def set_buffer(self, buffer: dict):
-        self.__buffer = buffer
+        if buffer:
+            self._buffer = buffer
 
     def clear_buffer(self):
-        self.__buffer.clear()
+        self._buffer.clear()
+
+
+class BufferHistoryDataHandler(BufferBaseHandler):
+    def get_buffer(self, history_data_param: HistoryDataParam, **kwargs) -> HistoryData:
+        symbol = history_data_param.symbol
+        interval = history_data_param.interval
+        limit = history_data_param.limit
+        end_datetime = kwargs.get(Const.FLD_END_DATETIME)
+
+        buffer_key = self._get_buffer_key(symbol=symbol, interval=interval)
+        history_data_buffer = self._buffer[buffer_key]
+        df_buffer = history_data_buffer.getDataFrame()
+
+        df_required = df_buffer[df_buffer.index <= end_datetime]
+
+        if limit > len(df_required):
+            return None
+
+        df_required = df_required.tail(limit)
+
+        history_data_required = HistoryData(
+            symbol=symbol, interval=interval, limit=limit, dataFrame=df_required
+        )
+
+        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+            logger.info(
+                f"BUFFER: getHistoryData(symbol={symbol}, interval={interval}, limit={limit}, endDatetime={end_datetime})"
+            )
+
+        return history_data_required
+
+    def is_data_in_buffer(self, symbol: str, interval: str) -> bool:
+        buffer_key = self._get_buffer_key(symbol=symbol, interval=interval)
+        if buffer_key in self._buffer:
+            return True
+        else:
+            return False
+
+    def set_buffer(self, buffer: HistoryData):
+        if buffer:
+            buffer_key = self._get_buffer_key(
+                symbol=buffer.getSymbol(),
+                interval=buffer.getInterval(),
+            )
+            self._buffer[buffer_key] = buffer
+
+    def validate_data_in_buffer(
+        self, symbol: str, interval: str, limit: int, end_datetime: datetime
+    ) -> bool:
+        buffer_key = self._get_buffer_key(symbol=symbol, interval=interval)
+        if self.is_data_in_buffer(symbol=symbol, interval=interval):
+            history_data_buffer = self._buffer[buffer_key]
+            if (
+                limit <= history_data_buffer.getLimit()
+                and end_datetime <= history_data_buffer.getEndDateTime()
+            ):
+                return True
+            else:
+                return False
+        else:
+            return False
+
+    def _get_buffer_key(self, symbol: str, interval: str) -> tuple:
+        if not symbol or not interval:
+            Exception(
+                f"History Data buffer key is invalid: symbol: {symbol}, interval: {interval}"
+            )
+        buffer_key = (symbol, interval)
+        return buffer_key
 
 
 class UserHandler:
@@ -101,7 +174,7 @@ class UserHandler:
             }
 
         user_db_list = MongoUser().get_many(search_query)
-        users = [UserModel(**user_db).model_dump() for user_db in user_db_list]
+        users = [UserModel(**user_db) for user_db in user_db_list]
 
         return users
 
@@ -133,7 +206,7 @@ class TraderHandler:
     @staticmethod
     def _read_traders(**kwargs) -> list[TraderModel]:
         entries_db = MongoTrader().get_many(kwargs)
-        result = [TraderModel(**entry).model_dump() for entry in entries_db]
+        result = [TraderModel(**entry) for entry in entries_db]
         return result
 
 
@@ -151,10 +224,16 @@ class SessionHandler:
         return SessionModel(**entry)
 
     @staticmethod
-    def get_sessions(user_id: str = None):
-        query = {"user_id": user_id} if user_id else {}
+    def get_sessions(user_id: str = None, status: SessionStatus = None):
+        query = {}
+
+        if user_id:
+            query[Const.DB_USER_ID] = user_id
+        if status:
+            query[Const.DB_STATUS] = status
+
         entries_db = MongoSession().get_many(query)
-        result = [SessionModel(**entry).model_dump() for entry in entries_db]
+        result = [SessionModel(**entry) for entry in entries_db]
 
         return result
 
@@ -176,7 +255,7 @@ class BalanceHandler:
     def get_balances(session_id: str = None):
         query = {"session_id": session_id} if session_id else {}
         entries_db = MongoBalance().get_many(query)
-        result = [BalanceModel(**entry).model_dump() for entry in entries_db]
+        result = [BalanceModel(**entry) for entry in entries_db]
 
         return result
 
@@ -195,10 +274,16 @@ class OrderHandler:
         return OrderModel(**entry)
 
     @staticmethod
-    def get_orders(session_id: str = None):
-        query = {"session_id": session_id} if session_id else {}
+    def get_orders(session_id: str = None, status: OrderStatus = None):
+        query = {}
+
+        if session_id:
+            query[Const.DB_SESSION_ID] = session_id
+        if status:
+            query[Const.DB_STATUS] = status
+
         entries_db = MongoOrder().get_many(query)
-        result = [OrderModel(**entry).model_dump() for entry in entries_db]
+        result = [OrderModel(**entry) for entry in entries_db]
 
         return result
 
@@ -210,6 +295,12 @@ class LeverageHandler:
         return LeverageHandler.get_leverage(id)
 
     @staticmethod
+    def update_leverage(id: str, query: dict):
+        result = MongoLeverage.update_one(id=id, query=query)
+        if not result:
+            raise Exception(f"Update leverage {id} has been failed")
+
+    @staticmethod
     def get_leverage(id: str) -> LeverageModel:
         entry = MongoLeverage().get_one(id)
         if not entry:
@@ -217,10 +308,16 @@ class LeverageHandler:
         return LeverageModel(**entry)
 
     @staticmethod
-    def get_leverages(session_id: str = None):
-        query = {"session_id": session_id} if session_id else {}
+    def get_leverages(session_id: str = None, status: OrderStatus = None):
+        query = {}
+
+        if session_id:
+            query[Const.DB_SESSION_ID] = session_id
+        if status:
+            query[Const.DB_STATUS] = status
+
         entries_db = MongoLeverage().get_many(query)
-        result = [LeverageModel(**entry).model_dump() for entry in entries_db]
+        result = [LeverageModel(**entry) for entry in entries_db]
 
         return result
 
@@ -242,17 +339,73 @@ class TransactionHandler:
     def get_transactions(order_id: str = None):
         query = {"order_id": order_id} if order_id else {}
         entries_db = MongoTransaction().get_many(query)
-        result = [TransactionModel(**entry).model_dump() for entry in entries_db]
+        result = [TransactionModel(**entry) for entry in entries_db]
 
         return result
 
 
-class SymbolHandler:
-    def __init__(self, trader_id: str = None):
+class ExchangeHandler:
+    def __init__(self, trader_id: str):
+        self._api: ExchangeApiBase = None
+        self.__trader_model: TraderModel = TraderHandler.get_trader(trader_id)
+
+        if not self.__trader_model.exchange_id:
+            raise Exception(f"ExchangeHandler: Exchange Id is missed")
+
+        if self.__trader_model.exchange_id == ExchangeId.dzengi_com:
+            self._api = DzengiComApi(self.__trader_model)
+        elif self.__trader_model.exchange_id == ExchangeId.demo_dzengi_com:
+            self._api = DemoDzengiComApi(self.__trader_model)
+        else:
+            raise Exception(
+                f"ExchangeHandler: {self.__trader_model.exchange_id} implementation is missed"
+            )
+
+    @staticmethod
+    def get_handler(trader_id: str = None, user_id: str = None):
+        if trader_id:
+            return ExchangeHandler(trader_id)
+        elif user_id:
+            trader = TraderHandler.get_default_trader(user_id)
+            trader_id = trader.id
+        else:
+            technical_user = UserHandler.get_technical_user()
+            trader = TraderHandler.get_default_trader(technical_user.id)
+            trader_id = trader.id
+
+        return ExchangeHandler(trader.id)
+
+    def ping_server(self, **kwargs) -> bool:
+        return self._api.ping_server(kwargs)
+
+    def get_symbols(self, **kwargs) -> dict[Symbol]:
+        # Send a request to an API to get symbols
+        return self._api.get_symbols(kwargs)
+
+    def get_history_data(
+        self, history_data_param: HistoryDataParam, **kwargs
+    ) -> HistoryData:
+        return self._api.get_history_data(history_data_param, **kwargs)
+
+    def get_end_datetime(self, interval: str, **kwargs) -> datetime:
+        original_datetime = datetime.now()
+        return self._api.get_end_datetime(interval, original_datetime, **kwargs)
+
+
+class BaseOnExchangeHandler:
+    def __init__(self, exchange_handler: ExchangeHandler = None):
+        self._exchange_handler: ExchangeHandler = None
+
+        if exchange_handler:
+            self._exchange_handler = exchange_handler
+        else:
+            self._exchange_handler: ExchangeHandler = ExchangeHandler.get_handler()
+
+
+class SymbolHandler(BaseOnExchangeHandler):
+    def __init__(self, exchange_handler: ExchangeHandler = None):
+        super.__init__(exchange_handler)
         self._buffer_symbols: BufferBaseHandler = BufferBaseHandler()
-        self._exchange_handler: ExchangeHandler = ExchangeHandler.get_handler(
-            trader_id=trader_id
-        )
 
     def is_valid_symbol(self, symbol: str) -> bool:
         return symbol in self.get_symbols()
@@ -311,40 +464,47 @@ class SymbolHandler:
         return symbol_id_list
 
 
-class ExchangeHandler:
-    def __init__(self, trader_id: str):
-        self._api: ExchangeApiBase = None
-        self.__trader_model: TraderModel = TraderHandler.get_trader(trader_id)
+class HistoryDataHandler(BaseOnExchangeHandler):
+    def __init__(self, exchange_handler: ExchangeHandler = None):
+        super().__init__(exchange_handler)
+        self.__buffer_inst = BufferHistoryDataHandler()
 
-        if not self.__trader_model.exchange_id:
-            raise Exception(f"ExchangeHandler: Exchange Id is missed")
+    def get_history_data(
+        self, history_data_param: HistoryDataParam, **kwargs
+    ) -> HistoryData:
+        history_data_inst = None
 
-        if self.__trader_model.exchange_id == ExchangeId.dzengi_com:
-            self._api = DzengiComApi(self.__trader_model)
-        elif self.__trader_model.exchange_id == ExchangeId.demo_dzengi_com:
-            self._api = DemoDzengiComApi(self.__trader_model)
-        else:
-            raise Exception(
-                f"ExchangeHandler: {self.__trader_model.exchange_id} implementation is missed"
+        symbol = history_data_param.symbol
+        interval = history_data_param.interval
+        limit = history_data_param.limit
+        is_buffer = kwargs.get(Const.FLD_IS_BUFFER, True)
+        closed_bar = kwargs.get(Const.FLD_CLOSED_BAR, False)
+
+        # Get endDatetime for History Data
+        end_datetime = self._exchange_handler.get_end_datetime(
+            interval=interval, closed_bar=closed_bar
+        )
+
+        # If it reruires to read from the buffer and buffer data is valid -> get hidtory data from the buffer
+        if is_buffer and self.__buffer_inst.validate_data_in_buffer(
+            symbol=symbol, interval=interval, limit=limit, end_datetime=end_datetime
+        ):
+            # Get history data from the buffer for the parameters
+            history_data_inst = self.__buffer_inst.get_buffer(
+                history_data_param=history_data_param, end_datetime=end_datetime
             )
 
-    @staticmethod
-    def get_handler(trader_id: str = None, user_id: str = None):
-        if trader_id:
-            return ExchangeHandler(trader_id)
-        elif user_id:
-            trader = TraderHandler.get_default_trader(user_id)
-            trader_id = trader.id
-        else:
-            technical_user = UserHandler.get_technical_user()
-            trader = TraderHandler.get_default_trader(technical_user.id)
-            trader_id = trader.id
+        # If history data from the buffer doesn't exist
+        if not history_data_inst:
+            # Send a request to an API to get history data
+            history_data_inst = self._exchange_handler.get_history_data(
+                history_data_param=history_data_param,
+                closed_bar=closed_bar,
+            )
+            # Set fetched history data to the buffer
+            self.__buffer_inst.set_buffer(history_data_inst)
 
-        return ExchangeHandler(trader.id)
-
-    def get_symbols(self) -> dict[Symbol]:
-        # Send a request to an API to get symbols
-        return self._api.get_symbols()
+        return history_data_inst
 
 
 ########################### Legacy code ####################################
@@ -645,7 +805,7 @@ class CurrencyComApi(StockExchangeApiBase):
 
         # If closed_bars indicator is True -> calculated endTime for the API
         if closed_bars:
-            url_params[Const.API_FIELD_END_TIME] = self.getOffseUnixTimeMsByInterval(
+            url_params[Const.API_FLD_END_TIME] = self.getOffseUnixTimeMsByInterval(
                 interval_api
             )
             url_params[Const.LIMIT] = url_params[Const.LIMIT] + 1
@@ -829,7 +989,7 @@ class CurrencyComApi(StockExchangeApiBase):
         #     }
 
         #     if symbol:
-        #         query_params[Const.API_FIELD_SYMBOL] = symbol
+        #         query_params[Const.API_FLD_SYMBOL] = symbol
 
         #     query_params = self.__sign_query_params(query_params)
 
@@ -923,7 +1083,7 @@ class CurrencyComApi(StockExchangeApiBase):
         #             f"STOCK_EXCHANGE: {self.getStockExchangeName()} - Failed to retrieve trading positions: {response.status_code} - {response.text}"
         #         )
 
-        # def create_order(self) -> dict:
+    def create_order(self) -> dict:
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
             logger.info(
                 f"STOCK_EXCHANGE: {self.getStockExchangeName()} - create_order()"
@@ -1695,7 +1855,7 @@ class CurrencyComApi(StockExchangeApiBase):
                 end_time = datetime.strptime(end_time, "%H:%M")
 
                 day_time_frames.append(
-                    {Const.START_TIME: start_time, Const.API_FIELD_END_TIME: end_time}
+                    {Const.START_TIME: start_time, Const.API_FLD_END_TIME: end_time}
                 )
 
             timeframes[day.lower()] = day_time_frames
@@ -1724,7 +1884,7 @@ class CurrencyComApi(StockExchangeApiBase):
                 for time_frame in time_frames:
                     if (
                         time_frame[Const.START_TIME].time() <= current_time
-                        and current_time <= time_frame[Const.API_FIELD_END_TIME].time()
+                        and current_time <= time_frame[Const.API_FLD_END_TIME].time()
                     ):
                         return True
 
