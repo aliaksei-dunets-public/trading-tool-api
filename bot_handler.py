@@ -1,4 +1,20 @@
+import os
+from dotenv import load_dotenv
 import telebot
+import logging
+
+
+load_dotenv()
+BOT_TOKEN = os.getenv('BOT_TOKEN')
+if not BOT_TOKEN:
+    logging.error('Bot token is not maintained in the environment values')
+
+
+logger = telebot.logger
+telebot.logger.setLevel(logging.INFO)
+
+
+bot = telebot.TeleBot(BOT_TOKEN)
 
 
 def register_handlers(bot):
