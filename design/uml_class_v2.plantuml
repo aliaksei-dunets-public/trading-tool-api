@@ -14,46 +14,132 @@
 
 ' The main class for trading - the first endpoint
 class Robot {
-
+    +run()
 }
 
 class SessionManager {
+    #_session_mdl: SessionModel
+    #_trader_mng: TraderBase
 
+    +run()
 }
 
-class TraderBase
+class TransactionManager
 
-class PositionManagerBase
+class BalanceManager
 
-class OrderManager extends PositionManagerBase
-class LeverageManager extends PositionManagerBase
+class TraderBase {
+    +session_mdl: SessionModel
+    +balance_mng: BalanceManager
+    +tranaction_mng: TransactionManager
+    +db_mng: DatabaseManager
 
-class PositionBase
+    +{static} get_manager(SessionModel)
+    +run()
+    #_process_signal(SignalModel)
+    #_decide_to_open_position(SignalModel)
+    #_decide_to_close_position(SignalModel)
+    #_is_open_position()
+}
 
-class Order extends PositionBase
-class LeverageShort extends PositionBase
-class LeverageLong extends PositionBase
+TraderBase --o BalanceManager
+TraderBase --o TransactionManager
+TraderBase --o DatabaseManager
 
-' class OrderManager extends PositionManagerBase
-' class LeverageManager extends PositionManagerBase
+class TraderManager extends TraderBase {
+    +api_mng: ApiManager
+}
 
-class TraderManager extends TraderBase
-class TraderOrderManager extends TraderManager
-class TraderLeverageManager extends TraderManager
+TraderManager --o ApiManager
 
 class SimulatorManager extends TraderBase
-class SimulatorOrderManager extends SimulatorManager
-class SimulatorLeverageManager extends SimulatorManager
 
-class SimulationHistoryManager extends TraderBase
+class DataManagerBase {
+    #_session_mdl: SessionModel
+    #_side_mng: SideManager
+    #_open_positions: dict
+    #_current_position: OrderModel
 
-' class SessionHandler
-' class HistoryDataHandler
-' class ExchangeHandler
+    +init_positions()
+    +open_position(SignalModel)
+    +close_position(SignalModel)
+    +get_current_position()
+    +get_positions()
+    +get_open_positions()
+    +has_open_position()
+    +synchronize(DataManagerBase)
+    #_set_current_postion(OrderModel)
+    #_set_side_mng(SignalType)
+    #_get_open_position_template(SignalModel)
+    #_get_quantity()
+    #_get_fee()
+}
+
+DataManagerBase --o SideManagerBase
+
+class ApiManager extends DataManagerBase {
+    #_exchange_handler: ExchangeHandler
+
+    +{static} get_manager(SessionModel)
+    +open_position(SignalModel)
+    +close_position(SignalModel)
+    +get_positions()
+    +synchronize(DataManagerBase)
+}
+
+class OrderApiManager extends ApiManager
+class LeverageApiManager extends ApiManager
+
+class DatabaseManager extends DataManagerBase {
+    +{static} get_manager(SessionModel)
+    +is_required_to_open_position(SignalModel)
+    +is_required_to_close_position(SignalModel)
+    +open_position(SignalModel)
+    +close_position(SignalModel)
+    +get_positions()
+    +synchronize(DataManagerBase)
+    +open_position_based_api(DataManagerBase)
+    +close_position_based_api(DataManagerBase)
+}
+
+class OrderDatabaseManager extends DatabaseManager {
+    +open_position(SignalModel)
+    +close_position(SignalModel)
+    +get_positions()
+}
+
+class LeverageDatabaseManager extends DatabaseManager {
+    +open_position(SignalModel)
+    +close_position(SignalModel)
+    +get_positions()
+    #_get_open_position_template(SignalModel)
+}
+
+class SideManagerBase {
+    +{static} get_manager_by_type(SessionModel, OrderSideType)
+    +{static} get_manager_by_signal(SessionModel, SignalType)
+    +is_required_to_close_position(OrderModel, SignalModel)
+    +get_close_details(OrderModel, SignalModel)
+    +get_side_type()
+    +get_stop_loss()
+    +get_take_profit()
+}
+
+class SellManager extends SideManagerBase {
+    +get_close_details(OrderModel, SignalModel)
+    +get_side_type()
+    +get_stop_loss()
+    +get_take_profit()
+}
+
+class BuyManager extends SideManagerBase {
+    +get_close_details(OrderModel, SignalModel)
+    +get_side_type()
+    +get_stop_loss()
+    +get_take_profit()
+}
 
 Robot --> SessionManager
 SessionManager --> TraderBase
-TraderBase --> PositionManagerBase
-PositionManagerBase --> PositionBase
 
 @enduml

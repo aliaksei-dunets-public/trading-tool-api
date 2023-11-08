@@ -30,6 +30,12 @@ class OrderSideType(str, Enum):
     sell = "SELL"
 
 
+class OrderCloseReason(str, Enum):
+    STOP_LOSS = "Stop Loss"
+    TAKE_PROFIT = "Take Profit"
+    SIGNAL = "Signal"
+
+
 class TransactionType(str, Enum):
     open = "OPEN"
     close = "CLOSE"
@@ -263,10 +269,13 @@ class OrderModel(AdminModel, IdentifierModel, SymbolIdModel):
     status: OrderStatus = OrderStatus.new
     quantity: float
     fee: float = 0
+    stop_loss: float = 0
+    take_profit: float = 0
     open_price: float
     open_datetime: datetime = datetime.now()
     close_price: float = 0
     close_datetime: datetime = datetime.now()
+    close_reason: OrderCloseReason = ""
 
     def to_mongodb_doc(self):
         order = {
@@ -277,10 +286,13 @@ class OrderModel(AdminModel, IdentifierModel, SymbolIdModel):
             "symbol": self.symbol,
             "quantity": self.quantity,
             "fee": self.fee,
+            "stop_loss": self.stop_loss,
+            "take_profit": self.take_profit,
             "open_price": self.open_price,
             "open_datetime": self.open_datetime,
             "close_price": self.close_price,
             "close_datetime": self.close_datetime,
+            "close_reason": self.close_reason,
         }
 
         if self.id:
@@ -292,9 +304,7 @@ class OrderModel(AdminModel, IdentifierModel, SymbolIdModel):
 class LeverageModel(OrderModel):
     order_id: str
     account_id: str
-    leverage: int
-    stop_loss: float
-    take_profit: float
+    leverage: int = 2
 
     def to_mongodb_doc(self):
         leverage = {
@@ -307,13 +317,14 @@ class LeverageModel(OrderModel):
             "symbol": self.symbol,
             "quantity": self.quantity,
             "fee": self.fee,
+            "leverage": self.leverage,
+            "stop_loss": self.stop_loss,
+            "take_profit": self.take_profit,
             "open_price": self.open_price,
             "open_datetime": self.open_datetime,
             "close_price": self.close_price,
             "close_datetime": self.close_datetime,
-            "leverage": self.leverage,
-            "stop_loss": self.stop_loss,
-            "take_profit": self.take_profit,
+            "close_reason": self.close_reason,
         }
 
         if self.id:
