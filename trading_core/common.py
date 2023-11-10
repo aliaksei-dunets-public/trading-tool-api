@@ -14,9 +14,15 @@ class ChannelType(str, Enum):
     telegram_bot = "TELEGRAM_BOT"
 
 
+class TradingType(str, Enum):
+    LEVERAGE = "LEVERAGE"
+    SPOT = "SPOT"
+
+
 class SessionType(str, Enum):
-    order = "ORDER"
-    leverage = "LEVERAGE"
+    TRADING = "Trading"
+    SIMULATION = "Real Simulation"
+    HISTORY = "History Simulation"
 
 
 class OrderType(str, Enum):
@@ -48,6 +54,7 @@ class SignalType(str, Enum):
     SELL = "Sell"
     DEBUG_SIGNAL = "Debug"
     TREND_CHANGED = "Trend Changed"
+    NONE = ""
 
 
 class StrategyType(str, Enum):
@@ -121,6 +128,11 @@ class SymbolModel(SymbolIdModel):
     @property
     def descr(self):
         return f"{self.name} ({self.symbol})"
+
+    @validator("descr", pre=True, always=True)
+    def concate_descr(cls, descr, values):
+        descr = f'{values.get("name")} ({values.get("symbol")})'
+        return descr
 
 
 class IntervalIdModel(BaseModel):
@@ -239,8 +251,8 @@ class SessionModel(AdminModel, IdentifierModel, SymbolIntervalStrategyModel):
     trader_id: str
     user_id: str
     status: SessionStatus = SessionStatus.new
-    type: SessionType
-    is_simulation: bool = True
+    trading_type: TradingType
+    session_type: SessionType
 
     # Trading Details
     leverage: int = 2
@@ -248,11 +260,12 @@ class SessionModel(AdminModel, IdentifierModel, SymbolIntervalStrategyModel):
     stop_loss_rate: float = 0
 
     def to_mongodb_doc(self):
-        {
+        return {
             "trader_id": self.trader_id,
             "user_id": self.user_id,
             "status": self.status,
-            "type": self.type,
+            "trading_type": self.trading_type,
+            "session_type": self.session_type,
             "is_simulation": self.is_simulation,
             "symbol": self.symbol,
             "interval": self.interval,

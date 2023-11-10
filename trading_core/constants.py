@@ -63,6 +63,7 @@ class Const:
     DB_TAKE_PROFIT_RATE = "take_profit_rate"
     DB_STOP_LOSS = "stop_loss"
     DB_TAKE_PROFIT = "take_profit"
+    DB_DATE_TIME = "date_time"
     DB_CREATED_AT = "created_at"
     DB_CREATED_BY = "created_by"
     DB_CHANGED_AT = "changed_at"

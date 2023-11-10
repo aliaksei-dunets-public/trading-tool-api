@@ -20,6 +20,7 @@ from .model import model, Symbols, ParamSimulationList
 from .strategy import StrategyFactory, SignalFactory
 from .simulation import Executor
 from .mongodb import MongoJobs, MongoAlerts, MongoOrders, MongoSimulations
+from .handler import ExchangeHandler, SymbolHandler
 
 from trading_core.common import (
     BaseModel,
@@ -39,6 +40,7 @@ from trading_core.handler import (
     OrderHandler,
     LeverageHandler,
     TransactionHandler,
+    buffer_runtime_handler,
 )
 
 load_dotenv()
@@ -77,6 +79,9 @@ def job_func_initialise_runtime_data():
     runtime_buffer.clear_signal_buffer()
 
     model.get_handler().getSymbols(from_buffer=False)
+
+    buffer_runtime_handler.clear_buffer()
+    buffer_runtime_handler.get_symbol_handler().get_symbols()
 
 
 def job_func_send_bot_notification(interval):
@@ -195,12 +200,10 @@ class ResponserBase:
     def get_symbol(self, code: str) -> Symbol:
         return Symbols(from_buffer=True).get_symbol(code)
 
-    def get_symbol_list(
-        self, code: str, name: str, status: str, type: str, from_buffer: bool
-    ) -> list[Symbol]:
-        return Symbols(from_buffer).get_symbol_list_json(
-            code=code, name=name, status=status, type=type
-        )
+    def get_symbol_list(**kwargs) -> list[Symbol]:
+        symbol_handler = SymbolHandler(exchange_handler=ExchangeHandler.get_handler())
+
+        return symbol_handler.get_symbol_list(**kwargs)
 
     def get_intervals(self, importances: list = None) -> list:
         return model.get_intervals_config(importances)
@@ -378,12 +381,10 @@ class ResponserWeb(ResponserBase):
             raise Exception(f"Symbol: {code} can't be detected")
 
     @decorator_json
-    def get_symbol_list(
-        self, code: str, name: str, status: str, type: str, from_buffer: bool
-    ) -> json:
-        return super().get_symbol_list(
-            code=code, name=name, status=status, type=type, from_buffer=from_buffer
-        )
+    def get_symbol_list(*args, **kwargs) -> json:
+        symbol_handler = SymbolHandler(exchange_handler=ExchangeHandler.get_handler())
+
+        return symbol_handler.get_symbol_list(**kwargs)
 
     @decorator_json
     def get_intervals(self, importances: list = None) -> json:

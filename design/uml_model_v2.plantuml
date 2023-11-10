@@ -26,6 +26,12 @@ enum OrderSideType {
   sell = "SELL"
 }
 
+enum OrderCloseReason {
+    STOP_LOSS = "Stop Loss"
+    TAKE_PROFIT = "Take Profit"
+    SIGNAL = "Signal"
+}
+
 enum TransactionType {
   open = "OPEN"
   close = "CLOSE"
@@ -151,9 +157,13 @@ class SessionModel {
   + trader_id: str
   + user_id: str
   + status: SessionStatus
-  + type: SessionType
+  + trading_type: TradingType
+  + session_type: SessionType
+  + is_simulation: bool
+  + leverage: int
   + take_profit_rate: float = 0
   + stop_loss_rate: float = 0
+
   + to_mongodb_doc(): dict
 }
 
@@ -171,10 +181,14 @@ class OrderModel {
   + status: OrderStatus
   + quantity: float
   + fee: float = 0
+  + stop_loss: float = 0
+  + take_profit: float = 0
   + open_price: float
   + open_datetime: datetime
   + close_price: float = 0
   + close_datetime: datetime
+  + close_reason: OrderCloseReason
+
   + to_mongodb_doc(): dict
 }
 
@@ -187,8 +201,8 @@ SessionModel <-- OrderModel: 0..m
 class LeverageModel {
   + order_id: str
   + account_id: str
-  + stop_loss: float
-  + take_profit: float
+  + leverage: int = 2
+  
   + to_mongodb_doc(): dict
 }
 

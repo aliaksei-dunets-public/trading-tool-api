@@ -207,14 +207,14 @@ def get_intervals():
 
 @app.route("/symbols", methods=["GET"])
 def get_symbols():
-    code = request.args.get("code")
-    name = request.args.get("name")
-    status = request.args.get("status")
-    type = request.args.get("type")
-    from_buffer = responser.get_param_bool(request.args.get("from_buffer", "false"))
+    symbol = request.args.get("symbol", None)
+    name = request.args.get("name", None)
+    status = request.args.get("status", None)
+    type = request.args.get("type", None)
+    currency = request.args.get("currency", None)
 
     return responser.get_symbol_list(
-        code=code, name=name, status=status, type=type, from_buffer=from_buffer
+        symbol=symbol, name=name, status=status, type=type, currency=currency
     )
 
 

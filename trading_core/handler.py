@@ -125,6 +125,20 @@ class BufferHistoryDataHandler(BufferBaseHandler):
         return buffer_key
 
 
+class BufferTimeFrame(BufferBaseHandler):
+    def get_buffer(self, trading_time: str) -> dict:
+        if self.is_data_in_buffer(trading_time):
+            return self._buffer[trading_time]
+        else:
+            None
+
+    def is_data_in_buffer(self, trading_time: str) -> bool:
+        return trading_time in self._buffer
+
+    def set_buffer(self, trading_time: str, timeframe: dict):
+        self._buffer[trading_time] = timeframe
+
+
 class UserHandler:
     @staticmethod
     def create_user(user: UserModel) -> UserModel:
@@ -193,10 +207,17 @@ class TraderHandler:
         return TraderModel(**entry)
 
     @staticmethod
-    def get_default_trader(user_id: str) -> TraderModel:
+    def get_default_user_trader(user_id: str) -> TraderModel:
         trader_model_list = TraderHandler._read_traders(user_id=user_id, default=True)
         if not trader_model_list:
             raise Exception(f"User {user_id} doesn't have default trader")
+        return trader_model_list[0]
+
+    @staticmethod
+    def get_default_trader(exchange_id: ExchangeId) -> TraderModel:
+        trader_model_list = TraderHandler._read_traders(exchange_id=exchange_id)
+        if not trader_model_list:
+            raise Exception(f"Exchange Id {exchange_id} doesn't maintained")
         return trader_model_list[0]
 
     @staticmethod
@@ -267,6 +288,13 @@ class OrderHandler:
         return OrderHandler.get_order(id)
 
     @staticmethod
+    def update_order(id: str, query: dict) -> bool:
+        result = MongoOrder().update_one(id=id, query=query)
+        if not result:
+            raise Exception(f"Update order {id} has been failed")
+        return result
+
+    @staticmethod
     def get_order(id: str) -> OrderModel:
         entry = MongoOrder().get_one(id)
         if not entry:
@@ -295,10 +323,11 @@ class LeverageHandler:
         return LeverageHandler.get_leverage(id)
 
     @staticmethod
-    def update_leverage(id: str, query: dict):
-        result = MongoLeverage.update_one(id=id, query=query)
+    def update_leverage(id: str, query: dict) -> bool:
+        result = MongoLeverage().update_one(id=id, query=query)
         if not result:
             raise Exception(f"Update leverage {id} has been failed")
+        return result
 
     @staticmethod
     def get_leverage(id: str) -> LeverageModel:
@@ -366,21 +395,24 @@ class ExchangeHandler:
         if trader_id:
             return ExchangeHandler(trader_id)
         elif user_id:
-            trader = TraderHandler.get_default_trader(user_id)
+            trader = TraderHandler.get_default_user_trader(user_id=user_id)
             trader_id = trader.id
         else:
             technical_user = UserHandler.get_technical_user()
-            trader = TraderHandler.get_default_trader(technical_user.id)
+            trader = TraderHandler.get_default_user_trader(user_id=technical_user.id)
             trader_id = trader.id
 
         return ExchangeHandler(trader.id)
 
+    def get_trader_id(self) -> str:
+        return self.__trader_model.id
+
     def ping_server(self, **kwargs) -> bool:
-        return self._api.ping_server(kwargs)
+        return self._api.ping_server()
 
     def get_symbols(self, **kwargs) -> dict[Symbol]:
         # Send a request to an API to get symbols
-        return self._api.get_symbols(kwargs)
+        return self._api.get_symbols()
 
     def get_history_data(
         self, history_data_param: HistoryDataParam, **kwargs
@@ -390,6 +422,14 @@ class ExchangeHandler:
     def get_end_datetime(self, interval: str, **kwargs) -> datetime:
         original_datetime = datetime.now()
         return self._api.get_end_datetime(interval, original_datetime, **kwargs)
+
+    def calculate_trading_timeframe(self, trading_time: str, **kwargs) -> dict:
+        return self._api.calculate_trading_timeframe(trading_time, **kwargs)
+
+    def is_trading_available(
+        self, interval: str, trading_timeframes: dict, **kwargs
+    ) -> bool:
+        return self._api.is_trading_available(interval, trading_timeframes, **kwargs)
 
 
 class BaseOnExchangeHandler:
@@ -401,14 +441,36 @@ class BaseOnExchangeHandler:
         else:
             self._exchange_handler: ExchangeHandler = ExchangeHandler.get_handler()
 
+    def get_exchange_id(self) -> ExchangeId:
+        return self._exchange_handler.get_exchange_id()
+
 
 class SymbolHandler(BaseOnExchangeHandler):
     def __init__(self, exchange_handler: ExchangeHandler = None):
-        super.__init__(exchange_handler)
+        super().__init__(exchange_handler)
         self._buffer_symbols: BufferBaseHandler = BufferBaseHandler()
+        self._buffer_timeframes: BufferTimeFrame = BufferTimeFrame()
 
     def is_valid_symbol(self, symbol: str) -> bool:
         return symbol in self.get_symbols()
+
+    def is_trading_available(self, interval: str, symbol: str) -> bool:
+        timeframe = {}
+        symbol_mdl = self.get_symbol(symbol=symbol)
+        trading_time = symbol_mdl.trading_time
+        if self._buffer_timeframes.is_data_in_buffer(trading_time):
+            timeframe = self._buffer_timeframes.get_buffer(trading_time)
+        else:
+            # Send a request to an API to get symbols
+            timeframe = self._exchange_handler.calculate_trading_timeframe(trading_time)
+            # Set fetched symbols to the buffer
+            self._buffer_timeframes.set_buffer(
+                trading_time=trading_time, timeframe=timeframe
+            )
+
+        return self._exchange_handler.is_trading_available(
+            interval=interval, trading_timeframes=timeframe
+        )
 
     def get_symbol(self, symbol: str) -> SymbolModel:
         symbol_model = self.get_symbols()[symbol]
@@ -451,7 +513,7 @@ class SymbolHandler(BaseOnExchangeHandler):
             if currency and currency != symbol_model.currency:
                 continue
             else:
-                symbol_list.append(symbol_model.model_dump())
+                symbol_list.append(symbol_model)
 
         return symbol_list
 
@@ -505,6 +567,47 @@ class HistoryDataHandler(BaseOnExchangeHandler):
             self.__buffer_inst.set_buffer(history_data_inst)
 
         return history_data_inst
+
+
+class BufferRuntimeHandlers:
+    _instance = None
+
+    def __new__(class_, *args, **kwargs):
+        if not isinstance(class_._instance, class_):
+            class_._instance = object.__new__(class_, *args, **kwargs)
+            class_.__symbol_handler = {}
+            class_.__history_data_handler = {}
+        return class_._instance
+
+    def get_symbol_handler(
+        self, trader_id: str = None, user_id: str = None
+    ) -> SymbolHandler:
+        exchange_handler = ExchangeHandler.get_handler(
+            trader_id=trader_id, user_id=user_id
+        )
+        trader_id = exchange_handler.get_trader_id()
+        if not trader_id in self.__symbol_handler:
+            symbol_handler = SymbolHandler(exchange_handler=exchange_handler)
+            self.__symbol_handler[trader_id] = symbol_handler
+
+        return self.__symbol_handler[trader_id]
+
+    def get_history_data_handler(
+        self, trader_id: str = None, user_id: str = None
+    ) -> HistoryDataHandler:
+        exchange_handler = ExchangeHandler.get_handler(
+            trader_id=trader_id, user_id=user_id
+        )
+        trader_id = exchange_handler.get_trader_id()
+        if not trader_id in self.__history_data_handler:
+            history_data_handler = HistoryDataHandler(exchange_handler=exchange_handler)
+            self.__history_data_handler[trader_id] = history_data_handler
+
+        return self.__history_data_handler[trader_id]
+
+    def clear_buffer(self):
+        self.__symbol_handler = {}
+        self.__history_data_handler = {}
 
 
 ########################### Legacy code ####################################
@@ -2108,3 +2211,6 @@ class LocalCurrencyComApi(CurrencyComApi):
 
     def __get_file_path(self, file_name: str) -> str:
         return r"{}\static\local\{}.json".format(os.getcwd(), file_name)
+
+
+buffer_runtime_handler = BufferRuntimeHandlers()

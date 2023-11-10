@@ -10,11 +10,10 @@
 # 2.4.2.2. Update/Create the position
 # 2.4.2.3. Update Balance
 
-from core import Const
-import common as cmn
-from handler import SessionHandler, OrderHandler, LeverageHandler, ExchangeHandler
-from strategy import SignalFactory
+from .core import Const
 import trading_core.common as cmn
+from .handler import SessionHandler, OrderHandler, LeverageHandler, ExchangeHandler
+from .strategy import StrategyFactory
 
 
 class Robot:
@@ -57,20 +56,52 @@ class TraderBase:
         self.balance_mng: BalanceManager = BalanceManager()
         self.tranaction_mng: TransactionManager = TransactionManager()
 
-        self.db_mng: DatabaseManager = DatabaseManager.get_manager(self.session_mdl)
-        self.db_mng.init_positions()
+        self.data_mng: DataManagerBase = None
 
     @staticmethod
     def get_manager(session_model: cmn.SessionModel):
-        if session_model.is_simulation:
-            return SimulatorManager(session_model)
-        else:
+        if session_model.session_type == cmn.SessionType.TRADING:
             return TraderManager(session_model)
+        elif session_model.session_type == cmn.SessionType.SIMULATION:
+            return SimulatorManager(session_model)
+        elif session_model.session_type == cmn.SessionType.HISTORY:
+            return HistorySimulatorManager(session_model)
+        else:
+            raise Exception(
+                f"TraderBase: Manager can't de detected for session type {session_model.session_type}"
+            )
 
     def run(self):
-        signal_data = SignalFactory().get_signal(
-            **self.session_mdl, signals_config=[], closed_bars=True
+        # signal_data = SignalFactory().get_signal(
+        #     symbol=self.session_mdl.symbol,
+        #     interval=self.session_mdl.interval,
+        #     strategy=self.session_mdl.strategy,
+        #     signals_config=[Const.DEBUG_SIGNAL],
+        #     closed_bars=True,
+        # )
+
+        strategy_df = (
+            StrategyFactory(self.session_mdl.strategy)
+            .get_strategy_data(
+                symbol=self.session_mdl.symbol,
+                interval=self.session_mdl.interval,
+                closed_bars=True,
+            )
+            .tail(1)
         )
+
+        # Init signal instance
+        for index, strategy_row in strategy_df.iterrows():
+            signal_data = {
+                "date_time": index,
+                "open": strategy_row["Open"],
+                "high": strategy_row["High"],
+                "low": strategy_row["Low"],
+                "close": strategy_row["Close"],
+                "volume": strategy_row["Volume"],
+                "strategy": self.session_mdl.strategy,
+                "signal": strategy_row[Const.PARAM_SIGNAL],
+            }
 
         signal_mdl = cmn.SignalModel(**signal_data)
         self._process_signal(signal_mdl)
@@ -85,30 +116,30 @@ class TraderBase:
             self._decide_to_open_position(signal_mdl)
 
     def _decide_to_open_position(self, signal_mdl: cmn.SignalModel) -> bool:
-        return self.db_mng.is_required_to_open_position(signal_mdl)
+        return self.data_mng.is_required_to_open_position(signal_mdl)
 
     def _decide_to_close_position(self, signal_mdl: cmn.SignalModel) -> bool:
-        return self.db_mng.is_required_to_close_position(signal_mdl)
+        return self.data_mng.is_required_to_close_position(signal_mdl)
 
     def _is_open_position(self) -> bool:
-        return self.db_mng.has_open_position()
+        return self.data_mng.has_open_position()
 
 
 class TraderManager(TraderBase):
     def __init__(self, session_mdl: cmn.SessionModel):
         super().__init__(session_mdl)
 
-        self.api_mng = ApiManager.get_manager(self.session_mdl)
-        self.api_mng.init_positions()
+        self.api_mng: ApiManager = ApiManager.get_manager(self.session_mdl)
+        self.data_mng: DatabaseManager = DatabaseManager.get_manager(self.session_mdl)
 
-        self.api_mng.synchronize(self.db_mng)
-        self.db_mng.synchronize(self.api_mng)
+        self.api_mng.synchronize(self.data_mng)
+        self.data_mng.synchronize(self.api_mng)
 
     def _decide_to_open_position(self, signal_mdl: cmn.SignalModel):
         is_required_to_procced = super()._decide_to_open_position(signal_mdl)
         if is_required_to_procced:
             self.api_mng.open_position(signal_mdl)
-            self.db_mng.open_position_based_api(self.api_mng)
+            self.data_mng.open_position_based_api(self.api_mng)
 
         return is_required_to_procced
 
@@ -116,7 +147,7 @@ class TraderManager(TraderBase):
         is_required_to_procced = super()._decide_to_open_position(signal_mdl)
         if is_required_to_procced:
             self.api_mng.close_position(signal_mdl)
-            self.db_mng.close_position_based_api(self.api_mng)
+            self.data_mng.close_position_based_api(self.api_mng)
 
         return is_required_to_procced
 
@@ -125,33 +156,107 @@ class SimulatorManager(TraderBase):
     def __init__(self, session_mdl: cmn.SessionModel):
         super().__init__(session_mdl)
 
+        self.data_mng: DatabaseManager = DatabaseManager.get_manager(self.session_mdl)
+
     def _decide_to_open_position(self, signal_mdl: cmn.SignalModel):
         is_required_to_procced = super()._decide_to_open_position(signal_mdl)
         if is_required_to_procced:
-            self.db_mng.open_position(signal_mdl)
+            self.data_mng.open_position(signal_mdl)
 
         return is_required_to_procced
 
     def _decide_to_close_position(self, signal_mdl: cmn.SignalModel):
         is_required_to_procced = super()._decide_to_open_position(signal_mdl)
         if is_required_to_procced:
-            self.db_mng.close_position(signal_mdl)
+            self.data_mng.close_position(signal_mdl)
+
+        return is_required_to_procced
+
+
+class HistorySimulatorManager(TraderBase):
+    def __init__(self, session_mdl: cmn.SessionModel):
+        super().__init__(session_mdl)
+
+        self.data_mng: LocalDataManager = LocalDataManager(self.session_mdl)
+
+    def _decide_to_open_position(self, signal_mdl: cmn.SignalModel):
+        is_required_to_procced = super()._decide_to_open_position(signal_mdl)
+        if is_required_to_procced:
+            self.data_mng.open_position(signal_mdl)
+
+        return is_required_to_procced
+
+    def _decide_to_close_position(self, signal_mdl: cmn.SignalModel):
+        is_required_to_procced = super()._decide_to_open_position(signal_mdl)
+        if is_required_to_procced:
+            self.data_mng.close_position(signal_mdl)
 
         return is_required_to_procced
 
 
 class DataManagerBase:
-    def __ini__(self, session_mdl: cmn.SessionModel):
+    def __init__(self, session_mdl: cmn.SessionModel):
         self._session_mdl: cmn.SessionModel = session_mdl
+
+        self._exchange_handler: ExchangeHandler = ExchangeHandler(
+            self._session_mdl.trader_id
+        )
 
         self._side_mng: SideManager = None
 
         self._open_positions: dict(cmn.OrderModel) = None
         self._current_position: cmn.OrderModel = None
 
-        self.init_positions()
+        self._init_open_positions()
 
-    def init_positions(self):
+    @staticmethod
+    def get_api_manager(session_mdl: cmn.SessionModel):
+        if session_mdl.trading_type == cmn.TradingType.SPOT:
+            return OrderApiManager(session_mdl)
+        elif session_mdl.trading_type == cmn.TradingType.LEVERAGE:
+            return LeverageApiManager(session_mdl)
+        else:
+            raise Exception(
+                "Robot: API Manager - Incorrect session type {session_mdl.trading_type}"
+            )
+
+    @staticmethod
+    def get_db_manager(session_mdl: cmn.SessionModel):
+        if session_mdl.trading_type == cmn.TradingType.SPOT:
+            return OrderDatabaseManager(session_mdl)
+        elif session_mdl.trading_type == cmn.TradingType.LEVERAGE:
+            return LeverageDatabaseManager(session_mdl)
+        else:
+            raise Exception(
+                "Robot: DB Manager - Incorrect trading type {session_mdl.trading_type}"
+            )
+
+    @staticmethod
+    def get_local_manager(session_mdl: cmn.SessionModel):
+        if session_mdl.trading_type == cmn.TradingType.SPOT:
+            return OrderLocalDataManager(session_mdl)
+        elif session_mdl.trading_type == cmn.TradingType.LEVERAGE:
+            return LeverageLocalDataManager(session_mdl)
+        else:
+            raise Exception(
+                "Robot: Local Manager - Incorrect trading type {session_mdl.trading_type}"
+            )
+
+    def is_required_to_open_position(self, signal_mdl: cmn.SignalModel) -> bool:
+        if self._session_mdl.type == cmn.SessionType.order:
+            return signal_mdl.signal == cmn.SignalType.STRONG_BUY
+        else:
+            return signal_mdl.signal in [
+                cmn.SignalType.STRONG_BUY,
+                cmn.SignalType.STRONG_SELL,
+            ]
+
+    def is_required_to_close_position(self, signal_mdl: cmn.SignalModel) -> bool:
+        return self._side_mng.is_required_to_close_position(
+            position_mdl=self._current_position, signal_mdl=signal_mdl
+        )
+
+    def _init_open_positions(self):
         current_postion = None
         open_postions = self.get_positions()
         if open_postions:
@@ -163,13 +268,13 @@ class DataManagerBase:
         self._set_side_mng(signal_type=signal_mdl.signal)
 
     def close_position(self, signal_mdl: cmn.SignalModel) -> bool:
-        pass
+        raise Exception(f"DataManagerBase: close_position() isn't implemented")
 
     def get_current_position(self) -> cmn.OrderModel:
         return self._current_position
 
     def get_positions(self) -> list:
-        pass
+        return None
 
     def get_open_positions(self) -> dict:
         if not self._open_positions:
@@ -184,7 +289,7 @@ class DataManagerBase:
         return True if self._current_position else False
 
     def synchronize(self, data_mng):
-        pass
+        raise Exception(f"DataManagerBase: synchronize() isn't implemented")
 
     def _set_current_postion(self, position_mdl: cmn.OrderModel = None):
         if position_mdl:
@@ -224,11 +329,19 @@ class DataManagerBase:
             Const.DB_OPEN_DATETIME: signal_mdl.date_time,
         }
 
-    def _get_quantity() -> float:
-        pass
+    def _get_quantity(self) -> float:
+        raise Exception(f"DataManagerBase: _get_quantity() isn't implemented")
 
-    def _get_fee() -> float:
-        pass
+    def _get_fee(self) -> float:
+        raise Exception(f"DataManagerBase: _get_fee() isn't implemented")
+
+
+class OrderManagerBase(DataManagerBase):
+    pass
+
+
+class LeverageManagerBase(DataManagerBase):
+    pass
 
 
 class ApiManager(DataManagerBase):
@@ -272,11 +385,11 @@ class ApiManager(DataManagerBase):
         pass
 
 
-class OrderApiManager(ApiManager):
+class OrderApiManager(OrderManagerBase):
     pass
 
 
-class LeverageApiManager(ApiManager):
+class LeverageApiManager(LeverageManagerBase):
     pass
 
 
@@ -290,16 +403,6 @@ class DatabaseManager(DataManagerBase):
         else:
             raise Exception("Robot: DatabaseManager - Incorrect session type")
 
-    def is_required_to_open_position(self, signal_mdl: cmn.SignalModel) -> bool:
-        return self._side_mng.is_required_to_close_position(
-            position_mdl=self._current_position, signal_mdl=signal_mdl
-        )
-
-    def is_required_to_close_position(self, signal_mdl: cmn.SignalModel) -> bool:
-        return self._side_mng.is_required_to_close_position(
-            position_mdl=self._current_position, signal_mdl=signal_mdl
-        )
-
     def synchronize(self, api_mng: DataManagerBase):
         pass
 
@@ -310,10 +413,7 @@ class DatabaseManager(DataManagerBase):
         pass
 
 
-class OrderDatabaseManager(DatabaseManager):
-    def is_required_to_open_position(self, signal_mdl: cmn.SignalModel) -> bool:
-        return signal_mdl.signal == cmn.SignalType.STRONG_BUY
-
+class OrderDatabaseManager(OrderManagerBase):
     def open_position(self, signal_mdl: cmn.SignalModel) -> cmn.OrderModel:
         super().open_position(signal_mdl)
 
@@ -334,12 +434,59 @@ class OrderDatabaseManager(DatabaseManager):
         )
 
 
-class LeverageDatabaseManager(DatabaseManager):
-    def is_required_to_open_position(self, signal_mdl: cmn.SignalModel) -> bool:
-        return signal_mdl.signal in [
-            cmn.SignalType.STRONG_BUY,
-            cmn.SignalType.STRONG_SELL,
-        ]
+class LeverageDatabaseManager(LeverageManagerBase):
+    def open_position(self, signal_mdl: cmn.SignalModel) -> cmn.LeverageModel:
+        super().open_position(signal_mdl)
+
+        position_data = self._get_open_position_template(signal_mdl)
+        position_mdl = cmn.LeverageModel(**position_data)
+        created_position_mdl = LeverageHandler.create_leverage(position_mdl)
+
+        self._set_current_postion(created_position_mdl)
+
+        return created_position_mdl
+
+    def close_position(self, signal_mdl: cmn.SignalModel) -> bool:
+        close_details = self._side_mng.get_close_details(
+            position_mdl=self._current_position, signal_mdl=signal_mdl
+        )
+
+        if not close_details:
+            return False
+
+        close_details[Const.DB_STATUS] = cmn.OrderStatus.closed
+        close_details[Const.DB_CLOSE_DATETIME] = signal_mdl.date_time
+
+        result = LeverageHandler.update_leverage(
+            id=self._current_position.id, query=close_details
+        )
+
+        return result
+
+    def get_positions(self) -> list[cmn.LeverageModel]:
+        return LeverageHandler.get_leverages(
+            session_id=self._session_mdl.id, status=cmn.OrderStatus.opened
+        )
+
+    def _get_open_position_template(self, signal_mdl: cmn.SignalModel) -> dict:
+        position_data = super()._get_open_position_template(signal_mdl)
+        position_data[Const.DB_ORDER_ID] = "1"
+        position_data[Const.DB_ACCOUNT_ID] = "1"
+        position_data[Const.DB_LEVERAGE] = self._session_mdl.leverage
+        return position_data
+
+
+class OrderLocalDataManager(OrderManagerBase):
+    pass
+
+
+class LeverageLocalDataManager(LeverageManagerBase):
+    pass
+
+
+class LocalDataManager(DataManagerBase):
+    def __init__(self, session_mdl: cmn.SessionModel):
+        super().__init__(session_mdl)
 
     def open_position(self, signal_mdl: cmn.SignalModel) -> cmn.LeverageModel:
         super().open_position(signal_mdl)
@@ -353,7 +500,21 @@ class LeverageDatabaseManager(DatabaseManager):
         return created_position_mdl
 
     def close_position(self, signal_mdl: cmn.SignalModel) -> bool:
-        pass
+        close_details = self._side_mng.get_close_details(
+            position_mdl=self._current_position, signal_mdl=signal_mdl
+        )
+
+        if not close_details:
+            return False
+
+        close_details[Const.DB_STATUS] = cmn.OrderStatus.closed
+        close_details[Const.DB_CLOSE_DATETIME] = signal_mdl.date_time
+
+        result = LeverageHandler.update_leverage(
+            id=self._current_position.id, query=close_details
+        )
+
+        return result
 
     def get_positions(self) -> list[cmn.LeverageModel]:
         return LeverageHandler.get_leverages(

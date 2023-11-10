@@ -7,31 +7,16 @@ from trading_core.handler import (
     ExchangeHandler,
     HistoryDataParam,
     HistoryDataHandler,
+    SessionModel,
+    SessionHandler,
 )
 
-# trader_model = TraderHandler.get_trader("65443f637b025235de0fb5d7")
+from trading_core.robot import SessionManager
 
-# handler = SymbolHandler(trader_id="65443f637b025235de0fb5d7")
+session_mdl = SessionHandler.get_session(id="654bc2351536fced145c3cfa")
+session_mng = SessionManager(session_mdl)
+session_mng.run()
 
-exchange_handler = ExchangeHandler(trader_id="65443f637b025235de0fb5d7")
-
-history_data_handler = HistoryDataHandler(exchange_handler)
-
-history_data_param = HistoryDataParam(symbol="BTC/USD", interval="5m", limit=40)
-
-history_data = history_data_handler.get_history_data(
-    history_data_param=history_data_param, closed_bar=True
-)
-
-print(history_data.getDataFrame())
-
-history_data_param = HistoryDataParam(symbol="BTC/USD", interval="5m", limit=20)
-
-history_data = history_data_handler.get_history_data(
-    history_data_param=history_data_param, closed_bar=True
-)
-
-print(history_data.getDataFrame())
 
 ########################## New Model ###############################################
 

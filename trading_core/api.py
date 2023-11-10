@@ -50,6 +50,12 @@ class ExchangeApiBase:
     ) -> datetime:
         pass
 
+    def calculate_trading_timeframe(self, trading_time: str) -> dict:
+        pass
+
+    def is_trading_available(self, interval: str, trading_timeframes: dict) -> bool:
+        pass
+
 
 class DzengiComApi(ExchangeApiBase):
     """
@@ -134,7 +140,7 @@ class DzengiComApi(ExchangeApiBase):
                         "status": status_converted,
                         "type": row["marketType"],
                         "trading_time": row["tradingHours"],
-                        "currency": row["quoteAssetId"],
+                        "currency": row["quoteAsset"],
                         # "trading_fee": row["tradingFee"],
                     }
 
@@ -516,7 +522,7 @@ class DzengiComApi(ExchangeApiBase):
 
         return datetime.fromtimestamp(timestamp / 1000.0)
 
-    def get_trading_timeframes(self, trading_time: str) -> dict:
+    def calculate_trading_timeframe(self, trading_time: str) -> dict:
         timeframes = {}
 
         # Split the Trading Time string into individual entries
@@ -550,7 +556,7 @@ class DzengiComApi(ExchangeApiBase):
 
         return timeframes
 
-    def is_trading_open(self, interval: str, trading_timeframes: dict) -> bool:
+    def is_trading_available(self, interval: str, trading_timeframes: dict) -> bool:
         # Skip trading time check
         if interval == self.TA_API_INTERVAL_1WK:
             return True

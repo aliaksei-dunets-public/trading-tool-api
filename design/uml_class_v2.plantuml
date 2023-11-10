@@ -32,7 +32,7 @@ class TraderBase {
     +session_mdl: SessionModel
     +balance_mng: BalanceManager
     +tranaction_mng: TransactionManager
-    +db_mng: DatabaseManager
+    #data_mng: DataManagerBase
 
     +{static} get_manager(SessionModel)
     +run()
@@ -44,15 +44,25 @@ class TraderBase {
 
 TraderBase --o BalanceManager
 TraderBase --o TransactionManager
-TraderBase --o DatabaseManager
+
 
 class TraderManager extends TraderBase {
-    +api_mng: ApiManager
+    #api_mng: ApiManager
 }
 
 TraderManager --o ApiManager
 
-class SimulatorManager extends TraderBase
+class SimulatorManager extends TraderBase {
+    #data_mng: DataBaseManager
+}
+
+SimulatorManager --o DatabaseManager
+
+class HistorySimulatorManager extends TraderBase {
+    #data_mng: LocalDataManager
+}
+
+HistorySimulatorManager --o LocalDataManager
 
 class DataManagerBase {
     #_session_mdl: SessionModel
@@ -61,6 +71,8 @@ class DataManagerBase {
     #_current_position: OrderModel
 
     +init_positions()
+    +is_required_to_open_position(SignalModel)
+    +is_required_to_close_position(SignalModel)
     +open_position(SignalModel)
     +close_position(SignalModel)
     +get_current_position()
@@ -87,13 +99,8 @@ class ApiManager extends DataManagerBase {
     +synchronize(DataManagerBase)
 }
 
-class OrderApiManager extends ApiManager
-class LeverageApiManager extends ApiManager
-
 class DatabaseManager extends DataManagerBase {
     +{static} get_manager(SessionModel)
-    +is_required_to_open_position(SignalModel)
-    +is_required_to_close_position(SignalModel)
     +open_position(SignalModel)
     +close_position(SignalModel)
     +get_positions()
@@ -102,13 +109,22 @@ class DatabaseManager extends DataManagerBase {
     +close_position_based_api(DataManagerBase)
 }
 
-class OrderDatabaseManager extends DatabaseManager {
+class LocalDataManager extends DataManagerBase {
+}
+
+class OrderManagerBase extends DataManagerBase
+class LeverageManagerBase extends DataManagerBase
+
+class OrderApiManager extends OrderManagerBase
+class LeverageApiManager extends LeverageManagerBase
+
+class OrderDatabaseManager extends OrderManagerBase {
     +open_position(SignalModel)
     +close_position(SignalModel)
     +get_positions()
 }
 
-class LeverageDatabaseManager extends DatabaseManager {
+class LeverageDatabaseManager extends LeverageManagerBase {
     +open_position(SignalModel)
     +close_position(SignalModel)
     +get_positions()
