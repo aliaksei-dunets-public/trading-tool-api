@@ -266,6 +266,13 @@ class BalanceHandler:
         return BalanceHandler.get_balance(id)
 
     @staticmethod
+    def update_balance(id: str, query: dict) -> bool:
+        result = MongoBalance().update_one(id=id, query=query)
+        if not result:
+            raise Exception(f"Update balance {id} has been failed")
+        return result
+
+    @staticmethod
     def get_balance(id: str) -> BalanceModel:
         entry = MongoBalance().get_one(id)
         if not entry:
@@ -278,6 +285,12 @@ class BalanceHandler:
         entries_db = MongoBalance().get_many(query)
         result = [BalanceModel(**entry) for entry in entries_db]
 
+        return result
+
+    @staticmethod
+    def get_balance_4_session(session_id: str):
+        entriy_db = MongoBalance().get_one_by_filter({"session_id": session_id})
+        result = BalanceModel(**entriy_db)
         return result
 
 

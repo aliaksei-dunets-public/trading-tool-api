@@ -44,6 +44,12 @@ class MongoBase:
         result = self._collection.find_one({Const.DB_ID: self._convert_id(id)})
         return result
 
+    def get_one_by_filter(self, query: dict) -> dict:
+        if not query:
+            raise Exception(f"DB: get_one_by_filter - Query is empty")
+        result = self._collection.find_one(query)
+        return result
+
     def get_many(self, query: dict = {}) -> list:
         return list(self._collection.find(query))
 

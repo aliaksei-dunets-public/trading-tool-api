@@ -123,11 +123,8 @@ class SymbolModel(SymbolIdModel):
     trading_time: str
     # order_type: OrderType
     currency: str
+    quote_precision: int
     trading_fee: float = 0
-
-    @property
-    def descr(self):
-        return f"{self.name} ({self.symbol})"
 
     @validator("descr", pre=True, always=True)
     def concate_descr(cls, descr, values):
@@ -233,7 +230,15 @@ class BalanceModel(AdminModel, IdentifierModel):
     currency: str
     init_balance: float
     total_balance: float = 0
+    total_profit: float = 0
     total_fee: float = 0
+
+    @validator("total_balance", pre=True, always=True)
+    def init_total_balance(cls, total_balance, values):
+        total_balance = (
+            values.get("init_balance") if total_balance == 0 else total_balance
+        )
+        return total_balance
 
     def to_mongodb_doc(self):
         return {
@@ -242,6 +247,7 @@ class BalanceModel(AdminModel, IdentifierModel):
             "currency": self.currency,
             "init_balance": self.init_balance,
             "total_balance": self.total_balance,
+            "total_profit": self.total_profit,
             "total_fee": self.total_fee,
         }
 
@@ -289,6 +295,7 @@ class OrderModel(AdminModel, IdentifierModel, SymbolIdModel):
     close_price: float = 0
     close_datetime: datetime = datetime.now()
     close_reason: OrderCloseReason = ""
+    total_profit: float = 0
 
     def to_mongodb_doc(self):
         order = {
@@ -306,6 +313,7 @@ class OrderModel(AdminModel, IdentifierModel, SymbolIdModel):
             "close_price": self.close_price,
             "close_datetime": self.close_datetime,
             "close_reason": self.close_reason,
+            "total_profit": self.total_profit,
         }
 
         if self.id:

@@ -50,27 +50,23 @@ class TraderManager extends TraderBase {
     #api_mng: ApiManager
 }
 
-TraderManager --o ApiManager
-
 class SimulatorManager extends TraderBase {
     #data_mng: DataBaseManager
 }
-
-SimulatorManager --o DatabaseManager
 
 class HistorySimulatorManager extends TraderBase {
     #data_mng: LocalDataManager
 }
 
-HistorySimulatorManager --o LocalDataManager
-
 class DataManagerBase {
     #_session_mdl: SessionModel
+    #_exchange_handler: ExchangeHandler
     #_side_mng: SideManager
     #_open_positions: dict
     #_current_position: OrderModel
-
-    +init_positions()
+    +{static} get_api_manager(SessionModel)
+    +{static} get_db_manager(SessionModel)
+    +{static} get_local_manager(SessionModel)
     +is_required_to_open_position(SignalModel)
     +is_required_to_close_position(SignalModel)
     +open_position(SignalModel)
@@ -80,6 +76,7 @@ class DataManagerBase {
     +get_open_positions()
     +has_open_position()
     +synchronize(DataManagerBase)
+    +_init_open_positions()
     #_set_current_postion(OrderModel)
     #_set_side_mng(SignalType)
     #_get_open_position_template(SignalModel)
@@ -87,33 +84,12 @@ class DataManagerBase {
     #_get_fee()
 }
 
-DataManagerBase --o SideManagerBase
-
-class ApiManager extends DataManagerBase {
-    #_exchange_handler: ExchangeHandler
-
-    +{static} get_manager(SessionModel)
-    +open_position(SignalModel)
-    +close_position(SignalModel)
-    +get_positions()
-    +synchronize(DataManagerBase)
+class OrderManagerBase extends DataManagerBase {
+    +is_required_to_open_position(SignalModel)
 }
-
-class DatabaseManager extends DataManagerBase {
-    +{static} get_manager(SessionModel)
-    +open_position(SignalModel)
-    +close_position(SignalModel)
-    +get_positions()
-    +synchronize(DataManagerBase)
-    +open_position_based_api(DataManagerBase)
-    +close_position_based_api(DataManagerBase)
+class LeverageManagerBase extends DataManagerBase {
+    +is_required_to_open_position(SignalModel)
 }
-
-class LocalDataManager extends DataManagerBase {
-}
-
-class OrderManagerBase extends DataManagerBase
-class LeverageManagerBase extends DataManagerBase
 
 class OrderApiManager extends OrderManagerBase
 class LeverageApiManager extends LeverageManagerBase
@@ -130,6 +106,9 @@ class LeverageDatabaseManager extends LeverageManagerBase {
     +get_positions()
     #_get_open_position_template(SignalModel)
 }
+
+class OrderLocalDataManager extends OrderManagerBase
+class LeverageLocalDataManager extends LeverageManagerBase
 
 class SideManagerBase {
     +{static} get_manager_by_type(SessionModel, OrderSideType)
@@ -157,5 +136,9 @@ class BuyManager extends SideManagerBase {
 
 Robot --> SessionManager
 SessionManager --> TraderBase
+TraderManager --o DataManagerBase
+SimulatorManager --o DataManagerBase
+HistorySimulatorManager --o DataManagerBase
+DataManagerBase --o SideManagerBase
 
 @enduml

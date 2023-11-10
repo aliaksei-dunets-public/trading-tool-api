@@ -134,6 +134,13 @@ class DzengiComApi(ExchangeApiBase):
                         else SymbolStatus.close
                     )
 
+                    if "tradingFee" in row and row["tradingFee"]:
+                        trading_fee = row["tradingFee"]
+                    elif "exchangeFee" in row and row["exchangeFee"]:
+                        trading_fee = row["exchangeFee"]
+                    else:
+                        trading_fee = 0
+
                     symbol_data = {
                         "symbol": row["symbol"],
                         "name": row["name"],
@@ -141,7 +148,8 @@ class DzengiComApi(ExchangeApiBase):
                         "type": row["marketType"],
                         "trading_time": row["tradingHours"],
                         "currency": row["quoteAsset"],
-                        # "trading_fee": row["tradingFee"],
+                        "quote_precision": row["quotePrecision"],
+                        "trading_fee": trading_fee,
                     }
 
                     symbol_model = SymbolModel(**symbol_data)

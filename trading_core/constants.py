@@ -58,6 +58,7 @@ class Const:
     DB_CLOSE_PRICE = "close_price"
     DB_CLOSE_DATETIME = "close_datetime"
     DB_CLOSE_REASON = "close_reason"
+    DB_TOTAL_PROFIT = "total_profit"
     DB_LEVERAGE = "leverage"
     DB_STOP_LOSS_RATE = "stop_loss_rate"
     DB_TAKE_PROFIT_RATE = "take_profit_rate"
