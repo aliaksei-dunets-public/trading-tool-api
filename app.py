@@ -11,7 +11,12 @@ from trading_core.common import (
     OrderModel,
     LeverageModel,
     TransactionModel,
+    TradingType,
+    SessionType,
+    StrategyType,
 )
+
+from trading_core.robot import SessionManager
 
 app = Flask(__name__)
 
@@ -436,6 +441,50 @@ def get_simulate():
         return jsonify({"error": error}), 500
 
     return responser.get_simulate(params)
+
+
+@app.route("/history_simulation", methods=["GET"])
+def get_history_simulation():
+    # symbols = request.args.getlist("symbol", None)
+    interval = request.args.get("interval", "5m")
+    strategy = request.args.get("strategy", StrategyType.CCI_20_TREND_100)
+    # init_balance = request.args.get(Const.SRV_INIT_BALANCE)
+    # limit = request.args.get(Const.LIMIT)
+    stop_loss_rate = request.args.get(Const.SRV_STOP_LOSS_RATE, 0)
+    take_profit_rate = request.args.get(Const.SRV_TAKE_PROFIT_RATE, 0)
+    # fee_rate = request.args.get(Const.SRV_FEE_RATE)
+
+    try:
+        session_data = {
+            "trader_id": "65443f637b025235de0fb5d7",
+            "user_id": "65419b27e3a8c7e9690860cb",
+            # "status": "",
+            "trading_type": TradingType.LEVERAGE,
+            "session_type": SessionType.HISTORY,
+            "symbol": "BTC/USD_LEVERAGE",
+            "interval": interval,
+            "strategy": strategy,
+            "take_profit_rate": take_profit_rate,
+            "stop_loss_rate": stop_loss_rate,
+        }
+
+        session_mdl = SessionModel(**session_data)
+        session_mng = SessionManager(session_mdl)
+        session_mng.run()
+
+        balance_mdl = session_mng.get_balance_manager().get_balance()
+        posistions = [item.model_dump() for item in session_mng.get_positions()]
+
+        response = {
+            "session": session_mdl.model_dump(),
+            "balance": balance_mdl.model_dump(),
+            "positions": posistions,
+        }
+
+    except Exception as error:
+        return jsonify({"error": error}), 500
+
+    return jsonify(response), 200
 
 
 @app.route("/create_simulations", methods=["POST"])

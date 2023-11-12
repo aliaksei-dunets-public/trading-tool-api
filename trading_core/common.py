@@ -272,7 +272,6 @@ class SessionModel(AdminModel, IdentifierModel, SymbolIntervalStrategyModel):
             "status": self.status,
             "trading_type": self.trading_type,
             "session_type": self.session_type,
-            "is_simulation": self.is_simulation,
             "symbol": self.symbol,
             "interval": self.interval,
             "strategy": self.strategy,

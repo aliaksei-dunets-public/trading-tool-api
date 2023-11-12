@@ -10,6 +10,7 @@
 # 2.4.2.2. Update/Create the position
 # 2.4.2.3. Update Balance
 
+from decimal import Decimal, ROUND_DOWN
 from bson import ObjectId
 
 from .core import Const
@@ -39,26 +40,17 @@ class Robot:
             session_manager.run()
 
 
-class SessionManager:
-    def __init__(self, session_mdl: cmn.SessionModel):
-        self._session_mdl: cmn.SessionModel = session_mdl
-
-        self._trader_mng: TraderBase = TraderManager.get_manager(self._session_mdl)
-
-    def run(self):
-        self._trader_mng.run()
-
-        # transaction_mng = TransactionManager()
-
-
 class TransactionManager:
     pass
 
 
 class BalanceManager:
-    def __init__(self, session_id: str):
-        self.__balance_mdl = BalanceHandler.get_balance_4_session(session_id=session_id)
+    def __init__(self, balance_mdl: cmn.BalanceModel):
+        self.__balance_mdl = balance_mdl
         self.__change_indicator = False
+
+    def get_balance(self):
+        return self.__balance_mdl
 
     def get_account_id(self):
         return self.__balance_mdl.account_id
@@ -68,13 +60,16 @@ class BalanceManager:
 
     def add_fee(self, fee: float):
         self.__balance_mdl.total_fee += fee
+        self.__change_indicator = True
 
     def add_total_profit(self, total_profit: float):
         self.__balance_mdl.total_profit += total_profit
+        self.__change_indicator = True
 
     # Operation value for Open is -, and for Close +
-    def recalculate_balance(self, operation_value: float, fee: float):
+    def recalculate_balance(self, operation_value: float, fee: float = 0):
         self.__balance_mdl.total_balance += operation_value - fee
+        self.__change_indicator = True
 
     def save_balance(self):
         if self.__change_indicator:
@@ -86,10 +81,29 @@ class BalanceManager:
             BalanceHandler.update_balance(self.__balance_mdl.id, query=query)
 
 
+class SessionManager:
+    def __init__(self, session_mdl: cmn.SessionModel):
+        self._session_mdl: cmn.SessionModel = session_mdl
+
+        self._trader_mng: TraderBase = TraderManager.get_manager(self._session_mdl)
+
+    def run(self):
+        self._trader_mng.run()
+
+        # transaction_mng = TransactionManager()
+
+    def get_positions(self) -> list:
+        return self._trader_mng.data_mng.get_positions()
+
+    def get_balance_manager(self) -> BalanceManager:
+        return self._trader_mng.balance_mng
+
+
 class TraderBase:
     def __init__(self, session_mdl: cmn.SessionModel):
         self.session_mdl: cmn.SessionModel = session_mdl
-        self.balance_mng: BalanceManager = BalanceManager()
+
+        self.balance_mng: BalanceManager = None
         self.tranaction_mng: TransactionManager = TransactionManager()
 
         self.data_mng: DataManagerBase = None
@@ -108,14 +122,6 @@ class TraderBase:
             )
 
     def run(self):
-        # signal_data = SignalFactory().get_signal(
-        #     symbol=self.session_mdl.symbol,
-        #     interval=self.session_mdl.interval,
-        #     strategy=self.session_mdl.strategy,
-        #     signals_config=[Const.DEBUG_SIGNAL],
-        #     closed_bars=True,
-        # )
-
         strategy_df = (
             StrategyFactory(self.session_mdl.strategy)
             .get_strategy_data(
@@ -162,17 +168,20 @@ class TraderBase:
     def _is_open_position(self) -> bool:
         return self.data_mng.has_open_position()
 
+    def get_positions(self) -> list:
+        return self.data_mng.get_positions()
+
 
 class TraderManager(TraderBase):
     def __init__(self, session_mdl: cmn.SessionModel):
         super().__init__(session_mdl)
 
-        self.api_mng: DataManagerBase = DataManagerBase.get_api_manager(
-            self.session_mdl
+        self.balance_mng: BalanceManager = BalanceManager(
+            BalanceHandler.get_balance_4_session(session_id=self.session_mdl.id)
         )
-        self.data_mng: DataManagerBase = DataManagerBase.get_db_manager(
-            self.session_mdl
-        )
+
+        self.api_mng: DataManagerBase = DataManagerBase.get_api_manager(trader_mng=self)
+        self.data_mng: DataManagerBase = DataManagerBase.get_db_manager(trader_mng=self)
 
         self.api_mng.synchronize(self.data_mng)
         self.data_mng.synchronize(self.api_mng)
@@ -181,7 +190,6 @@ class TraderManager(TraderBase):
         is_required_to_procced = super()._decide_to_open_position(signal_mdl)
         if is_required_to_procced:
             self.api_mng.open_position(signal_mdl)
-            self.data_mng.open_position_based_api(self.api_mng)
 
         return is_required_to_procced
 
@@ -189,7 +197,6 @@ class TraderManager(TraderBase):
         is_required_to_procced = super()._decide_to_open_position(signal_mdl)
         if is_required_to_procced:
             self.api_mng.close_position(signal_mdl)
-            self.data_mng.close_position_based_api(self.api_mng)
 
         return is_required_to_procced
 
@@ -198,9 +205,11 @@ class SimulatorManager(TraderBase):
     def __init__(self, session_mdl: cmn.SessionModel):
         super().__init__(session_mdl)
 
-        self.data_mng: DataManagerBase = DataManagerBase.get_db_manager(
-            self.session_mdl
+        self.balance_mng: BalanceManager = BalanceManager(
+            BalanceHandler.get_balance_4_session(session_id=self.session_mdl.id)
         )
+
+        self.data_mng: DataManagerBase = DataManagerBase.get_db_manager(trader_mng=self)
 
     def _decide_to_open_position(self, signal_mdl: cmn.SignalModel):
         is_required_to_procced = super()._decide_to_open_position(signal_mdl)
@@ -221,19 +230,27 @@ class HistorySimulatorManager(TraderBase):
     def __init__(self, session_mdl: cmn.SessionModel):
         super().__init__(session_mdl)
 
+        balance_mdl = cmn.BalanceModel(
+            **{
+                "session_id": "65440b7bd55c066833997c7f",
+                "account_id": "65419b27e3a8c7e9690860cb",
+                "currency": "USD",
+                "init_balance": 1000,
+            }
+        )
+
+        self.balance_mng: BalanceManager = BalanceManager(balance_mdl)
+
         self.data_mng: DataManagerBase = DataManagerBase.get_local_manager(
-            self.session_mdl
+            trader_mng=self
         )
 
     def run(self):
-        strategy_df = (
-            StrategyFactory(self.session_mdl.strategy)
-            .get_strategy_data(
-                symbol=self.session_mdl.symbol,
-                interval=self.session_mdl.interval,
-                closed_bars=True,
-            )
-            .tail(1)
+        strategy_df = StrategyFactory(self.session_mdl.strategy).get_strategy_data(
+            symbol=self.session_mdl.symbol,
+            interval=self.session_mdl.interval,
+            limit=200,
+            closed_bars=True,
         )
 
         # Init signal instance
@@ -249,8 +266,8 @@ class HistorySimulatorManager(TraderBase):
                 "signal": strategy_row[Const.PARAM_SIGNAL],
             }
 
-        signal_mdl = cmn.SignalModel(**signal_data)
-        self._process_signal(signal_mdl)
+            signal_mdl = cmn.SignalModel(**signal_data)
+            self._process_signal(signal_mdl)
 
     def _decide_to_open_position(self, signal_mdl: cmn.SignalModel):
         is_required_to_procced = super()._decide_to_open_position(signal_mdl)
@@ -260,7 +277,7 @@ class HistorySimulatorManager(TraderBase):
         return is_required_to_procced
 
     def _decide_to_close_position(self, signal_mdl: cmn.SignalModel):
-        is_required_to_procced = super()._decide_to_open_position(signal_mdl)
+        is_required_to_procced = super()._decide_to_close_position(signal_mdl)
         if is_required_to_procced:
             self.data_mng.close_position(signal_mdl)
 
@@ -270,7 +287,7 @@ class HistorySimulatorManager(TraderBase):
 class DataManagerBase:
     def __init__(self, trader_mng: TraderBase):
         self._session_mdl: cmn.SessionModel = trader_mng.session_mdl
-        self._balance_mng = trader_mng.balance_mng
+        self._balance_mng: BalanceManager = trader_mng.balance_mng
 
         self._exchange_handler: ExchangeHandler = ExchangeHandler(
             self._session_mdl.trader_id
@@ -387,16 +404,16 @@ class DataManagerBase:
             Const.DB_SIDE: self._side_mng.get_side_type(),
             Const.DB_STATUS: cmn.OrderStatus.opened,
             Const.DB_SYMBOL: self._session_mdl.symbol,
-            Const.DB_QUANTITY: self._get_quantity(),
+            Const.DB_QUANTITY: self._get_quantity(signal_mdl),
             Const.DB_FEE: self._get_fee(),
             # Const.DB_LEVERAGE: self._session_mdl.leverage,
             Const.DB_STOP_LOSS: self._side_mng.get_stop_loss(
                 balance=self._balance_mng.get_total_balance(),
-                price=self._get_open_price(),
+                price=self._get_open_price(signal_mdl),
             ),
             Const.DB_TAKE_PROFIT: self._side_mng.get_take_profit(
                 balance=self._balance_mng.get_total_balance(),
-                price=self._get_open_price(),
+                price=self._get_open_price(signal_mdl),
             ),
             Const.DB_OPEN_PRICE: self._get_open_price(signal_mdl),
             Const.DB_OPEN_DATETIME: signal_mdl.date_time,
@@ -421,8 +438,14 @@ class DataManagerBase:
         fee = self._get_fee()
         price = self._get_open_price(signal_mdl)
 
-        quantity = ((total_balance - fee) / price) // symbol_quote_precision
-        return quantity
+        quantity = (total_balance - fee) / price
+
+        rounded_value = Decimal(str(quantity)).quantize(
+            Decimal("1e-{0}".format(symbol_quote_precision)), rounding=ROUND_DOWN
+        )
+
+        quantity_round_down = float(rounded_value)
+        return quantity_round_down
 
     def _get_fee(self) -> float:
         total_balance = self._balance_mng.get_total_balance()
@@ -431,7 +454,7 @@ class DataManagerBase:
         return fee
 
     def _get_open_price(self, signal_mdl: cmn.SignalModel) -> float:
-        return signal_mdl.open
+        return signal_mdl.close
 
     def _recalculate_balance(self):
         # This is negative value for open and position for close position action
@@ -439,6 +462,13 @@ class DataManagerBase:
             operation_value = (
                 -1 * self._current_position.quantity * self._current_position.open_price
             )
+
+            self._balance_mng.add_fee(self._current_position.fee)
+
+            self._balance_mng.recalculate_balance(
+                operation_value=operation_value, fee=self._current_position.fee
+            )
+
         elif self._current_position.status == cmn.OrderStatus.closed:
             operation_value = (
                 self._current_position.quantity * self._current_position.close_price
@@ -446,12 +476,10 @@ class DataManagerBase:
 
             self._balance_mng.add_total_profit(self._current_position.total_profit)
 
+            self._balance_mng.recalculate_balance(operation_value=operation_value)
+
         else:
             return None
-
-        self._balance_mng.recalculate_balance(
-            operation_value=operation_value, fee=self._current_position.fee
-        )
 
 
 class OrderManagerBase(DataManagerBase):
@@ -530,7 +558,12 @@ class LeverageDatabaseManager(LeverageManagerBase):
         return created_position_mdl
 
     def close_position(self, signal_mdl: cmn.SignalModel) -> bool:
-        close_details = super().close_position(signal_mdl)
+        close_details = self._side_mng.get_close_details(
+            position_mdl=self._current_position, signal_mdl=signal_mdl
+        )
+
+        if not close_details:
+            return False
 
         if not close_details:
             return False
@@ -560,7 +593,7 @@ class LeverageLocalDataManager(LeverageManagerBase):
     def __init__(self, session_mdl: cmn.SessionModel):
         super().__init__(session_mdl)
 
-        self._local_positions: dict(cmn.LeverageModel) = None
+        self._local_positions: dict(cmn.LeverageModel) = {}
 
     def open_position(self, signal_mdl: cmn.SignalModel) -> cmn.LeverageModel:
         # Get Template Position Model from the parent
@@ -572,29 +605,38 @@ class LeverageLocalDataManager(LeverageManagerBase):
         # Set the created leverage as a current position
         self._set_current_postion(position_mdl)
 
+        # Recalulate balance after open a position
+        self._recalculate_balance()
+
         # Add current postiojn to the local postion storega
         self._local_positions[position_mdl.id] = position_mdl
 
         return position_mdl
 
     def close_position(self, signal_mdl: cmn.SignalModel) -> bool:
-        close_details = super().close_position(signal_mdl)
+        close_details = self._side_mng.get_close_details(
+            position_mdl=self._current_position, signal_mdl=signal_mdl
+        )
 
         if not close_details:
             return False
 
-        self._local_positions[self._current_position.id][
-            Const.DB_STATUS
-        ] = close_details[Const.DB_STATUS]
-        self._local_positions[self._current_position.id][
-            Const.DB_CLOSE_DATETIME
-        ] = close_details[Const.DB_CLOSE_DATETIME]
-        self._local_positions[self._current_position.id][
+        self._local_positions[self._current_position.id].status = cmn.OrderStatus.closed
+        self._local_positions[
+            self._current_position.id
+        ].close_datetime = signal_mdl.date_time
+        self._local_positions[self._current_position.id].close_price = close_details[
             Const.DB_CLOSE_PRICE
-        ] = close_details[Const.DB_CLOSE_PRICE]
-        self._local_positions[self._current_position.id][
+        ]
+        self._local_positions[self._current_position.id].close_reason = close_details[
             Const.DB_CLOSE_REASON
-        ] = close_details[Const.DB_CLOSE_REASON]
+        ]
+        self._local_positions[self._current_position.id].total_profit = close_details[
+            Const.DB_TOTAL_PROFIT
+        ]
+
+        # Recalulate balance before closing the position
+        self._recalculate_balance()
 
         # Set the current position = None
         self._set_current_postion()
@@ -606,7 +648,7 @@ class LeverageLocalDataManager(LeverageManagerBase):
 
 
 class SideManager:
-    def __ini__(self, session_mdl: cmn.SessionModel):
+    def __init__(self, session_mdl: cmn.SessionModel):
         self._session_mdl: cmn.SessionModel = session_mdl
 
     @staticmethod
