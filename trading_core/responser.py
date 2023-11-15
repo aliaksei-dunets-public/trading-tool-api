@@ -31,6 +31,7 @@ from trading_core.common import (
     OrderModel,
     LeverageModel,
     TransactionModel,
+    SessionStatus,
 )
 from trading_core.handler import (
     UserHandler,
@@ -120,6 +121,27 @@ def job_func_send_email_notification(interval):
     NotificationEmail().send(messages)
 
 
+def job_func_trading_robot(interval):
+    if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+        logger.info(
+            f"JOB: {Const.JOB_TYPE_ROBOT} is triggered for interval - {interval}"
+        )
+
+    # responser = ResponserBot()
+    # notificator = NotificationBot()
+
+    # orders_db = MongoOrders().get_orders(interval=interval)
+    # order_messages = responser.get_signals_for_orders(orders_db)
+    # notificator.send(order_messages)
+
+    # alerts_db = MongoAlerts().get_alerts(
+    #     alert_type=Const.ALERT_TYPE_BOT, interval=interval
+    # )
+
+    # alert_messages = responser.get_signals_for_alerts(alerts_db)
+    # notificator.send(alert_messages)
+
+
 class MessageBase:
     def __init__(self, channel_id: str, message_text: str) -> None:
         self._channel_id = channel_id
@@ -201,7 +223,7 @@ class ResponserBase:
         return Symbols(from_buffer=True).get_symbol(code)
 
     def get_symbol_list(**kwargs) -> list[Symbol]:
-        symbol_handler = SymbolHandler(exchange_handler=ExchangeHandler.get_handler())
+        symbol_handler = buffer_runtime_handler.get_symbol_handler()
 
         return symbol_handler.get_symbol_list(**kwargs)
 
@@ -382,8 +404,7 @@ class ResponserWeb(ResponserBase):
 
     @decorator_json
     def get_symbol_list(*args, **kwargs) -> json:
-        symbol_handler = SymbolHandler(exchange_handler=ExchangeHandler.get_handler())
-
+        symbol_handler = buffer_runtime_handler.get_symbol_handler()
         return symbol_handler.get_symbol_list(**kwargs)
 
     @decorator_json
@@ -598,6 +619,11 @@ class ResponserWeb(ResponserBase):
         return UserHandler.get_user_by_id(id)
 
     @decorator_json
+    def get_user_by_email(self, email: str) -> json:
+        pass
+        # return UserHandler.get_user_by_email(email)
+
+    @decorator_json
     def get_users(self, search: str = None) -> json:
         return UserHandler.get_users(search)
 
@@ -605,13 +631,21 @@ class ResponserWeb(ResponserBase):
     def create_user(self, user_model: UserModel) -> json:
         return UserHandler.create_user(user_model)
 
+    # @decorator_json
+    # def update_user(self, user_model: UserModel) -> json:
+    #     return UserHandler.update_user(user_model)
+
+    # @decorator_json
+    # def delete_user(self, id: str) -> json:
+    #     return UserHandler.delete_user(id)
+
     @decorator_json
     def get_trader(self, id: str) -> json:
         return TraderHandler.get_trader(id)
 
     @decorator_json
-    def get_traders(self, user_id: str = None) -> json:
-        return TraderHandler.get_traders(user_id)
+    def get_traders(self, user_email: str = None) -> json:
+        return TraderHandler.get_traders_by_email(user_email)
 
     @decorator_json
     def create_trader(self, trader_model: TraderModel) -> json:
@@ -622,12 +656,30 @@ class ResponserWeb(ResponserBase):
         return SessionHandler.get_session(id)
 
     @decorator_json
-    def get_sessions(self, user_id: str = None) -> json:
-        return SessionHandler.get_sessions(user_id)
+    def get_sessions(self, user_email: str) -> json:
+        return SessionHandler.get_sessions_by_email(user_email)
 
     @decorator_json
     def create_session(self, session_model: SessionModel) -> json:
         return SessionHandler.create_session(session_model)
+
+    @decorator_json
+    def activate_session(self, session_id: str) -> json:
+        if SessionHandler.update_session(
+            id=session_id, query={"status": SessionStatus.active}
+        ):
+            return {"message": f"Session {session_id} has been activated"}
+        else:
+            raise Exception(f"Error during activation of the session id: {session_id}")
+
+    @decorator_json
+    def inactivate_session(self, session_id: str) -> json:
+        if SessionHandler.update_session(
+            id=session_id, query={"status": SessionStatus.closed}
+        ):
+            return {"message": f"Session {session_id} has been closed"}
+        else:
+            raise Exception(f"Error during closing of the session id: {session_id}")
 
     @decorator_json
     def get_balance(self, id: str) -> json:
@@ -927,6 +979,15 @@ class JobScheduler:
                 CronTrigger(day_of_week="mon-fri", hour="2", jitter=60, timezone="UTC"),
                 id=job_id,
             )
+        elif job_type == Const.JOB_TYPE_ROBOT:
+            job = self.__scheduler.add_job(
+                job_func_trading_robot,
+                self.__generateCronTrigger(interval),
+                id=job_id,
+                args=(interval,),
+            )
+        else:
+            raise Exception(f"Job type {job_type} can't be detected")
 
         # Add job to the runtime buffer
         runtime_buffer.set_job_to_buffer(job)

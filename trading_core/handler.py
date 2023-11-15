@@ -56,6 +56,20 @@ class BufferBaseHandler:
         self._buffer.clear()
 
 
+class BufferSingleDictionary(BufferBaseHandler):
+    def get_buffer(self, key: str) -> dict:
+        if self.is_data_in_buffer(key):
+            return self._buffer[key]
+        else:
+            None
+
+    def is_data_in_buffer(self, key: str) -> bool:
+        return key in self._buffer
+
+    def set_buffer(self, key: str, data: dict):
+        self._buffer[key] = data
+
+
 class BufferHistoryDataHandler(BufferBaseHandler):
     def get_buffer(self, history_data_param: HistoryDataParam, **kwargs) -> HistoryData:
         symbol = history_data_param.symbol
@@ -140,6 +154,16 @@ class BufferTimeFrame(BufferBaseHandler):
 
 
 class UserHandler:
+    def __init__(self):
+        self.__buffer_users: BufferSingleDictionary = BufferSingleDictionary()
+
+    def get_user_by_email(self, email: str) -> UserModel:
+        if not self.__buffer_users.is_data_in_buffer(email):
+            user_mdl = self._get_user_by_email(email)
+            self.__buffer_users.set_buffer(email, user_mdl)
+
+        return self.__buffer_users.get_buffer(email)
+
     @staticmethod
     def create_user(user: UserModel) -> UserModel:
         try:
@@ -157,12 +181,11 @@ class UserHandler:
             raise Exception(f"User {id} doesn't exists")
         return UserModel(**user_db)
 
-    @staticmethod
-    def get_user_by_email(email: str) -> UserModel:
-        user_db_list = MongoUser().get_many({"email": email})
-        if not user_db_list:
+    def _get_user_by_email(self, email: str) -> UserModel:
+        user_db = MongoUser().get_one_by_filter({"email": email})
+        if not user_db:
             raise Exception(f"User {email} doesn't exists")
-        return UserModel(**user_db_list[0])
+        return UserModel(**user_db)
 
     @staticmethod
     def get_technical_user() -> UserModel:
@@ -225,6 +248,13 @@ class TraderHandler:
         return TraderHandler._read_traders(user_id=user_id)
 
     @staticmethod
+    def get_traders_by_email(user_email: str = None) -> list[TraderModel]:
+        user_mdl = buffer_runtime_handler.get_user_handler().get_user_by_email(
+            email=user_email
+        )
+        return TraderHandler._read_traders(user_id=user_mdl.id)
+
+    @staticmethod
     def _read_traders(**kwargs) -> list[TraderModel]:
         entries_db = MongoTrader().get_many(kwargs)
         result = [TraderModel(**entry) for entry in entries_db]
@@ -238,6 +268,10 @@ class SessionHandler:
         return SessionHandler.get_session(id)
 
     @staticmethod
+    def update_session(id: str, query: dict):
+        return MongoSession().update_one(id=id, query=query)
+
+    @staticmethod
     def get_session(id: str) -> SessionModel:
         entry = MongoSession().get_one(id)
         if not entry:
@@ -245,11 +279,20 @@ class SessionHandler:
         return SessionModel(**entry)
 
     @staticmethod
-    def get_sessions(user_id: str = None, status: SessionStatus = None):
+    def get_sessions_by_email(user_email: str):
+        user_mdl = buffer_runtime_handler.get_user_handler().get_user_by_email(
+            email=user_email
+        )
+        return SessionHandler.get_sessions(user_id=user_mdl.id)
+
+    @staticmethod
+    def get_sessions(user_id: str = None, interval: str = None, status: SessionStatus = None):
         query = {}
 
         if user_id:
             query[Const.DB_USER_ID] = user_id
+        if interval:
+            query[Const.DB_INTERVAL] = interval
         if status:
             query[Const.DB_STATUS] = status
 
@@ -462,7 +505,7 @@ class SymbolHandler(BaseOnExchangeHandler):
     def __init__(self, exchange_handler: ExchangeHandler = None):
         super().__init__(exchange_handler)
         self._buffer_symbols: BufferBaseHandler = BufferBaseHandler()
-        self._buffer_timeframes: BufferTimeFrame = BufferTimeFrame()
+        self._buffer_timeframes: BufferSingleDictionary = BufferSingleDictionary()
 
     def is_valid_symbol(self, symbol: str) -> bool:
         return symbol in self.get_symbols()
@@ -477,9 +520,7 @@ class SymbolHandler(BaseOnExchangeHandler):
             # Send a request to an API to get symbols
             timeframe = self._exchange_handler.calculate_trading_timeframe(trading_time)
             # Set fetched symbols to the buffer
-            self._buffer_timeframes.set_buffer(
-                trading_time=trading_time, timeframe=timeframe
-            )
+            self._buffer_timeframes.set_buffer(key=trading_time, data=timeframe)
 
         return self._exchange_handler.is_trading_available(
             interval=interval, trading_timeframes=timeframe
@@ -528,7 +569,7 @@ class SymbolHandler(BaseOnExchangeHandler):
             else:
                 symbol_list.append(symbol_model)
 
-        return symbol_list
+        return sorted(symbol_list, key=lambda x: x.symbol)
 
     def get_symbol_id_list(self, **kwargs) -> list:
         symbol_id_list = []
@@ -590,6 +631,7 @@ class BufferRuntimeHandlers:
             class_._instance = object.__new__(class_, *args, **kwargs)
             class_.__symbol_handler = {}
             class_.__history_data_handler = {}
+            class_.__user_handler = UserHandler()
         return class_._instance
 
     def get_symbol_handler(
@@ -618,9 +660,13 @@ class BufferRuntimeHandlers:
 
         return self.__history_data_handler[trader_id]
 
+    def get_user_handler(self):
+        return self.__user_handler
+
     def clear_buffer(self):
         self.__symbol_handler = {}
         self.__history_data_handler = {}
+        self.__user_handler = {}
 
 
 ########################### Legacy code ####################################

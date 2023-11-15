@@ -22,11 +22,23 @@ class SessionManager {
     #_trader_mng: TraderBase
 
     +run()
+    +get_posistions()
+    +get_balance_manager()
 }
 
 class TransactionManager
 
-class BalanceManager
+class BalanceManager {
+    -__balance_mdl: BalanceModel
+    -__change_indicator: bool
+
+    +get_account_id()
+    +get_total_balance()
+    +add_fee(float)
+    +add_total_profit(float)
+    +recalculate_balance(operation_value: float, fee: float)
+    +save_balance()
+}
 
 class TraderBase {
     +session_mdl: SessionModel

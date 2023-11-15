@@ -1,9 +1,13 @@
 from flask import Flask, jsonify, request
+import pandas as pd
+import bson.json_util as json_util
 
 import bot as Bot
+from trading_core.core import logger
 from trading_core.constants import Const
 from trading_core.responser import ResponserWeb, ParamSimulationList, SimulateOptions
 from trading_core.common import (
+    BaseModel,
     UserModel,
     TraderModel,
     SessionModel,
@@ -23,10 +27,38 @@ app = Flask(__name__)
 responser = ResponserWeb()
 
 
+def decorator_json(func) -> str:
+    def wrapper(*args, **kwargs):
+        try:
+            value = func(*args, **kwargs)
+
+            if isinstance(value, pd.DataFrame):
+                return value.to_json(orient="table", index=True), 200
+            if isinstance(value, list) and all(
+                isinstance(item, BaseModel) for item in value
+            ):
+                return jsonify([item.model_dump() for item in value]), 200
+            elif isinstance(value, BaseModel):
+                return jsonify(value.model_dump()), 200
+            else:
+                return json_util.dumps(value), 200
+
+        except Exception as error:
+            logger.error(f"{func} - {error}")
+            return jsonify({"error": f"{error}"}), 400
+
+    return wrapper
+
+
 ######################### User #############################
 @app.route("/user/<id>", methods=["GET"])
 def get_user(id):
     return responser.get_user(id)
+
+
+@app.route("/user/email/<email>", methods=["GET"])
+def get_user_by_email(email):
+    return responser.get_user_by_email(email)
 
 
 @app.route("/users", methods=["GET"])
@@ -42,6 +74,13 @@ def create_user():
     return responser.create_user(user_model)
 
 
+# @app.route("/user", methods=["PUT"])
+# def create_user():
+#     user_data = request.get_json()
+#     user_model = UserModel(**user_data)
+#     return responser.create_user(user_model)
+
+
 ######################### Trader ###########################
 @app.route("/trader/<id>", methods=["GET"])
 def get_trader(id):
@@ -50,8 +89,8 @@ def get_trader(id):
 
 @app.route("/traders", methods=["GET"])
 def get_traders():
-    user_id = request.args.get("user_id")
-    return responser.get_traders(user_id)
+    user_email = request.headers.get("User-Email")
+    return responser.get_traders(user_email)
 
 
 @app.route("/trader", methods=["POST"])
@@ -69,8 +108,8 @@ def get_session(id):
 
 @app.route("/sessions", methods=["GET"])
 def get_sessions():
-    user_id = request.args.get("user_id")
-    return responser.get_sessions(user_id)
+    user_email = request.headers.get("User-Email")
+    return responser.get_sessions(user_email)
 
 
 @app.route("/session", methods=["POST"])
@@ -78,6 +117,16 @@ def create_session():
     session_data = request.get_json()
     session_model = SessionModel(**session_data)
     return responser.create_session(session_model)
+
+
+@app.route("/session/<session_id>/activate", methods=["POST"])
+def activate_session(session_id):
+    return responser.activate_session(session_id)
+
+
+@app.route("/session/<session_id>/inactivate", methods=["POST"])
+def stop_session(session_id):
+    return responser.inactivate_session(session_id)
 
 
 ######################### Balance ###########################
@@ -445,14 +494,11 @@ def get_simulate():
 
 @app.route("/history_simulation", methods=["GET"])
 def get_history_simulation():
-    # symbols = request.args.getlist("symbol", None)
+    symbol = request.args.get("symbol", None)
     interval = request.args.get("interval", "5m")
     strategy = request.args.get("strategy", StrategyType.CCI_20_TREND_100)
-    # init_balance = request.args.get(Const.SRV_INIT_BALANCE)
-    # limit = request.args.get(Const.LIMIT)
     stop_loss_rate = request.args.get(Const.SRV_STOP_LOSS_RATE, 0)
     take_profit_rate = request.args.get(Const.SRV_TAKE_PROFIT_RATE, 0)
-    # fee_rate = request.args.get(Const.SRV_FEE_RATE)
 
     try:
         session_data = {
@@ -461,7 +507,7 @@ def get_history_simulation():
             # "status": "",
             "trading_type": TradingType.LEVERAGE,
             "session_type": SessionType.HISTORY,
-            "symbol": "BTC/USD_LEVERAGE",
+            "symbol": symbol,
             "interval": interval,
             "strategy": strategy,
             "take_profit_rate": take_profit_rate,
@@ -472,7 +518,7 @@ def get_history_simulation():
         session_mng = SessionManager(session_mdl)
         session_mng.run()
 
-        balance_mdl = session_mng.get_balance_manager().get_balance()
+        balance_mdl = session_mng.get_balance_manager().get_balance_model()
         posistions = [item.model_dump() for item in session_mng.get_positions()]
 
         response = {

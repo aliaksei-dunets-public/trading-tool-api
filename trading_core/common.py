@@ -280,21 +280,33 @@ class SessionModel(AdminModel, IdentifierModel, SymbolIntervalStrategyModel):
         }
 
 
-class OrderModel(AdminModel, IdentifierModel, SymbolIdModel):
+class OrderCloseModel(BaseModel):
+    status: OrderStatus = OrderStatus.new
+    close_price: float = 0
+    close_datetime: datetime = datetime.now()
+    close_reason: OrderCloseReason = ""
+    total_profit: float = 0
+
+    def to_mongodb_doc(self):
+        return {
+            "status": self.status,
+            "close_price": self.close_price,
+            "close_datetime": self.close_datetime,
+            "close_reason": self.close_reason,
+            "total_profit": self.total_profit,
+        }
+
+
+class OrderModel(AdminModel, IdentifierModel, SymbolIdModel, OrderCloseModel):
     session_id: str
     type: OrderType = OrderType.market
     side: OrderSideType
-    status: OrderStatus = OrderStatus.new
     quantity: float
     fee: float = 0
     stop_loss: float = 0
     take_profit: float = 0
     open_price: float
     open_datetime: datetime = datetime.now()
-    close_price: float = 0
-    close_datetime: datetime = datetime.now()
-    close_reason: OrderCloseReason = ""
-    total_profit: float = 0
 
     def to_mongodb_doc(self):
         order = {
@@ -360,14 +372,15 @@ class TransactionModel(AdminModel, IdentifierModel):
     price: float
     quantity: float
     fee: float = 0
+    date_time: datetime
 
     def to_mongodb_doc(self):
         return {
             "order_id": self.order_id,
-            "leverage_id": self.leverage_id,
             "session_id": self.session_id,
             "type": self.type,
             "price": self.price,
             "quantity": self.quantity,
             "fee": self.fee,
+            "date_time": self.date_time,
         }

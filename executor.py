@@ -13,31 +13,33 @@ from trading_core.handler import (
 
 from trading_core.common import TradingType, SessionType, StrategyType
 
-from trading_core.robot import SessionManager
+from trading_core.robot import SessionManager, Robot
+
+Robot().run()
 
 # session_mdl = SessionHandler.get_session(id="654bc2351536fced145c3cfa")
 
-session_data = {
-    "trader_id": "65443f637b025235de0fb5d7",
-    "user_id": "65419b27e3a8c7e9690860cb",
-    # "status": "",
-    "trading_type": TradingType.LEVERAGE,
-    "session_type": SessionType.HISTORY,
-    "symbol": "BTC/USD_LEVERAGE",
-    "interval": "5m",
-    "strategy": StrategyType.CCI_20_TREND_100,
-    "take_profit_rate": 10,
-    "stop_loss_rate": 5,
-}
+# session_data = {
+#     "trader_id": "65443f637b025235de0fb5d7",
+#     "user_id": "65419b27e3a8c7e9690860cb",
+#     # "status": "",
+#     "trading_type": TradingType.LEVERAGE,
+#     "session_type": SessionType.HISTORY,
+#     "symbol": "BTC/USD_LEVERAGE",
+#     "interval": "5m",
+#     "strategy": StrategyType.CCI_20_TREND_100,
+#     "take_profit_rate": 10,
+#     "stop_loss_rate": 5,
+# }
 
-session_mdl = SessionModel(**session_data)
-session_mng = SessionManager(session_mdl)
-session_mng.run()
+# session_mdl = SessionModel(**session_data)
+# session_mng = SessionManager(session_mdl)
+# session_mng.run()
 
-print(session_mng.get_balance_manager().get_balance())
+# print(session_mng.get_balance_manager().get_balance_model())
 
-print("Positions:")
-print(session_mng.get_positions())
+# print("Positions:")
+# print(session_mng.get_positions())
 
 
 ########################## New Model ###############################################
