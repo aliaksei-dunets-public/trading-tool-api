@@ -2,9 +2,10 @@ import pandas as pd
 
 from .constants import Const
 from .core import logger, config, runtime_buffer, HistoryData, Signal
-from .model import model, Symbols
+from .model import model, Symbols, ParamSymbolInterval
 from .indicator import Indicator_CCI
 from .handler import buffer_runtime_handler
+from .trend import TrendCCI
 
 
 class SignalFactory:
@@ -126,6 +127,8 @@ class StrategyFactory:
             self.__instance = Strategy_CCI(strategy_config_inst)
         elif code == Const.TA_STRATEGY_CCI_14_TREND_170_165:
             self.__instance = StrategyDirectionTrend_CCI(strategy_config_inst)
+        elif code == Const.TA_STRATEGY_CCI_14_BASED_TREND_100:
+            self.__instance = StrategyDirectionTrend_CCI_14(strategy_config_inst)
         else:
             raise Exception(f"STARTEGY: Strategy with code {code} is missed")
 
@@ -329,6 +332,55 @@ class StrategyDirectionTrend_CCI(Strategy_CCI):
                 and previous_value < -self._close_value
             ):
                 decision = Const.BUY
+
+            signals.append(decision)
+
+        return signals
+
+
+class StrategyDirectionTrend_CCI_14(Strategy_CCI):
+    def get_strategy_data_by_history_data(self, historyData: HistoryData):
+        param = ParamSymbolInterval(
+            symbol=historyData.getSymbol(), interval=Const.TA_INTERVAL_30M
+        )
+
+        trend_info = TrendCCI().detect_trend(param)
+
+        cci_df = self._cci.get_indicator_by_history_data(historyData)
+        cci_df.insert(
+            cci_df.shape[1],
+            Const.PARAM_SIGNAL,
+            self._determineSignal(cci_df, trend_info),
+        )
+
+        return cci_df
+
+    def _determineSignal(self, cci_df, trend_info: dict):
+        signals = []
+
+        for i in range(len(cci_df)):
+            decision = ""
+
+            if i == 0:
+                signals.append(decision)
+                continue
+
+            current_value = cci_df.iloc[i, 5]
+            previous_value = cci_df.iloc[i - 1, 5]
+
+            # if trend_info[Const.PARAM_TREND] == Const.TREND_UP
+
+            if current_value > self._value:
+                if previous_value < self._value:
+                    decision = Const.BUY
+            elif current_value < -self._value:
+                if previous_value > -self._value:
+                    decision = Const.SELL
+            else:
+                if previous_value > self._value:
+                    decision = Const.STRONG_SELL
+                elif previous_value < -self._value:
+                    decision = Const.STRONG_BUY
 
             signals.append(decision)
 

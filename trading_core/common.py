@@ -40,6 +40,7 @@ class OrderCloseReason(str, Enum):
     STOP_LOSS = "Stop Loss"
     TAKE_PROFIT = "Take Profit"
     SIGNAL = "Signal"
+    NONE = ""
 
 
 class TransactionType(str, Enum):
@@ -284,7 +285,7 @@ class OrderCloseModel(BaseModel):
     status: OrderStatus = OrderStatus.new
     close_price: float = 0
     close_datetime: datetime = datetime.now()
-    close_reason: OrderCloseReason = ""
+    close_reason: OrderCloseReason = OrderCloseReason.NONE
     total_profit: float = 0
 
     def to_mongodb_doc(self):
@@ -327,7 +328,7 @@ class OrderModel(AdminModel, IdentifierModel, SymbolIdModel, OrderCloseModel):
             "total_profit": self.total_profit,
         }
 
-        if self.id:
+        if not self.id in [None, "None", ""]:
             order["_id"] = ObjectId(self.id)
 
         return order
@@ -359,7 +360,7 @@ class LeverageModel(OrderModel):
             "close_reason": self.close_reason,
         }
 
-        if self.id:
+        if not self.id in [None, "None", ""]:
             leverage["_id"] = ObjectId(self.id)
 
         return leverage

@@ -4,6 +4,7 @@ import pandas as pd
 from datetime import datetime
 import logging
 from apscheduler.job import Job
+
 # from logging.handlers import TimedRotatingFileHandler
 
 from .constants import Const
@@ -17,12 +18,14 @@ date_format = "%Y-%m-%d"
 current_date = datetime.utcnow().strftime(date_format)
 log_file_name = log_file_prefix + current_date + log_file_suffix
 
-logging.basicConfig(level=logging.INFO,
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                    handlers=[
-                        # TimedRotatingFileHandler(log_file_name, when='midnight', backupCount=7),
-                        logging.StreamHandler()
-                    ])
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[
+        # TimedRotatingFileHandler(log_file_name, when='midnight', backupCount=7),
+        logging.StreamHandler()
+    ],
+)
 
 logger = logging.getLogger("trading_core")
 # logger.info(f"Log file created at {datetime.now()}")
@@ -32,22 +35,32 @@ class Symbol:
     def __init__(self, code: str, name: str, status: str, type: str, tradingTime: str):
         self.code = code
         self.name = name
-        self.descr = f'{name} ({code})'
+        self.descr = f"{name} ({code})"
         self.status = status
         self.tradingTime = tradingTime
         self.type = type
 
     def get_symbol_json(self):
-        return {Const.CODE: self.code,
-                Const.NAME: self.name,
-                Const.DESCR: self.descr,
-                Const.STATUS: self.status,
-                Const.TRADING_TIME: self.tradingTime,
-                Const.PARAM_SYMBOL_TYPE: self.type}
+        return {
+            Const.CODE: self.code,
+            Const.NAME: self.name,
+            Const.DESCR: self.descr,
+            Const.STATUS: self.status,
+            Const.TRADING_TIME: self.tradingTime,
+            Const.PARAM_SYMBOL_TYPE: self.type,
+        }
 
 
 class CandelBar:
-    def __init__(self, date_time: datetime, open: float, high: float, low: float, close: float, volume: float) -> None:
+    def __init__(
+        self,
+        date_time: datetime,
+        open: float,
+        high: float,
+        low: float,
+        close: float,
+        volume: float,
+    ) -> None:
         self.date_time = date_time
         self.open = open
         self.high = high
@@ -57,14 +70,25 @@ class CandelBar:
 
 
 class CandelBarSignal(CandelBar):
-    def __init__(self, date_time: datetime, open: float, high: float, low: float, close: float, volume: float, signal: str) -> None:
-        CandelBar.__init__(self,
-                           date_time=date_time,
-                           open=open,
-                           high=high,
-                           low=low,
-                           close=close,
-                           volume=volume)
+    def __init__(
+        self,
+        date_time: datetime,
+        open: float,
+        high: float,
+        low: float,
+        close: float,
+        volume: float,
+        signal: str,
+    ) -> None:
+        CandelBar.__init__(
+            self,
+            date_time=date_time,
+            open=open,
+            high=high,
+            low=low,
+            close=close,
+            volume=volume,
+        )
 
         self.signal = signal
 
@@ -123,8 +147,15 @@ class SimulateOptions:
             return self.get_balance() / price
 
 
-class Signal():
-    def __init__(self, date_time: datetime, symbol: str, interval: str, strategy: str, signal: str):
+class Signal:
+    def __init__(
+        self,
+        date_time: datetime,
+        symbol: str,
+        interval: str,
+        strategy: str,
+        signal: str,
+    ):
         self.__date_time = date_time
         self.__symbol = symbol
         self.__interval = interval
@@ -132,11 +163,13 @@ class Signal():
         self.__signal = signal
 
     def get_signal_dict(self) -> dict:
-        return {Const.DATETIME: self.__date_time.isoformat(),
-                Const.PARAM_SYMBOL: self.__symbol,
-                Const.INTERVAL: self.__interval,
-                Const.STRATEGY: self.__strategy,
-                Const.PARAM_SIGNAL: self.__signal}
+        return {
+            Const.DATETIME: self.__date_time.isoformat(),
+            Const.PARAM_SYMBOL: self.__symbol,
+            Const.INTERVAL: self.__interval,
+            Const.STRATEGY: self.__strategy,
+            Const.PARAM_SIGNAL: self.__signal,
+        }
 
     def get_date_time(self) -> datetime:
         return self.__date_time
@@ -154,15 +187,18 @@ class Signal():
         return self.__signal
 
     def is_compatible(self, signals_config: list = []) -> bool:
-        if Const.DEBUG_SIGNAL in signals_config \
-                or not signals_config and self.__signal \
-                or (signals_config and (self.__signal in signals_config)):
+        if (
+            Const.DEBUG_SIGNAL in signals_config
+            or not signals_config
+            and self.__signal
+            or (signals_config and (self.__signal in signals_config))
+        ):
             return True
         else:
             return False
 
 
-class RuntimeBufferStore():
+class RuntimeBufferStore:
     _instance = None
 
     def __new__(class_, *args, **kwargs):
@@ -177,7 +213,7 @@ class RuntimeBufferStore():
 
     def getSymbolsFromBuffer(self) -> dict[Symbol]:
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
-            logger.info(f'BUFFER: getSymbols()')
+            logger.info(f"BUFFER: getSymbols()")
 
         return self.__symbol_buffer
 
@@ -208,9 +244,10 @@ class RuntimeBufferStore():
     def clearTimeframeBuffer(self):
         self.__timeframe_buffer.clear()
 
-    def getHistoryDataFromBuffer(self, symbol: str, interval: str, limit: int, endDatetime: datetime) -> HistoryData:
-        buffer_key = self.getHistoryDataBufferKey(
-            symbol=symbol, interval=interval)
+    def getHistoryDataFromBuffer(
+        self, symbol: str, interval: str, limit: int, endDatetime: datetime
+    ) -> HistoryData:
+        buffer_key = self.getHistoryDataBufferKey(symbol=symbol, interval=interval)
         history_data_buffer = self.__history_data_buffer[buffer_key]
         df_buffer = history_data_buffer.getDataFrame()
 
@@ -222,20 +259,26 @@ class RuntimeBufferStore():
         df_required = df_required.tail(limit)
 
         history_data_required = HistoryData(
-            symbol=symbol, interval=interval, limit=limit, dataFrame=df_required)
+            symbol=symbol, interval=interval, limit=limit, dataFrame=df_required
+        )
 
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
             logger.info(
-                f'BUFFER: getHistoryData(symbol={symbol}, interval={interval}, limit={limit}, endDatetime={endDatetime})')
+                f"BUFFER: getHistoryData(symbol={symbol}, interval={interval}, limit={limit}, endDatetime={endDatetime})"
+            )
 
         return history_data_required
 
-    def validateHistoryDataInBuffer(self, symbol: str, interval: str, limit: int, endDatetime: datetime) -> bool:
-        buffer_key = self.getHistoryDataBufferKey(
-            symbol=symbol, interval=interval)
+    def validateHistoryDataInBuffer(
+        self, symbol: str, interval: str, limit: int, endDatetime: datetime
+    ) -> bool:
+        buffer_key = self.getHistoryDataBufferKey(symbol=symbol, interval=interval)
         if self.checkHistoryDataInBuffer(symbol, interval):
             history_data_buffer = self.__history_data_buffer[buffer_key]
-            if limit <= history_data_buffer.getLimit() and endDatetime <= history_data_buffer.getEndDateTime():
+            if (
+                limit <= history_data_buffer.getLimit()
+                and endDatetime <= history_data_buffer.getEndDateTime()
+            ):
                 return True
             else:
                 return False
@@ -243,8 +286,7 @@ class RuntimeBufferStore():
             return False
 
     def checkHistoryDataInBuffer(self, symbol: str, interval: str) -> bool:
-        buffer_key = self.getHistoryDataBufferKey(
-            symbol=symbol, interval=interval)
+        buffer_key = self.getHistoryDataBufferKey(symbol=symbol, interval=interval)
         if buffer_key in self.__history_data_buffer:
             return True
         else:
@@ -253,33 +295,41 @@ class RuntimeBufferStore():
     def setHistoryDataToBuffer(self, history_data_inst: HistoryData):
         if history_data_inst:
             buffer_key = self.getHistoryDataBufferKey(
-                symbol=history_data_inst.getSymbol(), interval=history_data_inst.getInterval())
+                symbol=history_data_inst.getSymbol(),
+                interval=history_data_inst.getInterval(),
+            )
             self.__history_data_buffer[buffer_key] = history_data_inst
 
     def getHistoryDataBufferKey(self, symbol: str, interval: str) -> tuple:
         if not symbol or not interval:
             Exception(
-                f'History Data buffer key is invalid: symbol: {symbol}, interval: {interval}')
+                f"History Data buffer key is invalid: symbol: {symbol}, interval: {interval}"
+            )
         buffer_key = (symbol, interval)
         return buffer_key
 
     def clearHistoryDataBuffer(self):
         self.__history_data_buffer.clear()
 
-    def get_signal_from_buffer(self, symbol: str, interval: str, strategy: str, date_time: datetime) -> Signal:
+    def get_signal_from_buffer(
+        self, symbol: str, interval: str, strategy: str, date_time: datetime
+    ) -> Signal:
         buffer_key = self.get_signal_buffer_key(
-            symbol=symbol, interval=interval, strategy=strategy)
+            symbol=symbol, interval=interval, strategy=strategy
+        )
 
-        if not self.check_signal_in_buffer(symbol=symbol, interval=interval, strategy=strategy):
+        if not self.check_signal_in_buffer(
+            symbol=symbol, interval=interval, strategy=strategy
+        ):
             return None
 
         signal_buffer_inst = self.__signal_buffer[buffer_key]
 
         if date_time == signal_buffer_inst.get_date_time():
-
             if config.get_config_value(Const.CONFIG_DEBUG_LOG):
                 logger.info(
-                    f'BUFFER: get_signal(symbol={symbol}, interval={interval}, strategy={strategy}, date_time={date_time})')
+                    f"BUFFER: get_signal(symbol={symbol}, interval={interval}, strategy={strategy}, date_time={date_time})"
+                )
 
             return signal_buffer_inst
         else:
@@ -287,7 +337,8 @@ class RuntimeBufferStore():
 
     def check_signal_in_buffer(self, symbol: str, interval: str, strategy: str) -> bool:
         buffer_key = self.get_signal_buffer_key(
-            symbol=symbol, interval=interval, strategy=strategy)
+            symbol=symbol, interval=interval, strategy=strategy
+        )
         if buffer_key in self.__signal_buffer:
             return True
         else:
@@ -296,13 +347,17 @@ class RuntimeBufferStore():
     def set_signal_to_buffer(self, signal_inst: Signal):
         if signal_inst:
             buffer_key = self.get_signal_buffer_key(
-                symbol=signal_inst.get_symbol(), interval=signal_inst.get_interval(), strategy=signal_inst.get_strategy())
+                symbol=signal_inst.get_symbol(),
+                interval=signal_inst.get_interval(),
+                strategy=signal_inst.get_strategy(),
+            )
             self.__signal_buffer[buffer_key] = signal_inst
 
     def get_signal_buffer_key(self, symbol: str, interval: str, strategy: str) -> tuple:
         if not symbol or not interval or not strategy:
             Exception(
-                f'Signal buffer key is invalid: symbol: {symbol}, interval: {interval}, strategy: {strategy}')
+                f"Signal buffer key is invalid: symbol: {symbol}, interval: {interval}, strategy: {strategy}"
+            )
         buffer_key = (symbol, interval, strategy)
         return buffer_key
 
@@ -340,7 +395,9 @@ class Config:
     def get_env_value(self, property: str) -> str:
         env_value = os.getenv(property)
         if not env_value:
-            logger.error(f'CONFIG: {property} is not maintained in the environment values')
+            logger.error(
+                f"CONFIG: {property} is not maintained in the environment values"
+            )
         return env_value
 
     def get_stock_exchange_id(self) -> str:
@@ -348,7 +405,9 @@ class Config:
         # return Const.STOCK_EXCH_LOCAL_CURRENCY_COM
 
     def get_indicators_config(self) -> list:
-        return [{Const.CODE: Const.TA_INDICATOR_CCI, Const.NAME: "Commodity Channel Index"}]
+        return [
+            {Const.CODE: Const.TA_INDICATOR_CCI, Const.NAME: "Commodity Channel Index"}
+        ]
 
     def get_strategies_config(self):
         strategies = {
@@ -356,7 +415,13 @@ class Config:
                 Const.CODE: Const.TA_STRATEGY_CCI_14_TREND_100,
                 Const.NAME: "CCI(14): Indicator against Trend +/- 100",
                 Const.LENGTH: 14,
-                Const.VALUE: 100
+                Const.VALUE: 100,
+            },
+            Const.TA_STRATEGY_CCI_14_BASED_TREND_100: {
+                Const.CODE: Const.TA_STRATEGY_CCI_14_BASED_TREND_100,
+                Const.NAME: "CCI(14): Direction Trend +/- 100",
+                Const.LENGTH: 14,
+                Const.VALUE: 100,
             },
             Const.TA_STRATEGY_CCI_14_TREND_170_165: {
                 Const.CODE: Const.TA_STRATEGY_CCI_14_TREND_170_165,
@@ -370,19 +435,19 @@ class Config:
                 Const.CODE: Const.TA_STRATEGY_CCI_20_TREND_100,
                 Const.NAME: "CCI(20): Indicator against Trend +/- 100",
                 Const.LENGTH: 20,
-                Const.VALUE: 100
+                Const.VALUE: 100,
             },
             Const.TA_STRATEGY_CCI_50_TREND_0: {
                 Const.CODE: Const.TA_STRATEGY_CCI_50_TREND_0,
                 Const.NAME: "CCI(50): Indicator direction Trend 0",
                 Const.LENGTH: 50,
-                Const.VALUE: 0
-            }}
+                Const.VALUE: 0,
+            },
+        }
 
         return strategies
 
     def get_default_simulation_options(self, interval: str) -> list[SimulateOptions]:
-
         init_balance = 100
         # Strategy ofset
         limit = 300 + 50
@@ -415,23 +480,29 @@ class Config:
             rate_step_2 = 20
             limit = 100 + 50
 
-        return [SimulateOptions(init_balance=init_balance,
-                                limit=limit,
-                                stop_loss_rate=stop_loss_rate,
-                                take_profit_rate=take_profit_rate,
-                                fee_rate=fee_rate),
-                SimulateOptions(init_balance=init_balance,
-                                limit=limit,
-                                stop_loss_rate=stop_loss_rate + rate_step_1,
-                                take_profit_rate=take_profit_rate +
-                                (rate_step_1*3),
-                                fee_rate=fee_rate),
-                SimulateOptions(init_balance=init_balance,
-                                limit=limit,
-                                stop_loss_rate=stop_loss_rate + rate_step_2,
-                                take_profit_rate=take_profit_rate +
-                                (rate_step_2*3),
-                                fee_rate=fee_rate)]
+        return [
+            SimulateOptions(
+                init_balance=init_balance,
+                limit=limit,
+                stop_loss_rate=stop_loss_rate,
+                take_profit_rate=take_profit_rate,
+                fee_rate=fee_rate,
+            ),
+            SimulateOptions(
+                init_balance=init_balance,
+                limit=limit,
+                stop_loss_rate=stop_loss_rate + rate_step_1,
+                take_profit_rate=take_profit_rate + (rate_step_1 * 3),
+                fee_rate=fee_rate,
+            ),
+            SimulateOptions(
+                init_balance=init_balance,
+                limit=limit,
+                stop_loss_rate=stop_loss_rate + rate_step_2,
+                take_profit_rate=take_profit_rate + (rate_step_2 * 3),
+                fee_rate=fee_rate,
+            ),
+        ]
 
 
 config = Config()

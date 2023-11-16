@@ -122,9 +122,9 @@ class MongoAlerts(MongoBase):
         self, alert_type: str = None, symbol: str = None, interval: str = None
     ) -> list:
         query = {}
-        query = self.add_param_to_query(
-            query=query, param=Const.DB_ALERT_TYPE, value=alert_type
-        )
+        # query = self.add_param_to_query(
+        #     query=query, param=Const.DB_ALERT_TYPE, value=alert_type
+        # )
         query = self.add_param_to_query(
             query=query, param=Const.DB_SYMBOL, value=symbol
         )

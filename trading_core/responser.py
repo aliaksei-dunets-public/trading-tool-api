@@ -43,6 +43,7 @@ from trading_core.handler import (
     TransactionHandler,
     buffer_runtime_handler,
 )
+from trading_core.robot import Robot
 
 load_dotenv()
 
@@ -92,10 +93,6 @@ def job_func_send_bot_notification(interval):
     responser = ResponserBot()
     notificator = NotificationBot()
 
-    orders_db = MongoOrders().get_orders(interval=interval)
-    order_messages = responser.get_signals_for_orders(orders_db)
-    notificator.send(order_messages)
-
     alerts_db = MongoAlerts().get_alerts(
         alert_type=Const.ALERT_TYPE_BOT, interval=interval
     )
@@ -127,19 +124,7 @@ def job_func_trading_robot(interval):
             f"JOB: {Const.JOB_TYPE_ROBOT} is triggered for interval - {interval}"
         )
 
-    # responser = ResponserBot()
-    # notificator = NotificationBot()
-
-    # orders_db = MongoOrders().get_orders(interval=interval)
-    # order_messages = responser.get_signals_for_orders(orders_db)
-    # notificator.send(order_messages)
-
-    # alerts_db = MongoAlerts().get_alerts(
-    #     alert_type=Const.ALERT_TYPE_BOT, interval=interval
-    # )
-
-    # alert_messages = responser.get_signals_for_alerts(alerts_db)
-    # notificator.send(alert_messages)
+    Robot().run(interval)
 
 
 class MessageBase:

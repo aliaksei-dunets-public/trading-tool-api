@@ -27,8 +27,10 @@ from .strategy import StrategyFactory
 
 
 class Robot:
-    def run(self):
-        active_sessions = SessionHandler.get_sessions(status=cmn.SessionStatus.active)
+    def run(self, interval: str):
+        active_sessions = SessionHandler.get_sessions(
+            interval=interval, status=cmn.SessionStatus.active
+        )
 
         for session_mdl in active_sessions:
             try:
@@ -323,7 +325,7 @@ class DataManagerBase:
         )
 
         logger.info(
-            f"{self.__class__.__name__}: Position {created_position_mdl.id} has been opened"
+            f"{self.__class__.__name__}: Position {created_position_mdl.id} for {created_position_mdl.open_datetime} has been opened"
         )
 
         return created_position_mdl
@@ -342,7 +344,7 @@ class DataManagerBase:
                 )
 
                 logger.info(
-                    f"{self.__class__.__name__}: Position {position_id} has been closed"
+                    f"{self.__class__.__name__}: Position {position_id} for {signal_mdl.date_time} has been closed"
                 )
 
         return result

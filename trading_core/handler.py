@@ -157,6 +157,9 @@ class UserHandler:
     def __init__(self):
         self.__buffer_users: BufferSingleDictionary = BufferSingleDictionary()
 
+    def get_buffer(self) -> BufferSingleDictionary:
+        return self.__buffer_users
+
     def get_user_by_email(self, email: str) -> UserModel:
         if not self.__buffer_users.is_data_in_buffer(email):
             user_mdl = self._get_user_by_email(email)
@@ -286,7 +289,9 @@ class SessionHandler:
         return SessionHandler.get_sessions(user_id=user_mdl.id)
 
     @staticmethod
-    def get_sessions(user_id: str = None, interval: str = None, status: SessionStatus = None):
+    def get_sessions(
+        user_id: str = None, interval: str = None, status: SessionStatus = None
+    ):
         query = {}
 
         if user_id:
@@ -666,7 +671,7 @@ class BufferRuntimeHandlers:
     def clear_buffer(self):
         self.__symbol_handler = {}
         self.__history_data_handler = {}
-        self.__user_handler = {}
+        self.__user_handler.get_buffer().clear_buffer()
 
 
 ########################### Legacy code ####################################

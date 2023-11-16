@@ -11,11 +11,28 @@ from trading_core.handler import (
     SessionHandler,
 )
 
+from trading_core.simulation import Const, SimulateOptions, Executor
+from trading_core.core import config
+from trading_core.model import (
+    model,
+    Symbols,
+    ParamSimulation,
+    ParamSymbolInterval,
+    ParamSymbolIntervalList,
+    ParamSymbolIntervalLimit,
+    ParamSimulationList,
+)
+from trading_core.trend import TrendCCI, Indicator_CCI
+from trading_core.handler import CurrencyComApi, LocalCurrencyComApi
 from trading_core.common import TradingType, SessionType, StrategyType
 
-from trading_core.robot import SessionManager, Robot
+# from trading_core.robot import SessionManager, Robot
+from trading_core.responser import (
+    job_func_send_bot_notification,
+    job_func_trading_robot,
+)
 
-Robot().run()
+job_func_send_bot_notification("5m")
 
 # session_mdl = SessionHandler.get_session(id="654bc2351536fced145c3cfa")
 
@@ -141,33 +158,24 @@ Robot().run()
 
 ########################### Trend ###############################################
 
-# symbol = 'Natural Gas'
-# interval = Const.TA_INTERVAL_4H
+# symbol = "BTC/USD"
+# interval = Const.TA_INTERVAL_30M
 # strategy = Const.TA_STRATEGY_CCI_20_TREND_100
 
-# param = ParamSymbolIntervalLimit(symbol=symbol,
-#                                  interval=interval,
-#                                  limit=100)
+param = ParamSymbolIntervalLimit(symbol=symbol, interval=interval, limit=100)
 
-# params = [
-#     ParamSymbolInterval(symbol=symbol,
-#                               interval=Const.TA_INTERVAL_5M),
-#           ParamSymbolInterval(symbol=symbol,
-#                               interval=Const.TA_INTERVAL_15M),
-#           ParamSymbolInterval(symbol=symbol,
-#                               interval=Const.TA_INTERVAL_30M),
-#           ParamSymbolInterval(symbol=symbol,
-#                               interval=Const.TA_INTERVAL_1H),
-#           ParamSymbolInterval(symbol=symbol,
-#                               interval=Const.TA_INTERVAL_4H),
-#           ParamSymbolInterval(symbol=symbol,
-#                               interval=Const.TA_INTERVAL_1D),
-#           ParamSymbolInterval(symbol=symbol,
-#                               interval=Const.TA_INTERVAL_1WK)
-#                               ]
+params = [
+    ParamSymbolInterval(symbol=symbol, interval=Const.TA_INTERVAL_5M),
+    ParamSymbolInterval(symbol=symbol, interval=Const.TA_INTERVAL_15M),
+    ParamSymbolInterval(symbol=symbol, interval=Const.TA_INTERVAL_30M),
+    ParamSymbolInterval(symbol=symbol, interval=Const.TA_INTERVAL_1H),
+    ParamSymbolInterval(symbol=symbol, interval=Const.TA_INTERVAL_4H),
+    ParamSymbolInterval(symbol=symbol, interval=Const.TA_INTERVAL_1D),
+    ParamSymbolInterval(symbol=symbol, interval=Const.TA_INTERVAL_1WK),
+]
 
-# trends = TrendCCI().detect_trends(params)
-# print(trends)
+trends = TrendCCI().detect_trends(params)
+print(trends)
 
 # trend_df = TrendCCI().calculate_trends(param)
 # print(trend_df)
