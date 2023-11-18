@@ -26,15 +26,19 @@ from trading_core.trend import TrendCCI, Indicator_CCI
 from trading_core.handler import CurrencyComApi, LocalCurrencyComApi
 from trading_core.common import TradingType, SessionType, StrategyType
 
-# from trading_core.robot import SessionManager, Robot
+from trading_core.robot import SessionManager, Robot, TraderBase
 from trading_core.responser import (
     job_func_send_bot_notification,
     job_func_trading_robot,
 )
 
-job_func_send_bot_notification("5m")
+# job_func_send_bot_notification("5m")
 
-# session_mdl = SessionHandler.get_session(id="654bc2351536fced145c3cfa")
+session_mdl = SessionHandler.get_session(id="6556ab4db98604c80d7104ee")
+
+trader = TraderBase.get_manager(session_mdl)
+
+trader.run()
 
 # session_data = {
 #     "trader_id": "65443f637b025235de0fb5d7",
@@ -162,20 +166,20 @@ job_func_send_bot_notification("5m")
 # interval = Const.TA_INTERVAL_30M
 # strategy = Const.TA_STRATEGY_CCI_20_TREND_100
 
-param = ParamSymbolIntervalLimit(symbol=symbol, interval=interval, limit=100)
+# param = ParamSymbolIntervalLimit(symbol=symbol, interval=interval, limit=100)
 
-params = [
-    ParamSymbolInterval(symbol=symbol, interval=Const.TA_INTERVAL_5M),
-    ParamSymbolInterval(symbol=symbol, interval=Const.TA_INTERVAL_15M),
-    ParamSymbolInterval(symbol=symbol, interval=Const.TA_INTERVAL_30M),
-    ParamSymbolInterval(symbol=symbol, interval=Const.TA_INTERVAL_1H),
-    ParamSymbolInterval(symbol=symbol, interval=Const.TA_INTERVAL_4H),
-    ParamSymbolInterval(symbol=symbol, interval=Const.TA_INTERVAL_1D),
-    ParamSymbolInterval(symbol=symbol, interval=Const.TA_INTERVAL_1WK),
-]
+# params = [
+#     ParamSymbolInterval(symbol=symbol, interval=Const.TA_INTERVAL_5M),
+#     ParamSymbolInterval(symbol=symbol, interval=Const.TA_INTERVAL_15M),
+#     ParamSymbolInterval(symbol=symbol, interval=Const.TA_INTERVAL_30M),
+#     ParamSymbolInterval(symbol=symbol, interval=Const.TA_INTERVAL_1H),
+#     ParamSymbolInterval(symbol=symbol, interval=Const.TA_INTERVAL_4H),
+#     ParamSymbolInterval(symbol=symbol, interval=Const.TA_INTERVAL_1D),
+#     ParamSymbolInterval(symbol=symbol, interval=Const.TA_INTERVAL_1WK),
+# ]
 
-trends = TrendCCI().detect_trends(params)
-print(trends)
+# trends = TrendCCI().detect_trends(params)
+# print(trends)
 
 # trend_df = TrendCCI().calculate_trends(param)
 # print(trend_df)

@@ -37,6 +37,9 @@ class ExchangeApiBase:
     def get_intervals(self) -> list:
         pass
 
+    def get_account_info(self) -> list:
+        pass
+
     def get_symbols(self, **kwargs) -> dict[SymbolModel]:
         pass
 
@@ -107,6 +110,55 @@ class DzengiComApi(ExchangeApiBase):
 
     def get_api_endpoints(self) -> str:
         return "https://api-adapter.backend.currency.com/api/v2/"
+
+    def get_account_info(
+        self, show_zero_balance: bool = False, recv_window: int = None
+    ):
+        """
+        Get current account information
+
+        :param show_zero_balance: will or will not show accounts with zero
+        balances. Default value False
+        :param recv_window: the value cannot be greater than 60000
+        Default value 5000
+        :return: dict object
+        Response:
+        {
+            "makerCommission":0.20,
+            "takerCommission":0.20,
+            "buyerCommission":0.20,
+            "sellerCommission":0.20,
+            "canTrade":true,
+            "canWithdraw":true,
+            "canDeposit":true,
+            "updateTime":1586935521,
+            "balances":[
+                {
+                    "accountId":"2376104765040206",
+                    "collateralCurrency":true,
+                    "asset":"BYN",
+                    "free":0.0,
+                    "locked":0.0,
+                    "default":false
+                },
+                {
+                    "accountId":"2376109060084932",
+                    "collateralCurrency":true,
+                    "asset":"USD",
+                    "free":515.59092523,
+                    "locked":0.0,
+                    "default":true
+                }
+            ]
+        }
+        """
+        self._validate_recv_window(recv_window)
+        result = self._get(
+            self.ACCOUNT_INFORMATION_ENDPOINT,
+            showZeroBalance=show_zero_balance,
+            recvWindow=recv_window,
+        )
+        return result["balances"]
 
     def get_symbols(self, **kwargs) -> dict[SymbolModel]:
         symbols = {}
@@ -430,14 +482,14 @@ class DzengiComApi(ExchangeApiBase):
                 hour=self.getTimezoneDifference(), minute=0, second=0, microsecond=0
             )
 
-        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
-            other_attributes = ", ".join(
-                f"{key}={value}" for key, value in kwargs.items()
-            )
+        # if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+        #     other_attributes = ", ".join(
+        #         f"{key}={value}" for key, value in kwargs.items()
+        #     )
 
-            logger.info(
-                f"ExchangeApiBase: {self._trader_model.exchange_id} - getEndDatetime(interval: {interval}, {other_attributes}) -> Original: {original_datetime} | Closed: {offset_date_time}"
-            )
+        #     logger.info(
+        #         f"ExchangeApiBase: {self._trader_model.exchange_id} - getEndDatetime(interval: {interval}, {other_attributes}) -> Original: {original_datetime} | Closed: {offset_date_time}"
+        #     )
 
         return offset_date_time
 

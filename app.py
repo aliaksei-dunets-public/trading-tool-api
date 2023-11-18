@@ -27,29 +27,6 @@ app = Flask(__name__)
 responser = ResponserWeb()
 
 
-def decorator_json(func) -> str:
-    def wrapper(*args, **kwargs):
-        try:
-            value = func(*args, **kwargs)
-
-            if isinstance(value, pd.DataFrame):
-                return value.to_json(orient="table", index=True), 200
-            if isinstance(value, list) and all(
-                isinstance(item, BaseModel) for item in value
-            ):
-                return jsonify([item.model_dump() for item in value]), 200
-            elif isinstance(value, BaseModel):
-                return jsonify(value.model_dump()), 200
-            else:
-                return json_util.dumps(value), 200
-
-        except Exception as error:
-            logger.error(f"{func} - {error}")
-            return jsonify({"error": f"{error}"}), 400
-
-    return wrapper
-
-
 ######################### User #############################
 @app.route("/user/<id>", methods=["GET"])
 def get_user(id):
@@ -100,6 +77,11 @@ def create_trader():
     return responser.create_trader(trader_model)
 
 
+@app.route("/trader_accounts/<trader_id>", methods=["GET"])
+def get_account_info(trader_id):
+    return responser.get_account_info(trader_id)
+
+
 ######################### Session ###########################
 @app.route("/session/<id>", methods=["GET"])
 def get_session(id):
@@ -127,6 +109,11 @@ def activate_session(session_id):
 @app.route("/session/<session_id>/inactivate", methods=["POST"])
 def stop_session(session_id):
     return responser.inactivate_session(session_id)
+
+
+@app.route("/session/<session_id>", methods=["DELETE"])
+def delete_session(session_id):
+    return responser.delete_session(session_id)
 
 
 ######################### Balance ###########################

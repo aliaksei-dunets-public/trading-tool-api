@@ -64,7 +64,9 @@ class BalanceManager:
 
     # Operation value for Open is -, and for Close +
     def recalculate_balance(self, position_volume: float, fee: float = 0):
-        self.__balance_mdl.total_balance += position_volume - fee
+        self.__balance_mdl.total_balance = (
+            self.__balance_mdl.total_balance + position_volume - fee
+        )
         self.__change_indicator = True
 
     def save_balance(self):
@@ -74,7 +76,9 @@ class BalanceManager:
                 "total_profit": self.__balance_mdl.total_profit,
                 "total_fee": self.__balance_mdl.total_fee,
             }
-            BalanceHandler.update_balance(self.__balance_mdl.id, query=query)
+            is_success = BalanceHandler.update_balance(
+                self.__balance_mdl.id, query=query
+            )
 
         self.__change_indicator = False
 
@@ -406,6 +410,8 @@ class DataManagerBase:
         # Recalulate balance after open a position
         self._recalculate_balance()
 
+        return position_mdl
+
     def _prepare_close_position(
         self, signal_mdl: cmn.SignalModel
     ) -> cmn.OrderCloseModel:
@@ -415,6 +421,12 @@ class DataManagerBase:
 
         if not order_close_mdl:
             return None
+
+        self._current_position.status = order_close_mdl.status
+        self._current_position.close_datetime = signal_mdl.date_time
+        self._current_position.close_price = order_close_mdl.close_price
+        self._current_position.close_reason = order_close_mdl.close_reason
+        self._current_position.total_profit = order_close_mdl.total_profit
 
         return order_close_mdl
 
@@ -468,6 +480,12 @@ class DataManagerBase:
         )
 
         quantity_round_down = float(rounded_value)
+
+        if quantity_round_down <= 0:
+            raise Exception(
+                f"{self.__class__.__name__}: It's not enough balance {total_balance} for trading"
+            )
+
         return quantity_round_down
 
     def _get_fee(self) -> float:
@@ -479,23 +497,17 @@ class DataManagerBase:
     def _recalculate_balance(self):
         # This is negative value for open and position for close position action
         if self._current_position.status == cmn.OrderStatus.opened:
-            position_volume = (
-                -1 * self._current_position.quantity * self._current_position.open_price
+            position_volume = -1 * self._side_mng.get_open_balance(
+                self._current_position
             )
-
             self._balance_mng.add_fee(self._current_position.fee)
-
             self._balance_mng.recalculate_balance(
                 position_volume=position_volume, fee=self._current_position.fee
             )
 
         elif self._current_position.status == cmn.OrderStatus.closed:
-            position_volume = (
-                self._current_position.quantity * self._current_position.close_price
-            )
-
+            position_volume = self._side_mng.get_close_balance(self._current_position)
             self._balance_mng.add_total_profit(self._current_position.total_profit)
-
             self._balance_mng.recalculate_balance(position_volume=position_volume)
 
 
@@ -670,6 +682,12 @@ class SideManager:
     def get_take_profit(self, price: float) -> float:
         return (price * self._session_mdl.take_profit_rate) / 100
 
+    def get_open_balance(self, position_mdl: cmn.OrderModel) -> float:
+        return position_mdl.quantity * position_mdl.open_price
+
+    def get_close_balance(self, position_mdl: cmn.OrderModel) -> float:
+        return position_mdl.quantity * position_mdl.close_price
+
 
 # Short Positions
 class SellManager(SideManager):
@@ -722,6 +740,12 @@ class SellManager(SideManager):
             return price - take_profit_value
         else:
             return 0
+
+    def get_close_balance(self, position_mdl: cmn.OrderModel) -> float:
+        # When there is a short position during SELL we are like "take" open balance and during BUY we have to give it back
+        close_balance = super().get_close_balance(position_mdl)
+        open_balance = self.get_open_balance(position_mdl)
+        return open_balance + (open_balance - close_balance)
 
 
 # LONG Position

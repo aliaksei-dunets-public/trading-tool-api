@@ -275,6 +275,17 @@ class SessionHandler:
         return MongoSession().update_one(id=id, query=query)
 
     @staticmethod
+    def delete_session(id: str):
+        query = {"session_id": id}
+
+        order_deletion = MongoOrder().delete_many(query)
+        leverage_deletion = MongoLeverage().delete_many(query)
+        balance_deletion = MongoBalance().delete_many(query)
+        session_deletion = MongoSession().delete_one(id=id)
+
+        return session_deletion
+
+    @staticmethod
     def get_session(id: str) -> SessionModel:
         entry = MongoSession().get_one(id)
         if not entry:
@@ -470,6 +481,9 @@ class ExchangeHandler:
 
     def ping_server(self, **kwargs) -> bool:
         return self._api.ping_server()
+
+    def get_account_info(self) -> list:
+        return self._api.get_account_info()
 
     def get_symbols(self, **kwargs) -> dict[Symbol]:
         # Send a request to an API to get symbols
@@ -1893,14 +1907,14 @@ class CurrencyComApi(StockExchangeApiBase):
                 hour=self.getTimezoneDifference(), minute=0, second=0, microsecond=0
             )
 
-        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
-            other_attributes = ", ".join(
-                f"{key}={value}" for key, value in kwargs.items()
-            )
+        # if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+        #     other_attributes = ", ".join(
+        #         f"{key}={value}" for key, value in kwargs.items()
+        #     )
 
-            logger.info(
-                f"STOCK_EXCHANGE: {self.getStockExchangeName()} - getEndDatetime(interval: {interval}, {other_attributes}) -> Original: {original_datetime} | Closed: {offset_date_time}"
-            )
+        #     logger.info(
+        #         f"STOCK_EXCHANGE: {self.getStockExchangeName()} - getEndDatetime(interval: {interval}, {other_attributes}) -> Original: {original_datetime} | Closed: {offset_date_time}"
+        #     )
 
         return offset_date_time
 

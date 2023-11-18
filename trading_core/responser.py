@@ -667,6 +667,13 @@ class ResponserWeb(ResponserBase):
             raise Exception(f"Error during closing of the session id: {session_id}")
 
     @decorator_json
+    def delete_session(self, session_id: str) -> json:
+        if SessionHandler.delete_session(id=session_id):
+            return {"message": f"Session {session_id} has been deleted"}
+        else:
+            raise Exception(f"Error during deletion of the session id: {session_id}")
+
+    @decorator_json
     def get_balance(self, id: str) -> json:
         return BalanceHandler.get_balance(id)
 
@@ -713,6 +720,10 @@ class ResponserWeb(ResponserBase):
     @decorator_json
     def create_transaction(self, transaction_model: TransactionModel) -> json:
         return TransactionHandler.create_transaction(transaction_model)
+
+    @decorator_json
+    def get_account_info(self, trader_id: str) -> json:
+        return ExchangeHandler.get_handler(trader_id=trader_id).get_account_info()
 
 
 class ResponserEmail(ResponserBase):

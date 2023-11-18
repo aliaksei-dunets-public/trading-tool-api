@@ -40,6 +40,12 @@ class MongoBase:
         result = self._collection.delete_one({Const.DB_ID: self._convert_id(id)})
         return result.deleted_count > 0
 
+    def delete_many(self, query: dict) -> bool:
+        if not query:
+            raise Exception(f"DB: delete_many - Query is empty")
+        result = self._collection.delete_many(query)
+        return result.deleted_count > 0
+
     def get_one(self, id: str) -> dict:
         result = self._collection.find_one({Const.DB_ID: self._convert_id(id)})
         return result
