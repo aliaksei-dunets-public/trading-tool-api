@@ -616,13 +616,13 @@ class ResponserWeb(ResponserBase):
     def create_user(self, user_model: UserModel) -> json:
         return UserHandler.create_user(user_model)
 
-    # @decorator_json
-    # def update_user(self, user_model: UserModel) -> json:
-    #     return UserHandler.update_user(user_model)
+    @decorator_json
+    def update_user(self, id: str, query: dict) -> json:
+        return UserHandler.update_user(id=id, query=query)
 
-    # @decorator_json
-    # def delete_user(self, id: str) -> json:
-    #     return UserHandler.delete_user(id)
+    @decorator_json
+    def delete_user(self, id: str) -> json:
+        return UserHandler.delete_user(id)
 
     @decorator_json
     def get_trader(self, id: str) -> json:

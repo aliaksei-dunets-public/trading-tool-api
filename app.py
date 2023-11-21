@@ -33,9 +33,10 @@ def get_user(id):
     return responser.get_user(id)
 
 
-@app.route("/user/email/<email>", methods=["GET"])
+@app.route("/user", methods=["GET"])
 def get_user_by_email(email):
-    return responser.get_user_by_email(email)
+    user_email = request.headers.get("User-Email")
+    return responser.get_user_by_email(user_email)
 
 
 @app.route("/users", methods=["GET"])
@@ -51,11 +52,15 @@ def create_user():
     return responser.create_user(user_model)
 
 
-# @app.route("/user", methods=["PUT"])
-# def create_user():
-#     user_data = request.get_json()
-#     user_model = UserModel(**user_data)
-#     return responser.create_user(user_model)
+@app.route("/user/<user_id>", methods=["PATCH"])
+def update_user(user_id):
+    user_data = request.get_json()
+    return responser.update_user(id=user_id, query=user_data)
+
+
+@app.route("/user/<user_id>", methods=["DELETE"])
+def delete_user(user_id):
+    return responser.delete_user(id=user_id)
 
 
 ######################### Trader ###########################
@@ -508,11 +513,11 @@ def get_history_simulation():
         balance_mdl = session_mng.get_balance_manager().get_balance_model()
         posistions = [item.model_dump() for item in session_mng.get_positions()]
 
-        response = {
-            "session": session_mdl.model_dump(),
-            "balance": balance_mdl.model_dump(),
-            "positions": posistions,
-        }
+        session_response = session_mdl.model_dump()
+        session_response["balance"] = balance_mdl.model_dump()
+        session_response["positions"] = posistions
+
+        response = [session_response]
 
     except Exception as error:
         return jsonify({"error": error}), 500

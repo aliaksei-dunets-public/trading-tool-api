@@ -29,6 +29,7 @@ from .common import (
 )
 from .mongodb import (
     MongoUser,
+    MongoChannel,
     MongoTrader,
     MongoSession,
     MongoBalance,
@@ -178,6 +179,29 @@ class UserHandler:
         return UserHandler.get_user_by_id(id)
 
     @staticmethod
+    def update_user(id: str, query: dict):
+        return MongoUser().update_one(id=id, query=query)
+
+    @staticmethod
+    def delete_user(id: str):
+        query = {"user_id": id}
+
+        # Remove User's Channels
+        MongoChannel().delete_many(query)
+        # Remove User's Traders
+        MongoTrader().delete_many(query)
+        # Remove User's Sessions, Balances, Orders, Leverages
+        sessions = SessionHandler.get_sessions(user_id=id)
+        for session_mdl in sessions:
+            SessionHandler.delete_session(id=session_mdl.id)
+        # Remove User
+        user_deletion = MongoUser().delete_one(id=id)
+        # CLear buffer after removing of a user
+        buffer_runtime_handler.get_user_handler().get_buffer().clear_buffer()
+
+        return user_deletion
+
+    @staticmethod
     def get_user_by_id(id: str) -> UserModel:
         user_db = MongoUser().get_one(id)
         if not user_db:
@@ -255,7 +279,10 @@ class TraderHandler:
         user_mdl = buffer_runtime_handler.get_user_handler().get_user_by_email(
             email=user_email
         )
-        return TraderHandler._read_traders(user_id=user_mdl.id)
+        if user_mdl.technical_user:
+            return TraderHandler._read_traders()
+        else:
+            return TraderHandler._read_traders(user_id=user_mdl.id)
 
     @staticmethod
     def _read_traders(**kwargs) -> list[TraderModel]:
@@ -278,9 +305,9 @@ class SessionHandler:
     def delete_session(id: str):
         query = {"session_id": id}
 
-        order_deletion = MongoOrder().delete_many(query)
-        leverage_deletion = MongoLeverage().delete_many(query)
-        balance_deletion = MongoBalance().delete_many(query)
+        MongoOrder().delete_many(query)
+        MongoLeverage().delete_many(query)
+        MongoBalance().delete_many(query)
         session_deletion = MongoSession().delete_one(id=id)
 
         return session_deletion

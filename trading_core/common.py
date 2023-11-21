@@ -227,7 +227,7 @@ class TraderModel(IdentifierModel, AdminModel):
 
 class BalanceModel(AdminModel, IdentifierModel):
     session_id: str
-    account_id: str
+    account_id: str = ""
     currency: str
     init_balance: float
     total_balance: float = 0
