@@ -605,8 +605,7 @@ class ResponserWeb(ResponserBase):
 
     @decorator_json
     def get_user_by_email(self, email: str) -> json:
-        pass
-        # return UserHandler.get_user_by_email(email)
+        return UserHandler().get_user_by_email(email)
 
     @decorator_json
     def get_users(self, search: str = None) -> json:

@@ -5,7 +5,12 @@ import bson.json_util as json_util
 import bot as Bot
 from trading_core.core import logger
 from trading_core.constants import Const
-from trading_core.responser import ResponserWeb, ParamSimulationList, SimulateOptions
+from trading_core.responser import (
+    ResponserWeb,
+    ParamSimulationList,
+    SimulateOptions,
+    UserHandler,
+)
 from trading_core.common import (
     BaseModel,
     UserModel,
@@ -34,7 +39,7 @@ def get_user(id):
 
 
 @app.route("/user", methods=["GET"])
-def get_user_by_email(email):
+def get_user_by_email():
     user_email = request.headers.get("User-Email")
     return responser.get_user_by_email(user_email)
 
@@ -486,6 +491,8 @@ def get_simulate():
 
 @app.route("/history_simulation", methods=["GET"])
 def get_history_simulation():
+    trader_id = request.args.get("trader_id", None)
+    trading_type = request.args.get("trading_type", None)
     symbol = request.args.get("symbol", None)
     interval = request.args.get("interval", "5m")
     strategy = request.args.get("strategy", StrategyType.CCI_20_TREND_100)
@@ -493,11 +500,14 @@ def get_history_simulation():
     take_profit_rate = request.args.get(Const.SRV_TAKE_PROFIT_RATE, 0)
 
     try:
+        user_email = request.headers.get("User-Email")
+        user_data = UserHandler().get_user_by_email(user_email)
+
         session_data = {
-            "trader_id": "65443f637b025235de0fb5d7",
-            "user_id": "65419b27e3a8c7e9690860cb",
+            "trader_id": trader_id,
+            "user_id": user_data.id,
             # "status": "",
-            "trading_type": TradingType.LEVERAGE,
+            "trading_type": trading_type,
             "session_type": SessionType.HISTORY,
             "symbol": symbol,
             "interval": interval,

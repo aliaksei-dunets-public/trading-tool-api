@@ -218,7 +218,7 @@ class UserHandler:
     def get_technical_user() -> UserModel:
         technical_user_db_list = MongoUser().get_many({"technical_user": True})
         if not technical_user_db_list:
-            raise Exception(f"Technical User is maintained")
+            raise Exception(f"Technical User isn't maintained")
         return UserModel(**technical_user_db_list[0])
 
     @staticmethod
