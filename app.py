@@ -92,6 +92,12 @@ def get_account_info(trader_id):
     return responser.get_account_info(trader_id)
 
 
+@app.route("/trader_leverages/<trader_id>", methods=["GET"])
+def get_leverage_settings(trader_id):
+    symbol = request.args.get("symbol", None)
+    return responser.get_leverage_settings(trader_id=trader_id, symbol=symbol)
+
+
 ######################### Session ###########################
 @app.route("/session/<id>", methods=["GET"])
 def get_session(id):

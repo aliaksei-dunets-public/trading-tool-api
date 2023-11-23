@@ -276,6 +276,7 @@ class SessionModel(AdminModel, IdentifierModel, SymbolIntervalStrategyModel):
             "symbol": self.symbol,
             "interval": self.interval,
             "strategy": self.strategy,
+            "leverage": self.leverage,
             "take_profit_rate": self.take_profit_rate,
             "stop_loss_rate": self.stop_loss_rate,
         }

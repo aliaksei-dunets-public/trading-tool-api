@@ -512,6 +512,13 @@ class ExchangeHandler:
     def get_account_info(self) -> list:
         return self._api.get_account_info()
 
+    def get_leverage_settings(self, symbol: str) -> list:
+        if not symbol:
+            raise Exception(
+                f"ExchangeHandler: {self.__trader_model.exchange_id} symbol is missed"
+            )
+        return self._api.get_leverage_settings(symbol=symbol)
+
     def get_symbols(self, **kwargs) -> dict[Symbol]:
         # Send a request to an API to get symbols
         return self._api.get_symbols()

@@ -40,6 +40,9 @@ class ExchangeApiBase:
     def get_account_info(self) -> list:
         pass
 
+    def get_leverage_settings(self, symbol: str) -> list:
+        pass
+
     def get_symbols(self, **kwargs) -> dict[SymbolModel]:
         pass
 
@@ -159,6 +162,18 @@ class DzengiComApi(ExchangeApiBase):
             recvWindow=recv_window,
         )
         return result["balances"]
+
+    def get_leverage_settings(
+        self, symbol: str, show_zero_balance: bool = False, recv_window: int = None
+    ):
+        self._validate_recv_window(recv_window)
+        result = self._get(
+            self.LEVERAGE_SETTINGS_ENDPOINT,
+            symbol=symbol,
+            showZeroBalance=show_zero_balance,
+            recvWindow=recv_window,
+        )
+        return result["values"]
 
     def get_symbols(self, **kwargs) -> dict[SymbolModel]:
         symbols = {}

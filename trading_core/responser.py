@@ -726,6 +726,12 @@ class ResponserWeb(ResponserBase):
     def get_account_info(self, trader_id: str) -> json:
         return ExchangeHandler.get_handler(trader_id=trader_id).get_account_info()
 
+    @decorator_json
+    def get_leverage_settings(self, trader_id: str, symbol: str) -> json:
+        return ExchangeHandler.get_handler(trader_id=trader_id).get_leverage_settings(
+            symbol=symbol
+        )
+
 
 class ResponserEmail(ResponserBase):
     def get_signals(
