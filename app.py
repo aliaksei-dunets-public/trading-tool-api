@@ -258,14 +258,20 @@ def get_intervals():
 
 @app.route("/symbols", methods=["GET"])
 def get_symbols():
-    symbol = request.args.get("symbol", None)
-    name = request.args.get("name", None)
-    status = request.args.get("status", None)
-    type = request.args.get("type", None)
-    currency = request.args.get("currency", None)
+    trader_id = request.args.get(Const.DB_TRADER_ID, None)
+    symbol = request.args.get(Const.DB_SYMBOL, None)
+    name = request.args.get(Const.DB_NAME, None)
+    status = request.args.get(Const.DB_STATUS, None)
+    type = request.args.get(Const.DB_TYPE, None)
+    currency = request.args.get(Const.DB_CURRENCY, None)
 
     return responser.get_symbol_list(
-        symbol=symbol, name=name, status=status, type=type, currency=currency
+        trader_id=trader_id,
+        symbol=symbol,
+        name=name,
+        status=status,
+        type=type,
+        currency=currency,
     )
 
 

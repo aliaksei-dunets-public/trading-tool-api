@@ -389,7 +389,9 @@ class ResponserWeb(ResponserBase):
 
     @decorator_json
     def get_symbol_list(*args, **kwargs) -> json:
-        symbol_handler = buffer_runtime_handler.get_symbol_handler()
+        symbol_handler = buffer_runtime_handler.get_symbol_handler(
+            trader_id=kwargs.get(Const.DB_TRADER_ID)
+        )
         return symbol_handler.get_symbol_list(**kwargs)
 
     @decorator_json

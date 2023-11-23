@@ -45,6 +45,7 @@ class Const:
     DB_CHANNEL_ID = "channel_id"
     DB_SESSION_ID = "session_id"
     DB_ORDER_ID = "order_id"
+    DB_TRADER_ID = "trader_id"
     DB_SYMBOL = "symbol"
     DB_NAME = "name"
     DB_STATUS = "status"
