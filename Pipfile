@@ -15,6 +15,7 @@ apscheduler = "~=3.9.1"
 secure-smtplib = "*"
 pytelegrambotapi = "*"
 pydantic = {extras = ["email"], version = "*"}
+cryptography = "*"
 
 [dev-packages]
 autopep8 = "*"

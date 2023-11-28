@@ -139,6 +139,8 @@ class Const:
     # Trend values
     TREND_UP = "UpTrend"
     TREND_DOWN = "DownTrend"
+    STRONG_TREND_UP = "StrongUpTrend"
+    STRONG_TREND_DOWN = "StrongDownTrend"
 
     # Statuses
     STATUS_OPEN = "Open"

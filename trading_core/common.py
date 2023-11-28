@@ -3,6 +3,14 @@ from bson import ObjectId
 from datetime import datetime, timedelta
 from pydantic import BaseModel, EmailStr, Field, validator
 
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.fernet import Fernet
+import base64
+
+from .core import config
+
 
 class SymbolType(str, Enum):
     leverage = "LEVERAGE"
@@ -60,6 +68,7 @@ class SignalType(str, Enum):
 
 class StrategyType(str, Enum):
     CCI_14_TREND_100 = "CCI_14_TREND_100"
+    CCI_14_BASED_TREND_100 = "CCI_14_BASED_TREND_100"
     CCI_14_TREND_170_165 = "CCI_14_TREND_170_165"
     CCI_20_TREND_100 = "CCI_20_TREND_100"
     CCI_50_TREND_0 = "CCI_50_TREND_0"
@@ -70,13 +79,12 @@ class SymbolStatus(str, Enum):
     close = "CLOSE"
 
 
-class TraderStatus(str, Enum):
-    new = "NEW"
-    active = "ACTIVE"
-    inactive = "INACTIVE"
-    connected = "CONNECTED"
-    failed = "FAILED"
-    expired = "EXPIRED"
+class TraderStatus(int, Enum):
+    NEW = "0"
+    PUBLIC = "1"
+    PRIVATE = "2"
+    EXPIRED = "-1"
+    FAILED = "-2"
 
 
 class SessionStatus(str, Enum):
@@ -201,7 +209,7 @@ class ChannelModel(IdentifierModel, AdminModel):
 class TraderModel(IdentifierModel, AdminModel):
     user_id: str
     exchange_id: ExchangeId
-    status: TraderStatus = TraderStatus.new
+    status: TraderStatus = TraderStatus.NEW
     expired_dt: datetime = datetime.now() + timedelta(days=365)
     default: bool = True
     api_key: str = ""
@@ -212,6 +220,40 @@ class TraderModel(IdentifierModel, AdminModel):
         if value_dt <= datetime.now():
             raise ValueError("The expired datetime is invalid")
         return value_dt
+
+    def __generate_open_key(self, user_token=None):
+        token = ""
+
+        if user_token:
+            token = user_token
+        else:
+            token = self.user_id
+
+        open_key = config.get_env_value("ENCRYPT_OPEN_KEY")
+        if not open_key:
+            raise Exception(f"TraderModel: ENCRYPT_OPEN_KEY is not maintained")
+
+        encode_token = token.encode()
+
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(),
+            iterations=100000,
+            salt=open_key.encode(),
+            length=32,
+            backend=default_backend(),
+        )
+        key = base64.urlsafe_b64encode(kdf.derive(encode_token))
+        return key
+
+    def encrypt_key(self, key, user_token=None):
+        cipher_suite = Fernet(key=self.__generate_open_key(user_token))
+        encrypted_api_key = cipher_suite.encrypt(key.encode())
+        return encrypted_api_key
+
+    def decrypt_key(self, encrypted_key, user_token=None):
+        cipher_suite = Fernet(key=self.__generate_open_key(user_token))
+        decrypted_api_key = cipher_suite.decrypt(encrypted_key).decode()
+        return decrypted_api_key
 
     def to_mongodb_doc(self):
         return {

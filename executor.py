@@ -34,11 +34,11 @@ from trading_core.responser import (
 
 # job_func_send_bot_notification("5m")
 
-session_mdl = SessionHandler.get_session(id="6556ab4db98604c80d7104ee")
+# session_mdl = SessionHandler.get_session(id="6556ab4db98604c80d7104ee")
 
-trader = TraderBase.get_manager(session_mdl)
+# trader = TraderBase.get_manager(session_mdl)
 
-trader.run()
+# trader.run()
 
 # session_data = {
 #     "trader_id": "65443f637b025235de0fb5d7",
@@ -162,11 +162,13 @@ trader.run()
 
 ########################### Trend ###############################################
 
-# symbol = "BTC/USD"
-# interval = Const.TA_INTERVAL_30M
-# strategy = Const.TA_STRATEGY_CCI_20_TREND_100
+symbol = "BTC/USD"
+interval = Const.TA_INTERVAL_30M
+strategy = Const.TA_STRATEGY_CCI_20_TREND_100
 
-# param = ParamSymbolIntervalLimit(symbol=symbol, interval=interval, limit=100)
+param = ParamSymbolIntervalLimit(
+    symbol=symbol, interval=interval, limit=100, consistency_check=False
+)
 
 # params = [
 #     ParamSymbolInterval(symbol=symbol, interval=Const.TA_INTERVAL_5M),
@@ -178,11 +180,10 @@ trader.run()
 #     ParamSymbolInterval(symbol=symbol, interval=Const.TA_INTERVAL_1WK),
 # ]
 
-# trends = TrendCCI().detect_trends(params)
-# print(trends)
+# trends = Trendm
 
-# trend_df = TrendCCI().calculate_trends(param)
-# print(trend_df)
+trend_df = TrendCCI().calculate_trends(param)
+print(trend_df)
 
 ########################### Trend ###############################################
 

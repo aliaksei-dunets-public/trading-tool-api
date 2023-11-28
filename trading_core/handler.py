@@ -15,6 +15,7 @@ from .core import logger, config, Symbol, HistoryData, RuntimeBufferStore
 from .api import ExchangeApiBase, DzengiComApi, DemoDzengiComApi
 from .common import (
     HistoryDataParam,
+    TraderStatus,
     OrderStatus,
     SessionStatus,
     ExchangeId,
@@ -184,7 +185,7 @@ class UserHandler:
 
     @staticmethod
     def delete_user(id: str):
-        query = {"user_id": id}
+        query = {Const.DB_USER_ID: id}
 
         # Remove User's Channels
         MongoChannel().delete_many(query)
@@ -245,9 +246,64 @@ class UserHandler:
 
 class TraderHandler:
     @staticmethod
+    def check_status(id: str) -> dict:
+        trader_status = TraderStatus.NEW
+        exchange_handler = ExchangeHandler.get_handler(trader_id=id)
+        trader_mdl = exchange_handler.get_trader_model()
+
+        if exchange_handler.ping_server():
+            trader_status = TraderStatus.PUBLIC
+
+            if trader_mdl.expired_dt < datetime.now():
+                trader_status = TraderStatus.EXPIRED
+
+            elif trader_mdl.api_key and trader_mdl.api_secret:
+                try:
+                    exchange_handler.get_account_info()
+                    trader_status = TraderStatus.PRIVATE
+
+                except Exception:
+                    pass
+        else:
+            trader_status = TraderStatus.FAILED
+
+        TraderHandler.update_trader(
+            id=trader_mdl.id, query={"status": trader_status.value}
+        )
+        return {"status": trader_status.value}
+
+    @staticmethod
     def create_trader(trader: TraderModel):
+        if trader.api_key:
+            trader.api_key = trader.encrypt_key(key=trader.api_key)
+        if trader.api_secret:
+            trader.api_secret = trader.encrypt_key(key=trader.api_secret)
+
         id = MongoTrader().insert_one(trader.to_mongodb_doc())
         return TraderHandler.get_trader(id)
+
+    @staticmethod
+    def update_trader(id: str, query: dict):
+        trader_mdl = TraderHandler.get_trader(id)
+
+        if "api_key" in query and query["api_key"]:
+            query["api_key"] = trader_mdl.encrypt_key(key=query["api_key"])
+        if "api_secret" in query and query["api_secret"]:
+            query["api_secret"] = trader_mdl.encrypt_key(key=query["api_secret"])
+
+        return MongoTrader().update_one(id=id, query=query)
+
+    @staticmethod
+    def delete_trader(id: str):
+        # Remove Trader's Sessions, Balances, Orders, Leverages
+        sessions = SessionHandler.get_sessions(trader_id=id)
+        for session_mdl in sessions:
+            SessionHandler.delete_session(id=session_mdl.id)
+
+        # Remove Trader
+        trader_deletion = MongoTrader().delete_one(id=id)
+
+        return trader_deletion
 
     @staticmethod
     def get_trader(id: str) -> TraderModel:
@@ -328,12 +384,17 @@ class SessionHandler:
 
     @staticmethod
     def get_sessions(
-        user_id: str = None, interval: str = None, status: SessionStatus = None
+        user_id: str = None,
+        trader_id: str = None,
+        interval: str = None,
+        status: SessionStatus = None,
     ):
         query = {}
 
         if user_id:
             query[Const.DB_USER_ID] = user_id
+        if trader_id:
+            query[Const.DB_TRADER_ID] = trader_id
         if interval:
             query[Const.DB_INTERVAL] = interval
         if status:
@@ -505,6 +566,9 @@ class ExchangeHandler:
 
     def get_trader_id(self) -> str:
         return self.__trader_model.id
+
+    def get_trader_model(self) -> TraderModel:
+        return self.__trader_model
 
     def ping_server(self, **kwargs) -> bool:
         return self._api.ping_server()

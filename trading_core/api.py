@@ -109,7 +109,16 @@ class DzengiComApi(ExchangeApiBase):
     TA_API_INTERVAL_1WK = "1w"
 
     def ping_server(self, **kwargs) -> bool:
-        return True
+        response = requests.get(self._get_url(self.SERVER_TIME_ENDPOINT))
+
+        if response.status_code == 200:
+            # json_api_response = json.loads(response.text)
+            return True
+        else:
+            logger.error(
+                f"ExchangeApiBase: {self._trader_model.exchange_id} - ping_server -> {response.text}"
+            )
+            return False
 
     def get_api_endpoints(self) -> str:
         return "https://api-adapter.backend.currency.com/api/v2/"
@@ -704,11 +713,13 @@ class DzengiComApi(ExchangeApiBase):
                 )
 
     def _get_params_with_signature(self, **kwargs):
-        api_secret = config.get_env_value("CURRENCY_COM_API_SECRET")
-        if not api_secret:
-            raise Exception(
-                f"ExchangeApiBase: {self._trader_model.exchange_id} - API secret is not maintained"
-            )
+        api_secret = self._trader_model.decrypt_key(self._trader_model.api_secret)
+
+        # api_secret = config.get_env_value("CURRENCY_COM_API_SECRET")
+        # if not api_secret:
+        #     raise Exception(
+        #         f"ExchangeApiBase: {self._trader_model.exchange_id} - API secret is not maintained"
+        #     )
 
         t = self.getUnixTimeMsByDatetime(datetime.now())
         kwargs["timestamp"] = t
@@ -721,11 +732,13 @@ class DzengiComApi(ExchangeApiBase):
         return {"signature": sign, **kwargs}
 
     def _get_header(self, **kwargs):
-        api_key = config.get_env_value("CURRENCY_COM_API_KEY")
-        if not api_key:
-            raise Exception(
-                f"ExchangeApiBase: {self._trader_model.exchange_id} - API key is not maintained"
-            )
+        api_key = self._trader_model.decrypt_key(self._trader_model.api_key)
+
+        # api_key = config.get_env_value("CURRENCY_COM_API_KEY")
+        # if not api_key:
+        #     raise Exception(
+        #         f"ExchangeApiBase: {self._trader_model.exchange_id} - API key is not maintained"
+        #     )
 
         return {**kwargs, self.HEADER_API_KEY_NAME: api_key}
 
@@ -746,6 +759,9 @@ class DzengiComApi(ExchangeApiBase):
         if response.status_code == 200:
             return response.json()
         else:
+            logger.error(
+                f"ExchangeApiBase: {self._trader_model.exchange_id} - GET /{path} -> {response.status_code}: {response.text}"
+            )
             raise Exception(
                 f"ExchangeApiBase: {self._trader_model.exchange_id} - GET /{path} -> {response.status_code}: {response.text}"
             )

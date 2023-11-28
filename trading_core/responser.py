@@ -16,11 +16,12 @@ from email.mime.text import MIMEText
 
 from .constants import Const
 from .core import config, logger, runtime_buffer, Symbol, Signal, SimulateOptions
-from .model import model, Symbols, ParamSimulationList
+from .model import model, Symbols, ParamSimulationList, ParamSymbolIntervalLimit
 from .strategy import StrategyFactory, SignalFactory
 from .simulation import Executor
 from .mongodb import MongoJobs, MongoAlerts, MongoOrders, MongoSimulations
 from .handler import ExchangeHandler, SymbolHandler
+from .trend import TrendCCI
 
 from trading_core.common import (
     BaseModel,
@@ -492,6 +493,13 @@ class ResponserWeb(ResponserBase):
             raise Exception(f"Error during deactivation of the job id: {job_id}")
 
     @decorator_json
+    def get_job_status(self) -> str:
+        job_state = JobScheduler().get().state
+        if job_state != 1:
+            raise Exception(f"Job Scheduler is not running")
+        return job_state
+
+    @decorator_json
     def create_alert(
         self,
         alert_type: str,
@@ -638,6 +646,21 @@ class ResponserWeb(ResponserBase):
         return TraderHandler.create_trader(trader_model)
 
     @decorator_json
+    def update_trader(self, id: str, query: dict) -> json:
+        return TraderHandler.update_trader(id=id, query=query)
+
+    @decorator_json
+    def delete_trader(self, id: str) -> json:
+        if TraderHandler.delete_trader(id=id):
+            return {"message": f"Trader {id} has been deleted"}
+        else:
+            raise Exception(f"Error during deletion of the trader id: {id}")
+
+    @decorator_json
+    def check_trader_status(self, id: str) -> str:
+        return TraderHandler.check_status(id)
+
+    @decorator_json
     def get_session(self, id: str) -> json:
         return SessionHandler.get_session(id)
 
@@ -731,6 +754,10 @@ class ResponserWeb(ResponserBase):
         return ExchangeHandler.get_handler(trader_id=trader_id).get_leverage_settings(
             symbol=symbol
         )
+
+    @decorator_json
+    def get_trend(self, param: ParamSymbolIntervalLimit) -> json:
+        return TrendCCI().calculate_trends(param)
 
 
 class ResponserEmail(ResponserBase):

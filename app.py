@@ -8,8 +8,11 @@ from trading_core.constants import Const
 from trading_core.responser import (
     ResponserWeb,
     ParamSimulationList,
+    ParamSymbolIntervalLimit,
     SimulateOptions,
     UserHandler,
+    job_func_initialise_runtime_data,
+    JobScheduler,
 )
 from trading_core.common import (
     BaseModel,
@@ -30,6 +33,11 @@ from trading_core.robot import SessionManager
 app = Flask(__name__)
 
 responser = ResponserWeb()
+
+# # Initialize runtime buffer
+# job_func_initialise_runtime_data()
+# # Initialize Job Scheduler
+# JobScheduler()
 
 
 ######################### User #############################
@@ -85,6 +93,22 @@ def create_trader():
     trader_data = request.get_json()
     trader_model = TraderModel(**trader_data)
     return responser.create_trader(trader_model)
+
+
+@app.route("/trader/<trader_id>", methods=["PATCH"])
+def update_trader(trader_id):
+    trader_data = request.get_json()
+    return responser.update_trader(id=trader_id, query=trader_data)
+
+
+@app.route("/trader/<trader_id>", methods=["DELETE"])
+def delete_trader(trader_id):
+    return responser.delete_trader(trader_id)
+
+
+@app.route("/trader_status/<trader_id>", methods=["GET"])
+def check_trader_status(trader_id):
+    return responser.check_trader_status(id=trader_id)
 
 
 @app.route("/trader_accounts/<trader_id>", methods=["GET"])
@@ -349,6 +373,11 @@ def get_jobs():
     return responser.get_jobs()
 
 
+@app.route("/job_status", methods=["GET"])
+def get_job_status():
+    return responser.get_job_status()
+
+
 # Define endpoints for creating, reading, updating, and deleting background jobs
 @app.route("/jobs", methods=["POST"])
 def create_job():
@@ -561,6 +590,23 @@ def delete_simulations():
 def get_dashboard():
     symbol = request.json.get(Const.DB_SYMBOL)
     return responser.get_dashboard(symbol=symbol)
+
+
+@app.route("/trend", methods=["GET"])
+def get_trend():
+    symbol = request.args.get("symbol", None)
+    interval = request.args.get("interval", None)
+    limit = int(request.args.get(Const.LIMIT))
+
+    try:
+        param = ParamSymbolIntervalLimit(
+            symbol=symbol, interval=interval, limit=limit, consistency_check=False
+        )
+
+    except Exception as error:
+        return jsonify({"error": error}), 500
+
+    return responser.get_trend(param)
 
 
 # @app.route('/signalsBySimulation', methods=['GET'])

@@ -469,7 +469,7 @@ class DataManagerBase:
 
     def _get_quantity(self, signal_mdl: cmn.SignalModel) -> float:
         symbol_quote_precision = self._symbol_mdl.quote_precision
-        total_balance = self._balance_mng.get_total_balance()
+        total_balance = self._get_current_balance()
         fee = self._get_fee()
         price = self._get_open_price(signal_mdl)
 
@@ -489,24 +489,31 @@ class DataManagerBase:
         return quantity_round_down
 
     def _get_fee(self) -> float:
-        total_balance = self._balance_mng.get_total_balance()
+        total_balance = self._get_current_balance()
         symbol_fee = self._symbol_mdl.trading_fee
         fee = total_balance * symbol_fee / 100
         return fee
 
+    def _get_current_balance(self) -> float:
+        return self._balance_mng.get_total_balance()
+
+    def _get_open_balance(self) -> float:
+        return -1 * self._side_mng.get_open_balance(self._current_position)
+
+    def _get_close_balance(self) -> float:
+        return self._side_mng.get_close_balance(self._current_position)
+
     def _recalculate_balance(self):
         # This is negative value for open and position for close position action
         if self._current_position.status == cmn.OrderStatus.opened:
-            position_volume = -1 * self._side_mng.get_open_balance(
-                self._current_position
-            )
+            position_volume = self._get_open_balance()
             self._balance_mng.add_fee(self._current_position.fee)
             self._balance_mng.recalculate_balance(
                 position_volume=position_volume, fee=self._current_position.fee
             )
 
         elif self._current_position.status == cmn.OrderStatus.closed:
-            position_volume = self._side_mng.get_close_balance(self._current_position)
+            position_volume = self._get_close_balance()
             self._balance_mng.add_total_profit(self._current_position.total_profit)
             self._balance_mng.recalculate_balance(position_volume=position_volume)
 
@@ -568,6 +575,15 @@ class LeverageManagerBase(DataManagerBase):
         super()._prepare_open_position(signal_mdl)
         position_data = self._get_open_position_template(signal_mdl)
         return cmn.LeverageModel(**position_data)
+
+    def _get_current_balance(self) -> float:
+        return super()._get_current_balance() * self._session_mdl.leverage
+
+    def _get_open_balance(self) -> float:
+        return super()._get_open_balance() / self._session_mdl.leverage
+
+    def _get_close_balance(self) -> float:
+        return super()._get_close_balance() / self._session_mdl.leverage
 
 
 class LeverageApiManager(LeverageManagerBase):
