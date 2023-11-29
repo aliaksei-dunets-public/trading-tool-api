@@ -34,10 +34,10 @@ app = Flask(__name__)
 
 responser = ResponserWeb()
 
-# # Initialize runtime buffer
-# job_func_initialise_runtime_data()
-# # Initialize Job Scheduler
-# JobScheduler()
+# Initialize runtime buffer
+job_func_initialise_runtime_data()
+# Initialize Job Scheduler
+JobScheduler()
 
 
 ######################### User #############################

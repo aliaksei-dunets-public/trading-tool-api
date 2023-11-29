@@ -293,6 +293,22 @@ class Strategy_CCI(StrategyBase):
 
         return signals
 
+    def _get_signal_decision(self, current_value, previous_value):
+        decision = ""
+        if current_value > self._value:
+            if previous_value < self._value:
+                decision = Const.BUY
+        elif current_value < -self._value:
+            if previous_value > -self._value:
+                decision = Const.SELL
+        else:
+            if previous_value > self._value:
+                decision = Const.STRONG_SELL
+            elif previous_value < -self._value:
+                decision = Const.STRONG_BUY
+
+        return decision
+
 
 class StrategyDirectionTrend_CCI(Strategy_CCI):
     def __init__(self, strategy_config_inst: StrategyConfig):
@@ -350,11 +366,12 @@ class StrategyDirectionBasedTrend_CCI(Strategy_CCI):
 
         for i, obj in enumerate(intervals):
             if obj["interval"] == interval:
-                if i + 1 <= len(intervals):
-                    next_interval = intervals[i + 1]["interval"]
+                if i + 1 <= len(intervals) - 1:
+                    # next_interval = intervals[i + 1]["interval"]
+                    pass
 
-                if i + 2 <= len(intervals):
-                    second_interval = intervals[i + 2]["interval"]
+                if i + 2 <= len(intervals) - 1:
+                    next_interval = intervals[i + 2]["interval"]
 
                 exit
 
@@ -393,7 +410,7 @@ class StrategyDirectionBasedTrend_CCI(Strategy_CCI):
                 suffixes=("", "_UpLevel"),
             )
 
-        cci_df["trend_UpLevel"] = cci_df["trend_UpLevel"].fillna(method="ffill")
+            cci_df["trend_UpLevel"] = cci_df["trend_UpLevel"].ffill()
 
         cci_df.insert(
             cci_df.shape[1],
@@ -419,54 +436,85 @@ class StrategyDirectionBasedTrend_CCI(Strategy_CCI):
             trend = cci_df.iloc[i, 6]
             trend_previous = cci_df.iloc[i - 1, 6]
 
-            trend_up_level = cci_df.iloc[i, 7]
-
-            if trend_up_level == Const.TREND_UP:
-                if trend == Const.TREND_UP:
-                    if current_value > self._value:
-                        if previous_value < self._value:
-                            decision = Const.STRONG_BUY
-                    elif current_value < -self._value:
-                        if previous_value > -self._value:
-                            pass
-                    else:
-                        if previous_value > self._value:
-                            pass
-                        elif previous_value < -self._value:
-                            decision = Const.STRONG_BUY
-
-                elif trend == Const.TREND_DOWN:
-                    if trend_previous == Const.TREND_UP:
-                        decision = Const.SELL
+            if len(cci_df.columns) >= 8:
+                trend_up_level = cci_df.iloc[i, 7]
             else:
-                if trend == Const.TREND_UP:
-                    if trend_previous == Const.TREND_DOWN:
-                        decision = Const.BUY
-                elif trend == Const.TREND_DOWN:
-                    if current_value > self._value:
-                        if previous_value < self._value:
-                            pass
-                    elif current_value < -self._value:
-                        if previous_value > -self._value:
-                            decision = Const.STRONG_SELL
-                    else:
-                        if previous_value > self._value:
-                            decision = Const.STRONG_SELL
-                        elif previous_value < -self._value:
-                            pass
+                trend_up_level = None
 
-            # if current_value > self._value:
-            #     if previous_value < self._value:
-            #         decision = Const.BUY
-            # elif current_value < -self._value:
-            #     if previous_value > -self._value:
-            #         decision = Const.SELL
-            # else:
-            #     if previous_value > self._value:
-            #         decision = Const.STRONG_SELL
-            #     elif previous_value < -self._value:
-            #         decision = Const.STRONG_BUY
+            if not trend_up_level:
+                if trend == Const.STRONG_TREND_UP:
+                    decision = self._get_signal_decision(current_value, previous_value)
+                    if decision in [Const.SELL, Const.STRONG_SELL]:
+                        decision = ""
+                    elif decision == Const.BUY:
+                        decision = Const.STRONG_BUY
+                elif trend == Const.STRONG_TREND_DOWN:
+                    decision = self._get_signal_decision(current_value, previous_value)
+                    if decision in [Const.BUY, Const.STRONG_BUY]:
+                        decision = ""
+                    elif decision == Const.SELL:
+                        decision = Const.STRONG_SELL
+                else:
+                    if trend_previous == Const.STRONG_TREND_DOWN:
+                        decision = Const.BUY
+                    elif trend_previous == Const.STRONG_TREND_UP:
+                        decision = Const.SELL
+
+            if trend_up_level == Const.STRONG_TREND_UP:
+                if trend == Const.STRONG_TREND_UP:
+                    decision = self._get_signal_decision(current_value, previous_value)
+                    if decision in [Const.SELL, Const.STRONG_SELL]:
+                        decision = ""
+                    elif decision == Const.BUY:
+                        decision = Const.STRONG_BUY
+                elif trend_previous == Const.STRONG_TREND_UP:
+                    decision = Const.SELL
+            elif trend_up_level == Const.STRONG_TREND_DOWN:
+                if trend == Const.STRONG_TREND_DOWN:
+                    decision = self._get_signal_decision(current_value, previous_value)
+                    if decision in [Const.BUY, Const.STRONG_BUY]:
+                        decision = ""
+                    elif decision == Const.SELL:
+                        decision = Const.STRONG_SELL
+                elif trend_previous == Const.STRONG_TREND_DOWN:
+                    decision = Const.BUY
 
             signals.append(decision)
 
         return signals
+
+
+class StrategyDirectionBasedTrend(Strategy_CCI):
+    def get_strategy_data_by_history_data(self, historyData: HistoryData):
+        intervals = model.get_intervals_config()
+        symbol = historyData.getSymbol()
+        limit = historyData.getLimit()
+        interval = historyData.getInterval()
+
+        cci_df = self._cci.get_indicator_by_history_data(historyData)
+
+        param = ParamSymbolIntervalLimit(
+            symbol=symbol, interval=interval, limit=limit, consistency_check=False
+        )
+
+        trend_df = TrendCCI().calculate_trends(param)
+
+        cci_df = pd.merge(
+            cci_df,
+            trend_df[[Const.PARAM_TREND]],
+            how="left",
+            left_on=Const.COLUMN_DATETIME,
+            right_on=Const.COLUMN_DATETIME,
+        )
+
+        cci_df = pd.merge(
+            cci_df,
+            trend_df[[Const.PARAM_SIGNAL]],
+            how="left",
+            left_on=Const.COLUMN_DATETIME,
+            right_on=Const.COLUMN_DATETIME,
+        )
+
+        cci_df[Const.PARAM_SIGNAL] = cci_df[Const.PARAM_SIGNAL].fillna("")
+
+        return cci_df

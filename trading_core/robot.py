@@ -231,7 +231,7 @@ class HistorySimulatorManager(TraderBase):
         strategy_df = StrategyFactory(self.session_mdl.strategy).get_strategy_data(
             symbol=self.session_mdl.symbol,
             interval=self.session_mdl.interval,
-            limit=200,
+            limit=400,
             closed_bars=True,
         )
 

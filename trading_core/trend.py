@@ -28,7 +28,7 @@ class TrendCCI(TrendBase):
         trends = []
 
         length_cci_50 = 50 if param.limit <= 50 else param.limit
-        limit = length_cci_50 + GLOBAL_TREND_COUNT + 10
+        limit = length_cci_50 + GLOBAL_TREND_COUNT + 35
 
         param_new = ParamSymbolIntervalLimit(
             symbol=param.symbol,
@@ -115,57 +115,70 @@ class TrendCCI(TrendBase):
 
         mean_8_cci = cci_info[LOCAL_TREND_COUNT]
         mean_16_cci = cci_info[GLOBAL_TREND_COUNT]
-        local_trend = self.__get_local_trend_descr(mean_8_cci)
-        global_trend = self.__get_global_trend_descr(mean_16_cci)
+        local_trend = self.__get_trend_descr(mean_8_cci, 30)
+        global_trend = self.__get_trend_descr(mean_16_cci, 70)
 
-        # Local trend (8) is UP
-        if local_trend == Const.TREND_UP:
-            # Global trend (16) is UP
-            if global_trend == Const.TREND_UP:
-                # Then Trend is UP
+        if local_trend == Const.STRONG_TREND_UP:
+            if global_trend == Const.STRONG_TREND_UP:
+                trend = Const.STRONG_TREND_UP
+            elif global_trend == Const.TREND_UP:
+                trend = Const.STRONG_TREND_UP
+            elif global_trend == Const.STRONG_TREND_DOWN:
                 trend = Const.TREND_UP
-            # elif cci_info[Const.TA_INDICATOR_CCI] < 0:
-            #     trend = Const.TREND_DOWN
+                signal = Const.STRONG_BUY
             elif global_trend == Const.TREND_DOWN:
-                # Else Global trend (16) is Down -> # Then Trend is UP and Trend changed
                 trend = Const.TREND_UP
-                signal = Const.TREND_CHANGED
-            else:
-                trend = None
-                signal = None
+                signal = Const.STRONG_BUY
+
+        elif local_trend == Const.TREND_UP:
+            if global_trend == Const.STRONG_TREND_UP:
+                trend = Const.TREND_UP
+            elif global_trend == Const.TREND_UP:
+                trend = Const.TREND_UP
+            elif global_trend == Const.STRONG_TREND_DOWN:
+                trend = Const.TREND_DOWN
+                signal = Const.BUY
+            elif global_trend == Const.TREND_DOWN:
+                trend = Const.TREND_UP
+                signal = Const.STRONG_BUY
+
+        elif local_trend == Const.STRONG_TREND_DOWN:
+            if global_trend == Const.STRONG_TREND_UP:
+                trend = Const.TREND_DOWN
+                signal = Const.STRONG_SELL
+            elif global_trend == Const.TREND_UP:
+                trend = Const.TREND_DOWN
+                signal = Const.STRONG_SELL
+            elif global_trend == Const.STRONG_TREND_DOWN:
+                trend = Const.STRONG_TREND_DOWN
+            elif global_trend == Const.TREND_DOWN:
+                trend = Const.STRONG_TREND_DOWN
+
         elif local_trend == Const.TREND_DOWN:
-            # Local trend (8) is DOWN
-            # Global trend (16) is UP
-            if global_trend == Const.TREND_UP:
-                # Global trend (16) is UP -> # Then Trend is DOWN and Trend changed
+            if global_trend == Const.STRONG_TREND_UP:
+                trend = Const.TREND_UP
+                signal = Const.SELL
+            elif global_trend == Const.TREND_UP:
                 trend = Const.TREND_DOWN
-                signal = Const.TREND_CHANGED
-            # elif cci_info[Const.TA_INDICATOR_CCI] > 0:
-            #     trend = Const.TREND_UP
+                signal = Const.STRONG_SELL
+            elif global_trend == Const.STRONG_TREND_DOWN:
+                trend = Const.TREND_DOWN
             elif global_trend == Const.TREND_DOWN:
-                # Else Trend is DOWN
                 trend = Const.TREND_DOWN
-            else:
-                trend = None
-                signal = None
 
+        cci_info[Const.PARAM_LOCAL_TREND] = local_trend
+        cci_info[Const.PARAM_GLOBAL_TREND] = global_trend
         cci_info[Const.PARAM_TREND] = trend
         cci_info[Const.PARAM_SIGNAL] = signal
 
         return cci_info
 
-    def __get_local_trend_descr(self, value) -> str:
-        if value < -30:
+    def __get_trend_descr(self, value, length) -> str:
+        if value < -length:
+            return Const.STRONG_TREND_DOWN
+        elif value <= 0:
             return Const.TREND_DOWN
-        elif value > 30:
+        elif value > length:
+            return Const.STRONG_TREND_UP
+        elif value > 0:
             return Const.TREND_UP
-        else:
-            return None
-
-    def __get_global_trend_descr(self, value) -> str:
-        if value < -70:
-            return Const.TREND_DOWN
-        elif value > 70:
-            return Const.TREND_UP
-        else:
-            return None

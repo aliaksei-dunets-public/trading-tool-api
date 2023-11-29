@@ -199,6 +199,8 @@ class Const:
     PARAM_SYMBOL_TYPE = "type"
     PARAM_QUERY = "query"
     PARAM_TREND = "trend"
+    PARAM_LOCAL_TREND = "local_trend"
+    PARAM_GLOBAL_TREND = "global_trend"
     OPEN_VALUE = "open_value"
     CLOSE_VALUE = "close_value"
 
