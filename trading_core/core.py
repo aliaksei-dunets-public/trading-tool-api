@@ -437,6 +437,12 @@ class Config:
                 Const.LENGTH: 20,
                 Const.VALUE: 100,
             },
+            Const.TA_STRATEGY_CCI_20_BASED_TREND_100: {
+                Const.CODE: Const.TA_STRATEGY_CCI_20_BASED_TREND_100,
+                Const.NAME: "CCI(20): Direction Trend +/- 100",
+                Const.LENGTH: 20,
+                Const.VALUE: 100,
+            },
             Const.TA_STRATEGY_CCI_50_TREND_0: {
                 Const.CODE: Const.TA_STRATEGY_CCI_50_TREND_0,
                 Const.NAME: "CCI(50): Indicator direction Trend 0",

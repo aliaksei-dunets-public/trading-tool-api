@@ -127,7 +127,10 @@ class StrategyFactory:
             self.__instance = Strategy_CCI(strategy_config_inst)
         elif code == Const.TA_STRATEGY_CCI_14_TREND_170_165:
             self.__instance = StrategyDirectionTrend_CCI(strategy_config_inst)
-        elif code == Const.TA_STRATEGY_CCI_14_BASED_TREND_100:
+        elif code in [
+            Const.TA_STRATEGY_CCI_14_BASED_TREND_100,
+            Const.TA_STRATEGY_CCI_20_BASED_TREND_100,
+        ]:
             self.__instance = StrategyDirectionBasedTrend_CCI(strategy_config_inst)
         else:
             raise Exception(f"STARTEGY: Strategy with code {code} is missed")
@@ -239,7 +242,7 @@ class Strategy_CCI(StrategyBase):
         closed_bars: bool,
     ):
         default_limit = self._cci.get_length() + 2
-        limit = limit if limit > default_limit else default_limit
+        limit = limit + default_limit
         history_data = model.get_handler().getHistoryData(
             symbol=symbol,
             interval=interval,
@@ -356,24 +359,10 @@ class StrategyDirectionTrend_CCI(Strategy_CCI):
 
 class StrategyDirectionBasedTrend_CCI(Strategy_CCI):
     def get_strategy_data_by_history_data(self, historyData: HistoryData):
-        intervals = model.get_intervals_config()
         symbol = historyData.getSymbol()
         limit = historyData.getLimit()
         interval = historyData.getInterval()
         next_interval = None
-        second_interval = None
-        trend_params = []
-
-        for i, obj in enumerate(intervals):
-            if obj["interval"] == interval:
-                if i + 1 <= len(intervals) - 1:
-                    # next_interval = intervals[i + 1]["interval"]
-                    pass
-
-                if i + 2 <= len(intervals) - 1:
-                    next_interval = intervals[i + 2]["interval"]
-
-                exit
 
         cci_df = self._cci.get_indicator_by_history_data(historyData)
 
@@ -391,7 +380,33 @@ class StrategyDirectionBasedTrend_CCI(Strategy_CCI):
             right_on=Const.COLUMN_DATETIME,
         )
 
-        if next_interval:
+        # Detect Next Interval
+        if interval == Const.TA_INTERVAL_5M:
+            next_interval = Const.TA_INTERVAL_30M
+            limit = limit // 6 + 1
+        elif interval == Const.TA_INTERVAL_15M:
+            next_interval = Const.TA_INTERVAL_1H
+            limit = limit // 4 + 1
+        elif interval == Const.TA_INTERVAL_30M:
+            next_interval = Const.TA_INTERVAL_4H
+            limit = limit // 8 + 1
+        elif interval == Const.TA_INTERVAL_1H:
+            next_interval = Const.TA_INTERVAL_4H
+            limit = limit // 4 + 1
+        elif interval == Const.TA_INTERVAL_4H:
+            next_interval = Const.TA_INTERVAL_1D
+            limit = limit // 6 + 1
+        elif interval == Const.TA_INTERVAL_1D:
+            next_interval = Const.TA_INTERVAL_1WK
+            limit = limit // 7 + 1
+        elif interval == Const.TA_INTERVAL_1WK:
+            pass
+        else:
+            raise Exception("Incorrect interval for subscription")
+
+        if not next_interval:
+            merged_df = cci_df
+        else:
             param = ParamSymbolIntervalLimit(
                 symbol=symbol,
                 interval=next_interval,
@@ -401,24 +416,31 @@ class StrategyDirectionBasedTrend_CCI(Strategy_CCI):
 
             trend_df = TrendCCI().calculate_trends(param)
 
-            cci_df = pd.merge(
+            # Assuming cci and trend are your DataFrames
+            # Reset index to make the datetime column a regular column
+            cci_df.reset_index(inplace=True)
+            trend_df.reset_index(inplace=True)
+
+            # Merge the DataFrames based on the datetime column
+            merged_df = pd.merge_asof(
                 cci_df,
-                trend_df[[Const.PARAM_TREND]],
-                how="left",
+                trend_df[[Const.COLUMN_DATETIME, Const.PARAM_TREND]],
                 left_on=Const.COLUMN_DATETIME,
                 right_on=Const.COLUMN_DATETIME,
+                direction="backward",
                 suffixes=("", "_UpLevel"),
             )
 
-            cci_df["trend_UpLevel"] = cci_df["trend_UpLevel"].ffill()
+            # Set the datetime column as the index again
+            merged_df.set_index(Const.COLUMN_DATETIME, inplace=True)
 
-        cci_df.insert(
+        merged_df.insert(
             cci_df.shape[1],
             Const.PARAM_SIGNAL,
-            self._determineSignal(cci_df),
+            self._determineSignal(merged_df),
         )
 
-        return cci_df
+        return merged_df
 
     def _determineSignal(self, cci_df):
         signals = []
@@ -460,24 +482,48 @@ class StrategyDirectionBasedTrend_CCI(Strategy_CCI):
                     elif trend_previous == Const.STRONG_TREND_UP:
                         decision = Const.SELL
 
-            if trend_up_level == Const.STRONG_TREND_UP:
-                if trend == Const.STRONG_TREND_UP:
+            elif trend == Const.STRONG_TREND_UP:
+                if trend_up_level in [Const.STRONG_TREND_UP, Const.TREND_UP]:
                     decision = self._get_signal_decision(current_value, previous_value)
                     if decision in [Const.SELL, Const.STRONG_SELL]:
                         decision = ""
                     elif decision == Const.BUY:
                         decision = Const.STRONG_BUY
-                elif trend_previous == Const.STRONG_TREND_UP:
-                    decision = Const.SELL
-            elif trend_up_level == Const.STRONG_TREND_DOWN:
-                if trend == Const.STRONG_TREND_DOWN:
+
+            elif trend == Const.TREND_UP:
+                if trend_previous in [Const.STRONG_TREND_DOWN, Const.TREND_DOWN]:
+                    decision = Const.BUY
+
+            elif trend == Const.STRONG_TREND_DOWN:
+                if trend_up_level in [Const.STRONG_TREND_DOWN, Const.TREND_DOWN]:
                     decision = self._get_signal_decision(current_value, previous_value)
                     if decision in [Const.BUY, Const.STRONG_BUY]:
                         decision = ""
                     elif decision == Const.SELL:
                         decision = Const.STRONG_SELL
-                elif trend_previous == Const.STRONG_TREND_DOWN:
-                    decision = Const.BUY
+
+            elif trend == Const.TREND_DOWN:
+                if trend_previous in [Const.STRONG_TREND_UP, Const.TREND_UP]:
+                    decision = Const.SELL
+
+            # if trend_up_level == Const.STRONG_TREND_UP:
+            #     if trend == Const.STRONG_TREND_UP:
+            #         decision = self._get_signal_decision(current_value, previous_value)
+            #         if decision in [Const.SELL, Const.STRONG_SELL]:
+            #             decision = ""
+            #         elif decision == Const.BUY:
+            #             decision = Const.STRONG_BUY
+            #     elif trend_previous == Const.STRONG_TREND_UP:
+            #         decision = Const.SELL
+            # elif trend_up_level == Const.STRONG_TREND_DOWN:
+            #     if trend == Const.STRONG_TREND_DOWN:
+            #         decision = self._get_signal_decision(current_value, previous_value)
+            #         if decision in [Const.BUY, Const.STRONG_BUY]:
+            #             decision = ""
+            #         elif decision == Const.SELL:
+            #             decision = Const.STRONG_SELL
+            #     elif trend_previous == Const.STRONG_TREND_DOWN:
+            #         decision = Const.BUY
 
             signals.append(decision)
 

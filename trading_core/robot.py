@@ -469,11 +469,11 @@ class DataManagerBase:
 
     def _get_quantity(self, signal_mdl: cmn.SignalModel) -> float:
         symbol_quote_precision = self._symbol_mdl.quote_precision
-        total_balance = self._get_current_balance()
         fee = self._get_fee()
+        total_balance_without_fee = self._get_current_balance(fee)
         price = self._get_open_price(signal_mdl)
 
-        quantity = (total_balance - fee) / price
+        quantity = total_balance_without_fee / price
 
         rounded_value = Decimal(str(quantity)).quantize(
             Decimal("1e-{0}".format(symbol_quote_precision)), rounding=ROUND_DOWN
@@ -483,7 +483,7 @@ class DataManagerBase:
 
         if quantity_round_down <= 0:
             raise Exception(
-                f"{self.__class__.__name__}: It's not enough balance {total_balance} for trading"
+                f"{self.__class__.__name__}: It's not enough balance {total_balance_without_fee} for trading"
             )
 
         return quantity_round_down
@@ -494,8 +494,9 @@ class DataManagerBase:
         fee = total_balance * symbol_fee / 100
         return fee
 
-    def _get_current_balance(self) -> float:
-        return self._balance_mng.get_total_balance()
+    def _get_current_balance(self, fee: float = 0) -> float:
+        # Take Total Balance from Balance Model and take into account Fee if it's required
+        return self._balance_mng.get_total_balance() - fee
 
     def _get_open_balance(self) -> float:
         return -1 * self._side_mng.get_open_balance(self._current_position)
@@ -576,8 +577,8 @@ class LeverageManagerBase(DataManagerBase):
         position_data = self._get_open_position_template(signal_mdl)
         return cmn.LeverageModel(**position_data)
 
-    def _get_current_balance(self) -> float:
-        return super()._get_current_balance() * self._session_mdl.leverage
+    def _get_current_balance(self, fee: float = 0) -> float:
+        return super()._get_current_balance(fee) * self._session_mdl.leverage
 
     def _get_open_balance(self) -> float:
         return super()._get_open_balance() / self._session_mdl.leverage

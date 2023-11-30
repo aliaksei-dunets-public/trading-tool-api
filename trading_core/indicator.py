@@ -6,13 +6,13 @@ from .core import logger, config, Const, HistoryData
 from .model import model
 
 
-class IndicatorBase():
+class IndicatorBase:
     """The base class for all technical indicators."""
 
     def __init__(self):
         """Initialize the indicator with an empty code and name."""
-        self._code = ''
-        self._name = ''
+        self._code = ""
+        self._name = ""
 
     def get_code(self) -> str:
         """Return the code of the indicator."""
@@ -22,7 +22,14 @@ class IndicatorBase():
         """Return the name of the indicator."""
         return self._name
 
-    def get_indicator(self, symbol: str, interval: str, limit: int, from_buffer: bool, closed_bars: bool) -> HistoryData:
+    def get_indicator(
+        self,
+        symbol: str,
+        interval: str,
+        limit: int,
+        from_buffer: bool,
+        closed_bars: bool,
+    ) -> HistoryData:
         """
         Get the indicator for a specific symbol, interval, and time period.
 
@@ -38,11 +45,20 @@ class IndicatorBase():
         """
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
             logger.info(
-                f'INDICATOR: {self._code} - get_indicator(symbol={symbol}, interval={interval}, limit={limit}, from_buffer={from_buffer}, closed_bars={closed_bars})')
+                f"INDICATOR: {self._code} - get_indicator(symbol={symbol}, interval={interval}, limit={limit}, from_buffer={from_buffer}, closed_bars={closed_bars})"
+            )
 
-        return model.get_handler().getHistoryData(symbol=symbol, interval=interval, limit=limit, from_buffer=from_buffer, closed_bars=closed_bars)
+        return model.get_handler().getHistoryData(
+            symbol=symbol,
+            interval=interval,
+            limit=limit,
+            from_buffer=from_buffer,
+            closed_bars=closed_bars,
+        )
 
-    def get_indicator_by_history_data(self, history_data_inst: HistoryData) -> pd.DataFrame:
+    def get_indicator_by_history_data(
+        self, history_data_inst: HistoryData
+    ) -> pd.DataFrame:
         """
         Get the indicator for a specific historical data object.
 
@@ -54,7 +70,8 @@ class IndicatorBase():
         """
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
             logger.info(
-                f'INDICATOR: {self._code} - get_indicator_by_history_data(symbol={history_data_inst.getSymbol()}, interval={history_data_inst.getInterval()}, limit={history_data_inst.getLimit()}, endDatetime={history_data_inst.getEndDateTime()})')
+                f"INDICATOR: {self._code} - get_indicator_by_history_data(symbol={history_data_inst.getSymbol()}, interval={history_data_inst.getInterval()}, limit={history_data_inst.getLimit()}, endDatetime={history_data_inst.getEndDateTime()})"
+            )
 
         return history_data_inst.getDataFrame()
 
@@ -73,7 +90,7 @@ class Indicator_CCI(IndicatorBase):
         IndicatorBase.__init__(self)
         # Set the code and name of the indicator
         self._code = Const.TA_INDICATOR_CCI
-        self._name = 'Commodity Channel Index'
+        self._name = "Commodity Channel Index"
 
         # Set the length of the indicator (number of periods)
         self.__length = int(length)
@@ -82,7 +99,14 @@ class Indicator_CCI(IndicatorBase):
         """Return the length of the CCI indicator."""
         return self.__length
 
-    def get_indicator(self, symbol: str, interval: str, limit: int, from_buffer: bool, closed_bars: bool) -> pd.DataFrame:
+    def get_indicator(
+        self,
+        symbol: str,
+        interval: str,
+        limit: int,
+        from_buffer: bool,
+        closed_bars: bool,
+    ) -> pd.DataFrame:
         """
         Get the CCI indicator for a specific symbol, interval, and time period.
 
@@ -100,16 +124,23 @@ class Indicator_CCI(IndicatorBase):
         default_length = self.__length + 2
 
         # If the given limit is less than the default limit, use the default limit instead
-        limit = limit if limit > default_length else default_length
+        limit = limit + default_length
 
         # Get the historical data for the given symbol and interval up to the given limit
-        history_data_inst = super().get_indicator(symbol=symbol, interval=interval,
-                                                  limit=limit, from_buffer=from_buffer, closed_bars=closed_bars)
+        history_data_inst = super().get_indicator(
+            symbol=symbol,
+            interval=interval,
+            limit=limit,
+            from_buffer=from_buffer,
+            closed_bars=closed_bars,
+        )
 
         # Calculate the indicator based on the historical data and return it
         return self.get_indicator_by_history_data(history_data_inst)
 
-    def get_indicator_by_history_data(self, history_data_inst: HistoryData) -> pd.DataFrame:
+    def get_indicator_by_history_data(
+        self, history_data_inst: HistoryData
+    ) -> pd.DataFrame:
         """
         Get the CCI indicator for a specific historical data object.
 
@@ -126,7 +157,8 @@ class Indicator_CCI(IndicatorBase):
         if history_DataFrame.shape[0] < self.__length:
             # If there is not enough historical data, raise an exception
             raise Exception(
-                f'Count of history data less then indicator interval {self.__length}')
+                f"Count of history data less then indicator interval {self.__length}"
+            )
 
         # Calculate the Commodity Channel Index using the length specified in the constructor
         cci_series = history_DataFrame.ta.cci(length=self.__length)

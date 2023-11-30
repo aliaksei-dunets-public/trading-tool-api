@@ -1055,7 +1055,7 @@ class JobScheduler:
             hour = "8"
             minute = "1"
         else:
-            Exception("Incorrect interval for subscription")
+            raise Exception("Incorrect interval for subscription")
 
         return CronTrigger(
             day_of_week=day_of_week,

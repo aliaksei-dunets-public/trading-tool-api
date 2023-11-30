@@ -4,9 +4,9 @@ from .constants import Const
 from .model import model, ParamSymbolInterval, ParamSymbolIntervalLimit
 from .indicator import Indicator_CCI
 
-GLOBAL_TREND_COUNT = 16
-LOCAL_TREND_COUNT = 8
-QUICK_TREND_COUNT = 6
+GLOBAL_TREND_COUNT = 10
+# LOCAL_TREND_COUNT = 8
+# QUICK_TREND_COUNT = 6
 
 
 class TrendBase:
@@ -27,8 +27,8 @@ class TrendCCI(TrendBase):
     def calculate_trends(self, param: ParamSymbolIntervalLimit):
         trends = []
 
-        length_cci_50 = 50 if param.limit <= 50 else param.limit
-        limit = length_cci_50 + GLOBAL_TREND_COUNT + 35
+        length_cci_50 = 50 + param.limit
+        limit = length_cci_50 + GLOBAL_TREND_COUNT + 1
 
         param_new = ParamSymbolIntervalLimit(
             symbol=param.symbol,
@@ -81,7 +81,6 @@ class TrendCCI(TrendBase):
             Const.INTERVAL: param.interval,
             Const.PARAM_TREND: trend_info[Const.PARAM_TREND],
             Const.PARAM_SIGNAL: trend_info[Const.PARAM_SIGNAL],
-            # "CCI_50": cci_info
         }
 
     def __get_cci_data(
@@ -100,76 +99,90 @@ class TrendCCI(TrendBase):
 
     def __get_cci_info(self, df_cci: pd.DataFrame) -> dict:
         mean_16_cci = df_cci.tail(GLOBAL_TREND_COUNT).mean()
-        mean_8_cci = df_cci.tail(LOCAL_TREND_COUNT).mean()
+        # mean_8_cci = df_cci.tail(LOCAL_TREND_COUNT).mean()
 
         return {
             Const.COLUMN_DATETIME: df_cci.tail(1).index[0],
-            Const.TA_INDICATOR_CCI: df_cci[-1],
+            Const.TA_INDICATOR_CCI: df_cci.iloc[-1],
             GLOBAL_TREND_COUNT: mean_16_cci,
-            LOCAL_TREND_COUNT: mean_8_cci,
+            # LOCAL_TREND_COUNT: mean_8_cci,
         }
 
     def __get_trend_info(self, cci_info: dict) -> dict:
         trend = ""
         signal = ""
 
-        mean_8_cci = cci_info[LOCAL_TREND_COUNT]
+        # mean_8_cci = cci_info[LOCAL_TREND_COUNT]
         mean_16_cci = cci_info[GLOBAL_TREND_COUNT]
-        local_trend = self.__get_trend_descr(mean_8_cci, 30)
-        global_trend = self.__get_trend_descr(mean_16_cci, 70)
+        # local_trend = self.__get_trend_descr(mean_8_cci, 50)
+        cci_info[Const.PARAM_TREND] = self.__get_trend_descr(mean_16_cci, 70)
 
-        if local_trend == Const.STRONG_TREND_UP:
-            if global_trend == Const.STRONG_TREND_UP:
-                trend = Const.STRONG_TREND_UP
-            elif global_trend == Const.TREND_UP:
-                trend = Const.STRONG_TREND_UP
-            elif global_trend == Const.STRONG_TREND_DOWN:
-                trend = Const.TREND_UP
-                signal = Const.STRONG_BUY
-            elif global_trend == Const.TREND_DOWN:
-                trend = Const.TREND_UP
-                signal = Const.STRONG_BUY
+        # if global_trend == Const.STRONG_TREND_UP:
+        #     if local_trend == Const.STRONG_TREND_UP:
+        #         trend = Const.STRONG_TREND_UP
+        #     elif local_trend == Const.TREND_UP:
+        #         trend = Const.STRONG_TREND_UP
+        #     elif local_trend in [Const.STRONG_TREND_DOWN, Const.TREND_DOWN]:
+        #         trend = Const.TREND_UP
+        # elif global_trend == Const.TREND_UP:
+        #     pass
+        # elif global_trend == Const.STRONG_TREND_DOWN:
+        #     pass
+        # elif global_trend == Const.TREND_DOWN:
+        #     pass
 
-        elif local_trend == Const.TREND_UP:
-            if global_trend == Const.STRONG_TREND_UP:
-                trend = Const.TREND_UP
-            elif global_trend == Const.TREND_UP:
-                trend = Const.TREND_UP
-            elif global_trend == Const.STRONG_TREND_DOWN:
-                trend = Const.TREND_DOWN
-                signal = Const.BUY
-            elif global_trend == Const.TREND_DOWN:
-                trend = Const.TREND_UP
-                signal = Const.STRONG_BUY
+        # if local_trend == Const.STRONG_TREND_UP:
+        #     if global_trend == Const.STRONG_TREND_UP:
+        #         trend = Const.STRONG_TREND_UP
+        #     elif global_trend == Const.TREND_UP:
+        #         trend = Const.STRONG_TREND_UP
+        #     elif global_trend == Const.STRONG_TREND_DOWN:
+        #         trend = Const.TREND_UP
+        #         signal = Const.STRONG_BUY
+        #     elif global_trend == Const.TREND_DOWN:
+        #         trend = Const.TREND_UP
+        #         signal = Const.STRONG_BUY
 
-        elif local_trend == Const.STRONG_TREND_DOWN:
-            if global_trend == Const.STRONG_TREND_UP:
-                trend = Const.TREND_DOWN
-                signal = Const.STRONG_SELL
-            elif global_trend == Const.TREND_UP:
-                trend = Const.TREND_DOWN
-                signal = Const.STRONG_SELL
-            elif global_trend == Const.STRONG_TREND_DOWN:
-                trend = Const.STRONG_TREND_DOWN
-            elif global_trend == Const.TREND_DOWN:
-                trend = Const.STRONG_TREND_DOWN
+        # elif local_trend == Const.TREND_UP:
+        #     if global_trend == Const.STRONG_TREND_UP:
+        #         trend = Const.TREND_UP
+        #     elif global_trend == Const.TREND_UP:
+        #         trend = Const.TREND_UP
+        #     elif global_trend == Const.STRONG_TREND_DOWN:
+        #         trend = Const.TREND_DOWN
+        #         signal = Const.BUY
+        #     elif global_trend == Const.TREND_DOWN:
+        #         trend = Const.TREND_UP
+        #         signal = Const.STRONG_BUY
 
-        elif local_trend == Const.TREND_DOWN:
-            if global_trend == Const.STRONG_TREND_UP:
-                trend = Const.TREND_UP
-                signal = Const.SELL
-            elif global_trend == Const.TREND_UP:
-                trend = Const.TREND_DOWN
-                signal = Const.STRONG_SELL
-            elif global_trend == Const.STRONG_TREND_DOWN:
-                trend = Const.TREND_DOWN
-            elif global_trend == Const.TREND_DOWN:
-                trend = Const.TREND_DOWN
+        # elif local_trend == Const.STRONG_TREND_DOWN:
+        #     if global_trend == Const.STRONG_TREND_UP:
+        #         trend = Const.TREND_DOWN
+        #         signal = Const.STRONG_SELL
+        #     elif global_trend == Const.TREND_UP:
+        #         trend = Const.TREND_DOWN
+        #         signal = Const.STRONG_SELL
+        #     elif global_trend == Const.STRONG_TREND_DOWN:
+        #         trend = Const.STRONG_TREND_DOWN
+        #     elif global_trend == Const.TREND_DOWN:
+        #         trend = Const.STRONG_TREND_DOWN
 
-        cci_info[Const.PARAM_LOCAL_TREND] = local_trend
-        cci_info[Const.PARAM_GLOBAL_TREND] = global_trend
-        cci_info[Const.PARAM_TREND] = trend
-        cci_info[Const.PARAM_SIGNAL] = signal
+        # elif local_trend == Const.TREND_DOWN:
+        #     if global_trend == Const.STRONG_TREND_UP:
+        #         trend = Const.TREND_UP
+        #         signal = Const.SELL
+        #     elif global_trend == Const.TREND_UP:
+        #         trend = Const.TREND_DOWN
+        #         signal = Const.STRONG_SELL
+        #     elif global_trend == Const.STRONG_TREND_DOWN:
+        #         trend = Const.TREND_DOWN
+        #     elif global_trend == Const.TREND_DOWN:
+        #         trend = Const.TREND_DOWN
+
+        # cci_info[Const.PARAM_LOCAL_TREND] = local_trend
+        # cci_info[Const.PARAM_GLOBAL_TREND] = global_trend
+        # cci_info[Const.PARAM_TREND] = trend
+        # cci_info[Const.PARAM_SIGNAL] = signal
 
         return cci_info
 
