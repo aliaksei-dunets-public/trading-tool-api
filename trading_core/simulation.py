@@ -8,7 +8,9 @@ from .strategy import StrategyFactory
 
 
 class Order:
-    def __init__(self, type: str, open_date_time: datetime, open_price: float, quantity: float):
+    def __init__(
+        self, type: str, open_date_time: datetime, open_price: float, quantity: float
+    ):
         self.id = None
         self.type = type
         self.open_date_time = open_date_time
@@ -43,21 +45,25 @@ class Simulator:
 
     def execute(self) -> object:
         # Get strategy DataFrame for symbol, interval, strategy and limit
-        strategy_df = StrategyFactory(self.strategy).get_strategy_data(symbol=self.symbol,
-                                                                       interval=self.interval,
-                                                                       limit=self.simulation_options.limit,
-                                                                       from_buffer=True,
-                                                                       closed_bars=False)
+        strategy_df = StrategyFactory(self.strategy).get_strategy_data(
+            symbol=self.symbol,
+            interval=self.interval,
+            limit=self.simulation_options.limit,
+            from_buffer=True,
+            closed_bars=False,
+        )
 
         # Process each candle bar for detecting of the signals
         for row in strategy_df.itertuples():
-            candle_bar = CandelBarSignal(date_time=row.Index,
-                                         open=row.Open,
-                                         high=row.High,
-                                         low=row.Low,
-                                         close=row.Close,
-                                         volume=row.Volume,
-                                         signal=row.signal)
+            candle_bar = CandelBarSignal(
+                date_time=row.Index,
+                open=row.Open,
+                high=row.High,
+                low=row.Low,
+                close=row.Close,
+                volume=row.Volume,
+                signal=row.signal,
+            )
 
             # Process candle bar -> create/close order and calculate profits and loses
             self._process_candle_bar(candle_bar)
@@ -65,16 +71,18 @@ class Simulator:
         return self
 
     def get_summary(self) -> dict:
-        return {Const.DB_SYMBOL: self.symbol,
-                Const.DB_INTERVAL: self.interval,
-                Const.DB_STRATEGY: self.strategy,
-                Const.DB_INIT_BALANCE: self.init_balance,
-                Const.DB_LIMIT: self.simulation_options.limit,
-                Const.DB_STOP_LOSS_RATE: self.simulation_options.stop_loss_rate,
-                Const.DB_TAKE_PROFIT_RATE: self.simulation_options.take_profit_rate,
-                Const.DB_FEE_RATE: self.simulation_options.fee_rate,
-                Const.DB_BALANCE: (self.init_balance + self.total_profit),
-                Const.DB_PROFIT: self.total_profit}
+        return {
+            Const.DB_SYMBOL: self.symbol,
+            Const.DB_INTERVAL: self.interval,
+            Const.DB_STRATEGY: self.strategy,
+            Const.DB_INIT_BALANCE: self.init_balance,
+            Const.DB_LIMIT: self.simulation_options.limit,
+            Const.DB_STOP_LOSS_RATE: self.simulation_options.stop_loss_rate,
+            Const.DB_TAKE_PROFIT_RATE: self.simulation_options.take_profit_rate,
+            Const.DB_FEE_RATE: self.simulation_options.fee_rate,
+            Const.DB_BALANCE: (self.init_balance + self.total_profit),
+            Const.DB_PROFIT: self.total_profit,
+        }
 
     def get_orders(self) -> list:
         orders = []
@@ -88,16 +96,17 @@ class Simulator:
         return self.__analyze()
 
     def get_simulation(self) -> dict:
-        return {"summary": self.get_summary(),
-                "orders": self.get_orders(),
-                "analysis": self.get_analysis()}
+        return {
+            "summary": self.get_summary(),
+            "orders": self.get_orders(),
+            "analysis": self.get_analysis(),
+        }
 
     def get_simulation_id(self) -> str:
-        sep = '-'
-        return f'{self.symbol}{sep}{self.interval}{sep}{self.strategy}{sep}{self.init_balance}{sep}{self.simulation_options.limit}{sep}{self.simulation_options.stop_loss_rate}{sep}{self.simulation_options.take_profit_rate}{sep}{self.simulation_options.fee_rate}'
+        sep = "-"
+        return f"{self.symbol}{sep}{self.interval}{sep}{self.strategy}{sep}{self.init_balance}{sep}{self.simulation_options.limit}{sep}{self.simulation_options.stop_loss_rate}{sep}{self.simulation_options.take_profit_rate}{sep}{self.simulation_options.fee_rate}"
 
     def __analyze(self) -> dict:
-
         analysis = {
             Const.DB_TOTAL: {
                 # Const.DB_COUNT_PROFIT: 0,
@@ -130,20 +139,20 @@ class Simulator:
                 Const.DB_COUNT_PROFIT: 0,
                 Const.DB_COUNT_LOSS: 0,
                 Const.DB_SUM_PROFIT: 0,
-                Const.DB_SUM_LOSS: 0
+                Const.DB_SUM_LOSS: 0,
             },
             Const.ORDER_CLOSE_REASON_TAKE_PROFIT: {
                 Const.DB_COUNT_PROFIT: 0,
                 Const.DB_COUNT_LOSS: 0,
                 Const.DB_SUM_PROFIT: 0,
-                Const.DB_SUM_LOSS: 0
+                Const.DB_SUM_LOSS: 0,
             },
             Const.ORDER_CLOSE_REASON_SIGNAL: {
                 Const.DB_COUNT_PROFIT: 0,
                 Const.DB_COUNT_LOSS: 0,
                 Const.DB_SUM_PROFIT: 0,
-                Const.DB_SUM_LOSS: 0
-            }
+                Const.DB_SUM_LOSS: 0,
+            },
         }
 
         for simulation in self.simulations:
@@ -153,18 +162,30 @@ class Simulator:
                 analysis[order_type][Const.DB_COUNT_PROFIT] += 1
                 analysis[order_type][Const.DB_SUM_PROFIT] += simulation.profit
                 analysis[simulation.close_reason][Const.DB_COUNT_PROFIT] += 1
-                analysis[simulation.close_reason][Const.DB_SUM_PROFIT] += simulation.profit
+                analysis[simulation.close_reason][
+                    Const.DB_SUM_PROFIT
+                ] += simulation.profit
 
-                analysis[order_type][Const.DB_AVG_PERCENT_PROFIT] += simulation.percent_change
-                analysis[order_type][Const.DB_AVG_MAX_PERCENT_PROFIT] += simulation.max_percent_change
+                analysis[order_type][
+                    Const.DB_AVG_PERCENT_PROFIT
+                ] += simulation.percent_change
+                analysis[order_type][
+                    Const.DB_AVG_MAX_PERCENT_PROFIT
+                ] += simulation.max_percent_change
             else:
                 analysis[order_type][Const.DB_COUNT_LOSS] += 1
                 analysis[order_type][Const.DB_SUM_LOSS] += simulation.profit
                 analysis[simulation.close_reason][Const.DB_COUNT_LOSS] += 1
-                analysis[simulation.close_reason][Const.DB_SUM_LOSS] += simulation.profit
+                analysis[simulation.close_reason][
+                    Const.DB_SUM_LOSS
+                ] += simulation.profit
 
-                analysis[order_type][Const.DB_AVG_PERCENT_LOSS] += simulation.percent_change
-                analysis[order_type][Const.DB_AVG_MIN_PERCENT_LOSS] += simulation.min_percent_change
+                analysis[order_type][
+                    Const.DB_AVG_PERCENT_LOSS
+                ] += simulation.percent_change
+                analysis[order_type][
+                    Const.DB_AVG_MIN_PERCENT_LOSS
+                ] += simulation.min_percent_change
 
             analysis[Const.DB_TOTAL][Const.DB_SUM_FEE_VALUE] += simulation.fee_value
 
@@ -178,26 +199,35 @@ class Simulator:
         #     analysis[Const.SHORT][Const.DB_SUM_LOSS]
 
         for key, item in analysis.items():
-            if key in [Const.DB_TOTAL, Const.ORDER_CLOSE_REASON_STOP_LOSS, Const.ORDER_CLOSE_REASON_TAKE_PROFIT, Const.ORDER_CLOSE_REASON_SIGNAL]:
+            if key in [
+                Const.DB_TOTAL,
+                Const.ORDER_CLOSE_REASON_STOP_LOSS,
+                Const.ORDER_CLOSE_REASON_TAKE_PROFIT,
+                Const.ORDER_CLOSE_REASON_SIGNAL,
+            ]:
                 continue
 
             if item[Const.DB_COUNT_PROFIT] == 0:
                 item[Const.DB_AVG_PERCENT_PROFIT] = 0
                 item[Const.DB_AVG_MAX_PERCENT_PROFIT] = 0
             else:
-                item[Const.DB_AVG_PERCENT_PROFIT] = item[Const.DB_AVG_PERCENT_PROFIT] / \
-                    item[Const.DB_COUNT_PROFIT]
-                item[Const.DB_AVG_MAX_PERCENT_PROFIT] = item[Const.DB_AVG_MAX_PERCENT_PROFIT] / \
-                    item[Const.DB_COUNT_PROFIT]
+                item[Const.DB_AVG_PERCENT_PROFIT] = (
+                    item[Const.DB_AVG_PERCENT_PROFIT] / item[Const.DB_COUNT_PROFIT]
+                )
+                item[Const.DB_AVG_MAX_PERCENT_PROFIT] = (
+                    item[Const.DB_AVG_MAX_PERCENT_PROFIT] / item[Const.DB_COUNT_PROFIT]
+                )
 
             if item[Const.DB_COUNT_LOSS] == 0:
                 item[Const.DB_AVG_PERCENT_LOSS] = 0
                 item[Const.DB_AVG_MIN_PERCENT_LOSS] = 0
             else:
-                item[Const.DB_AVG_PERCENT_LOSS] = item[Const.DB_AVG_PERCENT_LOSS] / \
-                    item[Const.DB_COUNT_LOSS]
-                item[Const.DB_AVG_MIN_PERCENT_LOSS] = item[Const.DB_AVG_MIN_PERCENT_LOSS] / \
-                    item[Const.DB_COUNT_LOSS]
+                item[Const.DB_AVG_PERCENT_LOSS] = (
+                    item[Const.DB_AVG_PERCENT_LOSS] / item[Const.DB_COUNT_LOSS]
+                )
+                item[Const.DB_AVG_MIN_PERCENT_LOSS] = (
+                    item[Const.DB_AVG_MIN_PERCENT_LOSS] / item[Const.DB_COUNT_LOSS]
+                )
 
         return analysis
 
@@ -223,8 +253,9 @@ class Simulator:
             return None
 
         # Create order and calculate some attributes
-        self.current_simulation.open_simulation(open_date_time=candler_bar.date_time,
-                                                open_price=candler_bar.close)
+        self.current_simulation.open_simulation(
+            open_date_time=candler_bar.date_time, open_price=candler_bar.close
+        )
 
         # Clear current open simulation if order is not open
         if not self._exist_open_order():
@@ -238,7 +269,8 @@ class Simulator:
 
             # Recalculate init balance in the simulation options
             self.simulation_options.set_init_balance(
-                self.init_balance + self.total_profit)
+                self.init_balance + self.total_profit
+            )
 
             # Add curretn closed simulation to the list of the simulations
             self.simulations.append(self.current_simulation)
@@ -254,11 +286,10 @@ class Simulator:
 
 class SimulationBase:
     def __init__(self, options_inst: SimulateOptions):
-
         self._order: Order = None
         self._options_inst: SimulateOptions = options_inst
 
-        self.close_reason = ''
+        self.close_reason = ""
         self.fee_value = self._options_inst.get_fee_value()
         self.balance: float = self._options_inst.get_balance()
         self.profit: float = 0
@@ -274,23 +305,25 @@ class SimulationBase:
         self.max_percent_change: float = 0
         self.min_percent_change: float = 0
 
-    def open_simulation(self, type: str, open_date_time: datetime, open_price: float) -> None:
+    def open_simulation(
+        self, type: str, open_date_time: datetime, open_price: float
+    ) -> None:
         # Get quantity of an order based on an init balance and an open price
         quantity = self._options_inst.get_quantity(open_price)
         # Get Stop loss value based on Stop loss rate and the open price
-        self.stop_loss_value = self._options_inst.get_stop_loss_value(
-            open_price)
+        self.stop_loss_value = self._options_inst.get_stop_loss_value(open_price)
         # Get Take profit value based on Take profit rate and the open price
-        self.take_profit_value = self._options_inst.get_take_profit_value(
-            open_price)
+        self.take_profit_value = self._options_inst.get_take_profit_value(open_price)
         self.max_price = open_price
         self.min_price = open_price
 
         # Create an order with the open status
-        self._order = Order(type=type,
-                            open_date_time=open_date_time,
-                            open_price=open_price,
-                            quantity=quantity)
+        self._order = Order(
+            type=type,
+            open_date_time=open_date_time,
+            open_price=open_price,
+            quantity=quantity,
+        )
 
     def close_simulation(self, candler_bar: CandelBarSignal) -> bool:
         self.__recalculate(low=candler_bar.low, high=candler_bar.high)
@@ -300,27 +333,28 @@ class SimulationBase:
         return self._order
 
     def get_simulation(self) -> dict:
-
         order_dict = dict(self._order.__dict__)
         simulation = dict(self.__dict__)
-        simulation.pop('_order')
-        simulation.pop('_options_inst')
+        simulation.pop("_order")
+        simulation.pop("_options_inst")
 
         simulation.update(order_dict)
 
         return simulation
 
-    def _close_order(self, close_date_time: datetime, close_price: float, close_reason: str) -> bool:
+    def _close_order(
+        self, close_date_time: datetime, close_price: float, close_reason: str
+    ) -> bool:
         # Set a reason of an order closing
         self.close_reason = close_reason
         # Set changes in percents of the candle bar
-        self.percent_change = self._get_percent_change(initial=self._order.open_price,
-                                                       target=close_price)
+        self.percent_change = self._get_percent_change(
+            initial=self._order.open_price, target=close_price
+        )
 
         # Close the order
         if self._order and self._order.status == Const.STATUS_OPEN:
-            self._order.close(close_date_time=close_date_time,
-                              close_price=close_price)
+            self._order.close(close_date_time=close_date_time, close_price=close_price)
             return True
         else:
             return False
@@ -335,7 +369,7 @@ class SimulationBase:
         if initial == 0:
             return 0
         else:
-            return (target-initial) / initial * 100
+            return (target - initial) / initial * 100
 
     def _get_price_value(self, price):
         return self._order.quantity * price
@@ -346,19 +380,20 @@ class SimulationLong(SimulationBase):
         super().__init__(options_inst)
 
     def open_simulation(self, open_date_time: datetime, open_price: float):
-        super().open_simulation(type=Const.LONG,
-                                open_date_time=open_date_time,
-                                open_price=open_price)
+        super().open_simulation(
+            type=Const.LONG, open_date_time=open_date_time, open_price=open_price
+        )
 
         # Calculate Stop Loss Price based on the open price and Stop Loss value: Open price - Stop Loss value
-        self.stop_loss_price = open_price - \
-            self.stop_loss_value if self.stop_loss_value > 0 else 0
+        self.stop_loss_price = (
+            open_price - self.stop_loss_value if self.stop_loss_value > 0 else 0
+        )
         # Calculate Take Profit Price based on the open price and Take Profit value: Open price + Take Profit value
-        self.take_profit_price = open_price + \
-            self.take_profit_value if self.take_profit_value > 0 else 0
+        self.take_profit_price = (
+            open_price + self.take_profit_value if self.take_profit_value > 0 else 0
+        )
 
     def close_simulation(self, candler_bar: CandelBarSignal) -> bool:
-
         super().close_simulation(candler_bar)
 
         if self.stop_loss_price != 0 and candler_bar.low <= self.stop_loss_price:
@@ -373,29 +408,34 @@ class SimulationLong(SimulationBase):
         else:
             return False
 
-        return self._close_order(close_date_time=candler_bar.date_time,
-                                 close_price=close_price,
-                                 close_reason=close_reason)
+        return self._close_order(
+            close_date_time=candler_bar.date_time,
+            close_price=close_price,
+            close_reason=close_reason,
+        )
 
-    def _close_order(self, close_date_time: datetime, close_price: float, close_reason: str) -> bool:
-
+    def _close_order(
+        self, close_date_time: datetime, close_price: float, close_reason: str
+    ) -> bool:
         self.profit = self._get_price_value(close_price) - self.balance
 
-        self.max_loss_value = self._get_price_value(
-            self.min_price) - self.balance
-        self.max_profit_value = self._get_price_value(
-            self.max_price) - self.balance
+        self.max_loss_value = self._get_price_value(self.min_price) - self.balance
+        self.max_profit_value = self._get_price_value(self.max_price) - self.balance
 
         # Set max changes in percents of the candle bar
-        self.max_percent_change = self._get_percent_change(initial=self._order.open_price,
-                                                           target=self.max_price)
+        self.max_percent_change = self._get_percent_change(
+            initial=self._order.open_price, target=self.max_price
+        )
         # Set min changes in percents of the candle bar
-        self.min_percent_change = self._get_percent_change(initial=self._order.open_price,
-                                                           target=self.min_price)
+        self.min_percent_change = self._get_percent_change(
+            initial=self._order.open_price, target=self.min_price
+        )
 
-        return super()._close_order(close_date_time=close_date_time,
-                                    close_price=close_price,
-                                    close_reason=close_reason)
+        return super()._close_order(
+            close_date_time=close_date_time,
+            close_price=close_price,
+            close_reason=close_reason,
+        )
 
 
 class SimulationShort(SimulationBase):
@@ -403,19 +443,20 @@ class SimulationShort(SimulationBase):
         super().__init__(options_inst)
 
     def open_simulation(self, open_date_time: datetime, open_price: float):
-        super().open_simulation(type=Const.SHORT,
-                                open_date_time=open_date_time,
-                                open_price=open_price)
+        super().open_simulation(
+            type=Const.SHORT, open_date_time=open_date_time, open_price=open_price
+        )
 
         # Calculate Stop Loss Price based on the open price and Stop Loss value: Open price + Stop Loss value
-        self.stop_loss_price = open_price + \
-            self.stop_loss_value if self.stop_loss_value > 0 else 0
+        self.stop_loss_price = (
+            open_price + self.stop_loss_value if self.stop_loss_value > 0 else 0
+        )
         # Calculate Take Profit Price based on the open price and Take Profit value: Open price - Take Profit value
-        self.take_profit_price = open_price - \
-            self.take_profit_value if self.take_profit_value > 0 else 0
+        self.take_profit_price = (
+            open_price - self.take_profit_value if self.take_profit_value > 0 else 0
+        )
 
     def close_simulation(self, candler_bar: CandelBarSignal) -> bool:
-
         super().close_simulation(candler_bar)
 
         if self.stop_loss_price != 0 and candler_bar.high >= self.stop_loss_price:
@@ -430,33 +471,37 @@ class SimulationShort(SimulationBase):
         else:
             return False
 
-        return self._close_order(close_date_time=candler_bar.date_time,
-                                 close_price=close_price,
-                                 close_reason=close_reason)
+        return self._close_order(
+            close_date_time=candler_bar.date_time,
+            close_price=close_price,
+            close_reason=close_reason,
+        )
 
-    def _close_order(self, close_date_time: datetime, close_price: float, close_reason: str) -> bool:
-
+    def _close_order(
+        self, close_date_time: datetime, close_price: float, close_reason: str
+    ) -> bool:
         self.profit = self.balance - self._get_price_value(close_price)
 
-        self.max_loss_value = self.balance - \
-            self._get_price_value(self.max_price)
-        self.max_profit_value = self.balance - \
-            self._get_price_value(self.min_price)
+        self.max_loss_value = self.balance - self._get_price_value(self.max_price)
+        self.max_profit_value = self.balance - self._get_price_value(self.min_price)
 
         # Set max changes in percents of the candle bar
-        self.max_percent_change = self._get_percent_change(initial=self._order.open_price,
-                                                           target=self.min_price)
+        self.max_percent_change = self._get_percent_change(
+            initial=self._order.open_price, target=self.min_price
+        )
         # Set min changes in percents of the candle bar
-        self.min_percent_change = self._get_percent_change(initial=self._order.open_price,
-                                                           target=self.max_price)
+        self.min_percent_change = self._get_percent_change(
+            initial=self._order.open_price, target=self.max_price
+        )
 
-        return super()._close_order(close_date_time=close_date_time,
-                                    close_price=close_price,
-                                    close_reason=close_reason)
+        return super()._close_order(
+            close_date_time=close_date_time,
+            close_price=close_price,
+            close_reason=close_reason,
+        )
 
 
 class Executor:
-
     def simulate(self, param: ParamSimulation) -> Simulator:
         return Simulator(param).execute()
 
@@ -468,26 +513,24 @@ class Executor:
                 simulators.append(self.simulate(param))
             except Exception as error:
                 logger.error(
-                    f'SIMULATION: For symbol={param.symbol}, interval={param.interval}, strategy={param.strategy} - {error}')
+                    f"SIMULATION: For symbol={param.symbol}, interval={param.interval}, strategy={param.strategy} - {error}"
+                )
                 continue
 
         return simulators
 
     def simulate_many_and_db_save(self, params: ParamSimulationList) -> list[Simulator]:
-
         db = MongoSimulations()
         simulators = self.simulate_many(params)
 
         for simulator in simulators:
-
             summary = simulator.get_summary()
 
-            if ( summary[Const.DB_PROFIT] / summary[Const.DB_INIT_BALANCE] ) * 100 >= 20:
+            if (summary[Const.DB_PROFIT] / summary[Const.DB_INIT_BALANCE]) * 100 >= 20:
                 query = summary
                 # query.update(simulator.get_analysis())
 
-                db.upsert_one(id=simulator.get_simulation_id(),
-                              query=query)
+                db.upsert_one(id=simulator.get_simulation_id(), query=query)
             else:
                 continue
 

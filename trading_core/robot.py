@@ -63,9 +63,9 @@ class BalanceManager:
         self.__change_indicator = True
 
     # Operation value for Open is -, and for Close +
-    def recalculate_balance(self, position_volume: float, fee: float = 0):
+    def recalculate_balance(self, position_balance: float, fee: float = 0):
         self.__balance_mdl.total_balance = (
-            self.__balance_mdl.total_balance + position_volume - fee
+            self.__balance_mdl.total_balance + position_balance - fee
         )
         self.__change_indicator = True
 
@@ -95,7 +95,7 @@ class SessionManager:
         self._trader_mng.run()
 
     def get_positions(self) -> list:
-        return self._trader_mng.data_mng.get_positions()
+        return self._trader_mng.get_positions()
 
     def get_balance_manager(self) -> BalanceManager:
         return self._trader_mng.balance_mng
@@ -121,7 +121,14 @@ class TraderBase:
             )
 
     def get_positions(self) -> list:
-        return self.data_mng.get_positions()
+        positions = self.data_mng.get_positions()
+
+        for position in positions:
+            position.calculate_percent()
+            position.calculate_high_percent()
+            position.calculate_low_percent()
+
+        return positions
 
     def run(self):
         logger.info(f"{self.__class__.__name__}: Trading has started.")
@@ -157,6 +164,7 @@ class TraderBase:
     def _process_signal(self, signal_mdl: cmn.SignalModel):
         # Open position exists -> check if required it to close
         if self.data_mng.has_open_position():
+            self._recalculate_position(signal_mdl)
             if self.data_mng.is_required_to_close_position(signal_mdl):
                 self._decide_to_close_position(signal_mdl)
 
@@ -170,6 +178,9 @@ class TraderBase:
 
     def _decide_to_close_position(self, signal_mdl: cmn.SignalModel):
         self.data_mng.close_position(signal_mdl)
+
+    def _recalculate_position(self, signal_mdl: cmn.SignalModel):
+        self.data_mng.recalculate_position(signal_mdl)
 
 
 class TraderManager(TraderBase):
@@ -353,6 +364,26 @@ class DataManagerBase:
 
         return result
 
+    def recalculate_position(self, signal_mdl: cmn.SignalModel):
+        # Highest Order price
+        self._current_position.calculate_high_price(signal_mdl.high)
+
+        # Lowest Order price
+        self._current_position.calculate_low_price(signal_mdl.low)
+
+        # Calculate Trailing Stop
+        # if self._current_position.is_trailing_stop:
+        # self._calculate_trailing_stop_loss(signal_mdl)
+
+        trailing_stop_mdl = cmn.TrailingStopModel(
+            **self._current_position.to_mongodb_doc()
+        )
+
+        if not self._update_position(trailing_stop_mdl):
+            raise Exception(
+                f"DataManagerBase: _update_position() - Error during update position {self._current_position.id}"
+            )
+
     def get_current_position(self) -> cmn.OrderModel:
         return self._current_position
 
@@ -388,11 +419,14 @@ class DataManagerBase:
             Const.DB_STOP_LOSS: self._side_mng.get_stop_loss(
                 self._get_open_price(signal_mdl)
             ),
+            Const.DB_IS_TRAILING_STOP: self._session_mdl.is_trailing_stop,
             Const.DB_TAKE_PROFIT: self._side_mng.get_take_profit(
                 self._get_open_price(signal_mdl)
             ),
             Const.DB_OPEN_PRICE: self._get_open_price(signal_mdl),
             Const.DB_OPEN_DATETIME: signal_mdl.date_time,
+            Const.DB_HIGH_PRICE: self._get_open_price(signal_mdl),
+            Const.DB_LOW_PRICE: self._get_open_price(signal_mdl),
         }
 
     def _prepare_open_position(self, signal_mdl: cmn.SignalModel) -> cmn.OrderModel:
@@ -434,6 +468,9 @@ class DataManagerBase:
         self, order_close_mdl: cmn.OrderCloseModel, signal_mdl: cmn.SignalModel
     ) -> bool:
         raise Exception(f"DataManagerBase: _close_position() isn't implemented")
+
+    def _update_position(self, trailing_stop_mdl: cmn.TrailingStopModel) -> bool:
+        raise Exception(f"DataManagerBase: _update_position() isn't implemented")
 
     def _after_close_position(
         self, order_close_mdl: cmn.OrderCloseModel, signal_mdl: cmn.SignalModel
@@ -498,25 +535,31 @@ class DataManagerBase:
         # Take Total Balance from Balance Model and take into account Fee if it's required
         return self._balance_mng.get_total_balance() - fee
 
-    def _get_open_balance(self) -> float:
-        return -1 * self._side_mng.get_open_balance(self._current_position)
-
-    def _get_close_balance(self) -> float:
-        return self._side_mng.get_close_balance(self._current_position)
-
     def _recalculate_balance(self):
         # This is negative value for open and position for close position action
         if self._current_position.status == cmn.OrderStatus.opened:
-            position_volume = self._get_open_balance()
+            position_balance = self._current_position.calculate_balance()
             self._balance_mng.add_fee(self._current_position.fee)
             self._balance_mng.recalculate_balance(
-                position_volume=position_volume, fee=self._current_position.fee
+                position_balance=(-1 * position_balance), fee=self._current_position.fee
             )
 
         elif self._current_position.status == cmn.OrderStatus.closed:
-            position_volume = self._get_close_balance()
+            position_volume = (
+                self._current_position.calculate_balance()
+                + self._current_position.total_profit
+            )
             self._balance_mng.add_total_profit(self._current_position.total_profit)
-            self._balance_mng.recalculate_balance(position_volume=position_volume)
+            self._balance_mng.recalculate_balance(position_balance=position_volume)
+
+    def _calculate_trailing_stop_loss(self, signal_mdl: cmn.SignalModel):
+        pass
+
+    def _calculate_percent(self, source_price: float, target_price: float) -> float:
+        percent = (
+            ((target_price - source_price) / source_price) * 100 if source_price else 0
+        )
+        return percent
 
 
 class OrderManagerBase(DataManagerBase):
@@ -580,11 +623,11 @@ class LeverageManagerBase(DataManagerBase):
     def _get_current_balance(self, fee: float = 0) -> float:
         return super()._get_current_balance(fee) * self._session_mdl.leverage
 
-    def _get_open_balance(self) -> float:
-        return super()._get_open_balance() / self._session_mdl.leverage
-
-    def _get_close_balance(self) -> float:
-        return super()._get_close_balance() / self._session_mdl.leverage
+    def _calculate_trailing_stop_loss(self, signal_mdl: cmn.SignalModel):
+        self._current_position.stop_loss = self._side_mng.get_trailing_stop_loss(
+            order_stop_loss_price=self._current_position.stop_loss,
+            current_price=signal_mdl.close,
+        )
 
 
 class LeverageApiManager(LeverageManagerBase):
@@ -604,6 +647,11 @@ class LeverageDatabaseManager(LeverageManagerBase):
         self, position_mdl: cmn.LeverageModel, signal_mdl: cmn.SignalModel
     ):
         return LeverageHandler.create_leverage(position_mdl)
+
+    def _update_position(self, trailing_stop_mdl: cmn.TrailingStopModel) -> bool:
+        return LeverageHandler.update_leverage(
+            id=self._current_position.id, query=trailing_stop_mdl.to_mongodb_doc()
+        )
 
     def _close_position(
         self, order_close_mdl: cmn.OrderCloseModel, signal_mdl: cmn.SignalModel
@@ -696,14 +744,13 @@ class SideManager:
     def get_stop_loss(self, price: float) -> float:
         return (price * self._session_mdl.stop_loss_rate) / 100
 
+    def get_trailing_stop_loss(
+        self, order_stop_loss_price: float, current_price: float
+    ) -> float:
+        return self.get_stop_loss(current_price)
+
     def get_take_profit(self, price: float) -> float:
         return (price * self._session_mdl.take_profit_rate) / 100
-
-    def get_open_balance(self, position_mdl: cmn.OrderModel) -> float:
-        return position_mdl.quantity * position_mdl.open_price
-
-    def get_close_balance(self, position_mdl: cmn.OrderModel) -> float:
-        return position_mdl.quantity * position_mdl.close_price
 
 
 # Short Positions
@@ -751,18 +798,24 @@ class SellManager(SideManager):
         else:
             return 0
 
+    def get_trailing_stop_loss(
+        self, order_stop_loss_price: float, current_price: float
+    ) -> float:
+        current_stop_loss = super().get_trailing_stop_loss(
+            order_stop_loss_price, current_price
+        )
+
+        if current_stop_loss < order_stop_loss_price:
+            return current_stop_loss
+        else:
+            return order_stop_loss_price
+
     def get_take_profit(self, price: float) -> float:
         take_profit_value = super().get_take_profit(price=price)
         if take_profit_value > 0:
             return price - take_profit_value
         else:
             return 0
-
-    def get_close_balance(self, position_mdl: cmn.OrderModel) -> float:
-        # When there is a short position during SELL we are like "take" open balance and during BUY we have to give it back
-        close_balance = super().get_close_balance(position_mdl)
-        open_balance = self.get_open_balance(position_mdl)
-        return open_balance + (open_balance - close_balance)
 
 
 # LONG Position
@@ -810,6 +863,18 @@ class BuyManager(SideManager):
             return price - stop_loss_value
         else:
             return 0
+
+    def get_trailing_stop_loss(
+        self, order_stop_loss_price: float, current_price: float
+    ) -> float:
+        current_stop_loss = super().get_trailing_stop_loss(
+            order_stop_loss_price, current_price
+        )
+
+        if current_stop_loss > order_stop_loss_price:
+            return current_stop_loss
+        else:
+            return order_stop_loss_price
 
     def get_take_profit(self, price: float) -> float:
         take_profit_value = super().get_take_profit(price=price)

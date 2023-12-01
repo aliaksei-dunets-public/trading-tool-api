@@ -305,9 +305,10 @@ class SessionModel(AdminModel, IdentifierModel, SymbolIntervalStrategyModel):
     session_type: SessionType
 
     # Trading Details
-    leverage: int = 2
+    leverage: int = 1
     take_profit_rate: float = 0
     stop_loss_rate: float = 0
+    is_trailing_stop: bool = False
 
     def to_mongodb_doc(self):
         return {
@@ -322,6 +323,7 @@ class SessionModel(AdminModel, IdentifierModel, SymbolIntervalStrategyModel):
             "leverage": self.leverage,
             "take_profit_rate": self.take_profit_rate,
             "stop_loss_rate": self.stop_loss_rate,
+            "is_trailing_stop": self.is_trailing_stop,
         }
 
 
@@ -342,16 +344,72 @@ class OrderCloseModel(BaseModel):
         }
 
 
-class OrderModel(AdminModel, IdentifierModel, SymbolIdModel, OrderCloseModel):
+class TrailingStopModel(BaseModel):
+    stop_loss: float = 0
+    is_trailing_stop: bool = False
+    high_price: float = 0
+    low_price: float = 0
+
+    def to_mongodb_doc(self):
+        return {
+            "stop_loss": self.stop_loss,
+            "is_trailing_stop": self.is_trailing_stop,
+            "high_price": self.high_price,
+            "low_price": self.low_price,
+        }
+
+
+class OrderAnalyticModel(BaseModel):
+    percent: float = 0
+    high_percent: float = 0
+    low_percent: float = 0
+    balance: float = 0
+
+
+class OrderModel(
+    AdminModel,
+    IdentifierModel,
+    SymbolIdModel,
+    TrailingStopModel,
+    OrderCloseModel,
+    OrderAnalyticModel,
+):
     session_id: str
     type: OrderType = OrderType.market
     side: OrderSideType
     quantity: float
     fee: float = 0
-    stop_loss: float = 0
     take_profit: float = 0
     open_price: float
     open_datetime: datetime = datetime.now()
+
+    def calculate_high_price(self, price: float = 0) -> float:
+        self.high_price = self.high_price if self.high_price >= price else price
+        return self.high_price
+
+    def calculate_low_price(self, price: float = 0) -> float:
+        self.low_price = self.low_price if self.low_price <= price else price
+        return self.low_price
+
+    def calculate_percent(self, price: float = 0) -> float:
+        price = self.close_price if self.status == OrderStatus.closed else price
+
+        self.percent = ((price - self.open_price) / self.open_price) * 100
+        return self.percent
+
+    def calculate_high_percent(self) -> float:
+        self.high_percent = (
+            (self.high_price - self.open_price) / self.open_price
+        ) * 100
+        return self.high_percent
+
+    def calculate_low_percent(self) -> float:
+        self.low_percent = ((self.low_price - self.open_price) / self.open_price) * 100
+        return self.low_percent
+
+    def calculate_balance(self) -> float:
+        self.balance = self.quantity * self.open_price
+        return self.balance
 
     def to_mongodb_doc(self):
         order = {
@@ -363,6 +421,7 @@ class OrderModel(AdminModel, IdentifierModel, SymbolIdModel, OrderCloseModel):
             "quantity": self.quantity,
             "fee": self.fee,
             "stop_loss": self.stop_loss,
+            "is_trailing_stop": self.is_trailing_stop,
             "take_profit": self.take_profit,
             "open_price": self.open_price,
             "open_datetime": self.open_datetime,
@@ -370,6 +429,8 @@ class OrderModel(AdminModel, IdentifierModel, SymbolIdModel, OrderCloseModel):
             "close_datetime": self.close_datetime,
             "close_reason": self.close_reason,
             "total_profit": self.total_profit,
+            "high_price": self.high_price,
+            "low_price": self.low_price,
         }
 
         if not self.id in [None, "None", ""]:
@@ -381,7 +442,11 @@ class OrderModel(AdminModel, IdentifierModel, SymbolIdModel, OrderCloseModel):
 class LeverageModel(OrderModel):
     order_id: str
     account_id: str
-    leverage: int = 2
+    leverage: int = 1
+
+    def calculate_balance(self) -> float:
+        self.balance = self.quantity * self.open_price / self.leverage
+        return self.balance
 
     def to_mongodb_doc(self):
         leverage = {
@@ -396,12 +461,15 @@ class LeverageModel(OrderModel):
             "fee": self.fee,
             "leverage": self.leverage,
             "stop_loss": self.stop_loss,
+            "is_trailing_stop": self.is_trailing_stop,
             "take_profit": self.take_profit,
             "open_price": self.open_price,
             "open_datetime": self.open_datetime,
             "close_price": self.close_price,
             "close_datetime": self.close_datetime,
             "close_reason": self.close_reason,
+            "high_price": self.high_price,
+            "low_price": self.low_price,
         }
 
         if not self.id in [None, "None", ""]:

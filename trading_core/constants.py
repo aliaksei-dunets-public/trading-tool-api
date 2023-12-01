@@ -66,7 +66,10 @@ class Const:
     DB_STOP_LOSS_RATE = "stop_loss_rate"
     DB_TAKE_PROFIT_RATE = "take_profit_rate"
     DB_STOP_LOSS = "stop_loss"
+    DB_IS_TRAILING_STOP = "is_trailing_stop"
     DB_TAKE_PROFIT = "take_profit"
+    DB_HIGH_PRICE = "high_price"
+    DB_LOW_PRICE = "low_price"
     DB_DATE_TIME = "date_time"
     DB_CREATED_AT = "created_at"
     DB_CREATED_BY = "created_by"
@@ -208,5 +211,6 @@ class Const:
     # Service params
     SRV_INIT_BALANCE = "init_balance"
     SRV_STOP_LOSS_RATE = "stop_loss_rate"
+    SRV_IS_TRAILING_STOP_LOSS = "is_trailing_stop"
     SRV_TAKE_PROFIT_RATE = "take_profit_rate"
     SRV_FEE_RATE = "fee_rate"

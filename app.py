@@ -538,6 +538,9 @@ def get_history_simulation():
     interval = request.args.get("interval", "5m")
     strategy = request.args.get("strategy", StrategyType.CCI_20_TREND_100)
     stop_loss_rate = request.args.get(Const.SRV_STOP_LOSS_RATE, 0)
+    is_trailing_stop = responser.get_param_bool(
+        request.args.get(Const.SRV_IS_TRAILING_STOP_LOSS, "false")
+    )
     take_profit_rate = request.args.get(Const.SRV_TAKE_PROFIT_RATE, 0)
 
     try:
@@ -555,6 +558,7 @@ def get_history_simulation():
             "strategy": strategy,
             "take_profit_rate": take_profit_rate,
             "stop_loss_rate": stop_loss_rate,
+            "is_trailing_stop": is_trailing_stop,
         }
 
         session_mdl = SessionModel(**session_data)

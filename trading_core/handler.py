@@ -464,6 +464,7 @@ class OrderHandler:
     @staticmethod
     def get_orders(session_id: str = None, status: OrderStatus = None):
         query = {}
+        result = []
 
         if session_id:
             query[Const.DB_SESSION_ID] = session_id
@@ -471,7 +472,16 @@ class OrderHandler:
             query[Const.DB_STATUS] = status
 
         entries_db = MongoOrder().get_many(query)
-        result = [OrderModel(**entry) for entry in entries_db]
+
+        for entry in entries_db:
+            order_mdl = OrderModel(**entry)
+
+            order_mdl.calculate_balance()
+            order_mdl.calculate_percent()
+            order_mdl.calculate_high_percent()
+            order_mdl.calculate_low_percent()
+
+            result.append(order_mdl)
 
         return result
 
@@ -499,6 +509,7 @@ class LeverageHandler:
     @staticmethod
     def get_leverages(session_id: str = None, status: OrderStatus = None):
         query = {}
+        result = []
 
         if session_id:
             query[Const.DB_SESSION_ID] = session_id
@@ -506,7 +517,16 @@ class LeverageHandler:
             query[Const.DB_STATUS] = status
 
         entries_db = MongoLeverage().get_many(query)
-        result = [LeverageModel(**entry) for entry in entries_db]
+
+        for entry in entries_db:
+            leverage_mdl = LeverageModel(**entry)
+
+            leverage_mdl.calculate_balance()
+            leverage_mdl.calculate_percent()
+            leverage_mdl.calculate_high_percent()
+            leverage_mdl.calculate_low_percent()
+
+            result.append(leverage_mdl)
 
         return result
 
