@@ -702,7 +702,7 @@ class LeverageLocalDataManager(LeverageManagerBase):
         return True
 
     def _update_position(self, trailing_stop_mdl: cmn.TrailingStopModel) -> bool:
-        pass
+        return True
 
 
 class SideManager:
