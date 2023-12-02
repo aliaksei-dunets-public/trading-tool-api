@@ -373,7 +373,7 @@ class DataManagerBase:
 
         # Calculate Trailing Stop
         # if self._current_position.is_trailing_stop:
-        # self._calculate_trailing_stop_loss(signal_mdl)
+        #     self._calculate_trailing_stop_loss(signal_mdl)
 
         trailing_stop_mdl = cmn.TrailingStopModel(
             **self._current_position.to_mongodb_doc()

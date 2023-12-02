@@ -443,6 +443,12 @@ class Config:
                 Const.LENGTH: 20,
                 Const.VALUE: 100,
             },
+            Const.TA_STRATEGY_CCI_20_100_TREND_UP_LEVEL: {
+                Const.CODE: Const.TA_STRATEGY_CCI_20_100_TREND_UP_LEVEL,
+                Const.NAME: "CCI(20): Check +/- 100 depend on Trend Up Level",
+                Const.LENGTH: 20,
+                Const.VALUE: 100,
+            },
             Const.TA_STRATEGY_CCI_50_TREND_0: {
                 Const.CODE: Const.TA_STRATEGY_CCI_50_TREND_0,
                 Const.NAME: "CCI(50): Indicator direction Trend 0",
