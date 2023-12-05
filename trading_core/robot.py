@@ -394,7 +394,7 @@ class DataManagerBase:
         if order_close_mdl:
             result = self._close_position(order_close_mdl)
             if result:
-                result = self._after_close_position(order_close_mdl=order_close_mdl)
+                self._after_close_position(order_close_mdl=order_close_mdl)
 
                 logger.info(
                     f"{self.__class__.__name__}: Position {position_id} for {order_close_mdl.close_datetime} has been closed"
@@ -509,7 +509,7 @@ class DataManagerBase:
     def _update_position(self, trailing_stop_mdl: cmn.TrailingStopModel) -> bool:
         raise Exception(f"DataManagerBase: _update_position() isn't implemented")
 
-    def _after_close_position(self, order_close_mdl: cmn.OrderCloseModel) -> bool:
+    def _after_close_position(self, order_close_mdl: cmn.OrderCloseModel):
         # Recalulate balance after close the position
         self._recalculate_balance()
 
