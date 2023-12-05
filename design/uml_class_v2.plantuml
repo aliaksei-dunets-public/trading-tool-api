@@ -123,24 +123,24 @@ class OrderLocalDataManager extends OrderManagerBase
 class LeverageLocalDataManager extends LeverageManagerBase
 
 class SideManagerBase {
-    +{static} get_manager_by_type(SessionModel, OrderSideType)
-    +{static} get_manager_by_signal(SessionModel, SignalType)
+    +{static} get_manager(SessionModel, OrderSideType)
+    +{static} get_side_type_by_signal(SessionModel, SignalType)
     +is_required_to_close_position(OrderModel, SignalModel)
-    +get_close_details(OrderModel, SignalModel)
+    +get_close_details_by_signal(OrderModel, SignalModel)
     +get_side_type()
     +get_stop_loss()
     +get_take_profit()
 }
 
 class SellManager extends SideManagerBase {
-    +get_close_details(OrderModel, SignalModel)
+    +get_close_details_by_signal(OrderModel, SignalModel)
     +get_side_type()
     +get_stop_loss()
     +get_take_profit()
 }
 
 class BuyManager extends SideManagerBase {
-    +get_close_details(OrderModel, SignalModel)
+    +get_close_details_by_signal(OrderModel, SignalModel)
     +get_side_type()
     +get_stop_loss()
     +get_take_profit()

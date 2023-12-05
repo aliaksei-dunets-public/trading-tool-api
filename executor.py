@@ -24,7 +24,7 @@ from trading_core.model import (
 )
 from trading_core.trend import TrendCCI, Indicator_CCI
 from trading_core.handler import CurrencyComApi, LocalCurrencyComApi
-from trading_core.common import TradingType, SessionType, StrategyType
+from trading_core.common import TradingType, SessionType, StrategyType, PriceType
 
 from trading_core.robot import SessionManager, Robot, TraderBase
 from trading_core.responser import (
@@ -32,6 +32,7 @@ from trading_core.responser import (
     job_func_trading_robot,
 )
 
+# Get current price from exchnage handler
 # job_func_send_bot_notification("5m")
 
 # session_mdl = SessionHandler.get_session(id="6556ab4db98604c80d7104ee")
@@ -162,14 +163,34 @@ from trading_core.responser import (
 
 ########################### Trend ###############################################
 
-symbol = "BTC/USD"
+symbol = "EPAM."
 interval = Const.TA_INTERVAL_30M
 strategy = Const.TA_STRATEGY_CCI_20_TREND_100
 
-param = ParamSymbolIntervalLimit(
-    symbol=symbol, interval=interval, limit=100, consistency_check=False
+param = HistoryDataParam(
+    interval=interval,
+    symbol=symbol,
+    limit=1,
 )
 
+history_data = ExchangeHandler.get_handler().get_history_data(
+    param, price_type=PriceType.BID.value
+)
+candle_bar = history_data.getDataFrame().tail(1)
+
+print(candle_bar)
+
+history_data_1 = ExchangeHandler.get_handler().get_history_data(
+    param, price_type=PriceType.ASK.value
+)
+candle_bar_1 = history_data_1.getDataFrame().tail(1)
+
+print(candle_bar_1)
+
+
+# param = ParamSymbolIntervalLimit(
+#     symbol=symbol, interval=interval, limit=100, consistency_check=False
+# )
 # params = [
 #     ParamSymbolInterval(symbol=symbol, interval=Const.TA_INTERVAL_5M),
 #     ParamSymbolInterval(symbol=symbol, interval=Const.TA_INTERVAL_15M),
@@ -181,9 +202,8 @@ param = ParamSymbolIntervalLimit(
 # ]
 
 # trends = Trendm
-
-trend_df = TrendCCI().calculate_trends(param)
-print(trend_df)
+# trend_df = TrendCCI().calculate_trends(param)
+# print(trend_df)
 
 ########################### Trend ###############################################
 

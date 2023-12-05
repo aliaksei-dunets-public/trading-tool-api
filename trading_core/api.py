@@ -19,6 +19,8 @@ from .common import (
     HistoryDataParam,
     SymbolModel,
     TraderModel,
+    OrderModel,
+    LeverageModel,
 )
 from .core import logger, config, HistoryData
 from .constants import Const
@@ -49,6 +51,12 @@ class ExchangeApiBase:
     def get_history_data(
         self, history_data_param: HistoryDataParam, **kwargs
     ) -> HistoryData:
+        pass
+
+    def create_order(self, position_mdl: OrderModel) -> OrderModel:
+        pass
+
+    def create_leverage(self, position_mdl: LeverageModel) -> LeverageModel:
         pass
 
     def get_end_datetime(
@@ -99,6 +107,9 @@ class DzengiComApi(ExchangeApiBase):
     LEVERAGE_SETTINGS_ENDPOINT = "leverageSettings"
     UPDATE_TRADING_ORDERS_ENDPOINT = "updateTradingOrder"
     UPDATE_TRADING_POSITION_ENDPOINT = "updateTradingPosition"
+
+    PRICE_TYPE_BID = "bid"
+    PRICE_TYPE_ASK = "ask"
 
     TA_API_INTERVAL_5M = "5m"
     TA_API_INTERVAL_15M = "15m"
@@ -262,6 +273,10 @@ class DzengiComApi(ExchangeApiBase):
             )
             url_params[Const.API_FLD_LIMIT] = url_params[Const.API_FLD_LIMIT] + 1
 
+        # Importing parameters price_type: bid, ask
+        price_type = kwargs.get(Const.FLD_PRICE_TYPE, self.PRICE_TYPE_BID)
+        url_params[Const.API_FLD_PRICE_TYPE] = price_type
+
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
             logger.info(
                 f"ExchangeApiBase: {self._trader_model.exchange_id} - get_history_data()"
@@ -281,6 +296,21 @@ class DzengiComApi(ExchangeApiBase):
         )
 
         return obj_history_data
+
+    def create_order(self, position_mdl: OrderModel) -> OrderModel:
+        pass
+
+    def create_leverage(self, position_mdl: LeverageModel) -> LeverageModel:
+        return self.create_position(
+            account_id=position_mdl.account_id,
+            symbol=position_mdl.symbol,
+            side=position_mdl.side,
+            order_type=position_mdl.type,
+            quantity=position_mdl.quantity,
+            leverage=position_mdl.leverage,
+            stop_loss=position_mdl.stop_loss,
+            take_profit=position_mdl.take_profit,
+        )
 
     def create_position(
         self,
@@ -566,46 +596,6 @@ class DzengiComApi(ExchangeApiBase):
         )
         return self.getUnixTimeMsByDatetime(offset_datetime)
 
-    @staticmethod
-    def getUnixTimeMsByDatetime(original_datetime: datetime) -> int:
-        """
-        Calculates the Unix timestamp in milliseconds for the datetime.
-        Args:
-            original_datetime (datetime): The datetime object.
-        Returns:
-            int: The Unix timestamp in milliseconds.
-        """
-        if original_datetime:
-            return int(original_datetime.timestamp() * 1000)
-        else:
-            return None
-
-    @staticmethod
-    def getTimezoneDifference() -> int:
-        """
-        Calculates the difference in hours between the local timezone and UTC.
-        Returns:
-            int: The timezone difference in hours.
-        """
-
-        local_time = datetime.now()
-        utc_time = datetime.utcnow()
-        delta = local_time - utc_time
-
-        return math.ceil(delta.total_seconds() / 3600)
-
-    @staticmethod
-    def getDatetimeByUnixTimeMs(timestamp: int) -> datetime:
-        """
-        Converts a Unix timestamp in milliseconds to a datetime object.
-        Args:
-            timestamp (int): The Unix timestamp in milliseconds.
-        Returns:
-            datetime: The datetime object.
-        """
-
-        return datetime.fromtimestamp(timestamp / 1000.0)
-
     def calculate_trading_timeframe(self, trading_time: str) -> dict:
         timeframes = {}
 
@@ -667,6 +657,46 @@ class DzengiComApi(ExchangeApiBase):
                         return True
 
         return False
+
+    @staticmethod
+    def getUnixTimeMsByDatetime(original_datetime: datetime) -> int:
+        """
+        Calculates the Unix timestamp in milliseconds for the datetime.
+        Args:
+            original_datetime (datetime): The datetime object.
+        Returns:
+            int: The Unix timestamp in milliseconds.
+        """
+        if original_datetime:
+            return int(original_datetime.timestamp() * 1000)
+        else:
+            return None
+
+    @staticmethod
+    def getTimezoneDifference() -> int:
+        """
+        Calculates the difference in hours between the local timezone and UTC.
+        Returns:
+            int: The timezone difference in hours.
+        """
+
+        local_time = datetime.now()
+        utc_time = datetime.utcnow()
+        delta = local_time - utc_time
+
+        return math.ceil(delta.total_seconds() / 3600)
+
+    @staticmethod
+    def getDatetimeByUnixTimeMs(timestamp: int) -> datetime:
+        """
+        Converts a Unix timestamp in milliseconds to a datetime object.
+        Args:
+            timestamp (int): The Unix timestamp in milliseconds.
+        Returns:
+            datetime: The datetime object.
+        """
+
+        return datetime.fromtimestamp(timestamp / 1000.0)
 
     def _get_api_klines(self, url_params: dict) -> dict:
         response = requests.get(

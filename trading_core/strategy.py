@@ -621,7 +621,7 @@ class Strategy_CCI_100_TrendUpLevel(Strategy_CCI):
                 if decision in [Const.STRONG_SELL]:
                     decision = ""
             elif trend in [Const.STRONG_TREND_DOWN, Const.TREND_DOWN]:
-                if decision == [Const.STRONG_BUY]:
+                if decision in [Const.STRONG_BUY]:
                     decision = ""
 
             signals.append(decision)

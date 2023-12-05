@@ -612,6 +612,12 @@ class ExchangeHandler:
     ) -> HistoryData:
         return self._api.get_history_data(history_data_param, **kwargs)
 
+    def create_order(self, position_mdl: OrderModel):
+        return self._api.create_order(position_mdl)
+
+    def create_leverage(self, position_mdl: LeverageModel):
+        return self._api.create_leverage(position_mdl)
+
     def get_end_datetime(self, interval: str, **kwargs) -> datetime:
         original_datetime = datetime.now()
         return self._api.get_end_datetime(interval, original_datetime, **kwargs)

@@ -21,7 +21,7 @@ from trading_core.common import (
     SessionModel,
     BalanceModel,
     OrderModel,
-    LeverageModel,
+    OrderOpenModel,
     TransactionModel,
     TradingType,
     SessionType,
@@ -128,6 +128,11 @@ def get_session(id):
     return responser.get_session(id)
 
 
+@app.route("/session/<id>/leverages", methods=["GET"])
+def get_session_leverages(id):
+    return responser.get_session_leverages(id)
+
+
 @app.route("/sessions", methods=["GET"])
 def get_sessions():
     user_email = request.headers.get("User-Email")
@@ -208,9 +213,16 @@ def get_leverages():
 
 @app.route("/leverage", methods=["POST"])
 def create_leverage():
-    leverage_data = request.get_json()
-    leverage_model = LeverageModel(**leverage_data)
-    return responser.create_leverage(leverage_model)
+    open_data = request.get_json()
+    open_mdl = OrderOpenModel(**open_data)
+    return responser.create_leverage(
+        session_id=open_data[Const.DB_SESSION_ID], open_mdl=open_mdl
+    )
+
+
+@app.route("/leverage/<id>/close", methods=["POST"])
+def close_leverage(id):
+    return responser.close_leverage(leverage_id=id)
 
 
 ######################### Transaction ###########################

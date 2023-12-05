@@ -12,6 +12,11 @@ import base64
 from .core import config
 
 
+class PriceType(str, Enum):
+    BID = "bid"
+    ASK = "ask"
+
+
 class SymbolType(str, Enum):
     leverage = "LEVERAGE"
     spot = "SPOT"
@@ -44,10 +49,11 @@ class OrderSideType(str, Enum):
     sell = "SELL"
 
 
-class OrderCloseReason(str, Enum):
+class OrderReason(str, Enum):
     STOP_LOSS = "Stop Loss"
     TAKE_PROFIT = "Take Profit"
     SIGNAL = "Signal"
+    MANUAL = "Manual"
     NONE = ""
 
 
@@ -328,11 +334,28 @@ class SessionModel(AdminModel, IdentifierModel, SymbolIntervalStrategyModel):
         }
 
 
+class OrderOpenModel(BaseModel):
+    type: OrderType = OrderType.market
+    side: OrderSideType
+    open_price: float = 0
+    open_datetime: datetime = datetime.now()
+    open_reason: OrderReason = OrderReason.NONE
+
+    def to_mongodb_doc(self):
+        return {
+            "type": self.type,
+            "side": self.side,
+            "open_reason": self.open_reason,
+            "open_price": self.open_price,
+            "open_datetime": self.open_datetime,
+        }
+
+
 class OrderCloseModel(BaseModel):
     status: OrderStatus = OrderStatus.new
     close_price: float = 0
     close_datetime: datetime = datetime.now()
-    close_reason: OrderCloseReason = OrderCloseReason.NONE
+    close_reason: OrderReason = OrderReason.NONE
     total_profit: float = 0
 
     def to_mongodb_doc(self):
@@ -371,18 +394,15 @@ class OrderModel(
     AdminModel,
     IdentifierModel,
     SymbolIdModel,
+    OrderOpenModel,
     TrailingStopModel,
     OrderCloseModel,
     OrderAnalyticModel,
 ):
     session_id: str
-    type: OrderType = OrderType.market
-    side: OrderSideType
     quantity: float
     fee: float = 0
     take_profit: float = 0
-    open_price: float
-    open_datetime: datetime = datetime.now()
 
     def calculate_high_price(self, price: float = 0) -> float:
         self.high_price = self.high_price if self.high_price >= price else price
@@ -393,7 +413,7 @@ class OrderModel(
         return self.low_price
 
     def calculate_percent(self, price: float = 0) -> float:
-        price = self.close_price if self.status == OrderStatus.closed else price
+        price = self.close_price if self.close_price else price
 
         self.percent = ((price - self.open_price) / self.open_price) * 100
         return self.percent
@@ -426,6 +446,7 @@ class OrderModel(
             "take_profit": self.take_profit,
             "open_price": self.open_price,
             "open_datetime": self.open_datetime,
+            "open_reason": self.open_reason,
             "close_price": self.close_price,
             "close_datetime": self.close_datetime,
             "close_reason": self.close_reason,
@@ -466,6 +487,7 @@ class LeverageModel(OrderModel):
             "take_profit": self.take_profit,
             "open_price": self.open_price,
             "open_datetime": self.open_datetime,
+            "open_reason": self.open_reason,
             "close_price": self.close_price,
             "close_datetime": self.close_datetime,
             "close_reason": self.close_reason,

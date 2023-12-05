@@ -33,6 +33,7 @@ from trading_core.common import (
     LeverageModel,
     TransactionModel,
     SessionStatus,
+    OrderOpenModel,
 )
 from trading_core.handler import (
     UserHandler,
@@ -44,7 +45,7 @@ from trading_core.handler import (
     TransactionHandler,
     buffer_runtime_handler,
 )
-from trading_core.robot import Robot
+from trading_core.robot import Robot, SessionManager
 
 load_dotenv()
 
@@ -125,7 +126,7 @@ def job_func_trading_robot(interval):
             f"JOB: {Const.JOB_TYPE_ROBOT} is triggered for interval - {interval}"
         )
 
-    Robot().run(interval)
+    Robot().run_job(interval)
 
 
 class MessageBase:
@@ -665,6 +666,10 @@ class ResponserWeb(ResponserBase):
         return SessionHandler.get_session(id)
 
     @decorator_json
+    def get_session_leverages(self, id: str) -> json:
+        return Robot().get_session_manager(session_id=id).get_positions()
+
+    @decorator_json
     def get_sessions(self, user_email: str) -> json:
         return SessionHandler.get_sessions_by_email(user_email)
 
@@ -730,8 +735,22 @@ class ResponserWeb(ResponserBase):
         return LeverageHandler.get_leverages(session_id)
 
     @decorator_json
-    def create_leverage(self, leverage_model: LeverageModel) -> json:
-        return LeverageHandler.create_leverage(leverage_model)
+    def create_leverage(self, session_id: str, open_mdl: OrderOpenModel) -> json:
+        session_manager: SessionManager = Robot().get_session_manager(session_id)
+        return session_manager.open_position(open_mdl)
+
+    @decorator_json
+    def close_leverage(self, leverage_id: str) -> json:
+        leverage_mdl = LeverageHandler.get_leverage(leverage_id)
+
+        session_manager: SessionManager = Robot().get_session_manager(
+            session_id=leverage_mdl.session_id
+        )
+
+        if session_manager.close_position():
+            return {"message": f"Position {leverage_id} has been closed"}
+        else:
+            raise Exception(f"Error during closing of the position id: {leverage_id}")
 
     @decorator_json
     def get_transaction(self, id: str) -> json:

@@ -59,6 +59,7 @@ class Const:
     DB_FEE = "fee"
     DB_OPEN_PRICE = "open_price"
     DB_OPEN_DATETIME = "open_datetime"
+    DB_OPEN_REASON = "open_reason"
     DB_CLOSE_PRICE = "close_price"
     DB_CLOSE_DATETIME = "close_datetime"
     DB_CLOSE_REASON = "close_reason"
@@ -85,12 +86,14 @@ class Const:
     FLD_LIMIT = "limit"
     FLD_IS_BUFFER = "is_buffer"
     FLD_CLOSED_BAR = "closed_bar"
+    FLD_PRICE_TYPE = "price_type"
 
     # API fields
     API_FLD_SYMBOL = DB_SYMBOL
     API_FLD_INTERVAL = FLD_INTERVAL
     API_FLD_END_TIME = "endTime"
     API_FLD_LIMIT = FLD_LIMIT
+    API_FLD_PRICE_TYPE = "priceType"
 
     ########################### Legacy code ####################################
 
