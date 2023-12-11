@@ -205,7 +205,7 @@ class MongoOrders(MongoBase):
 
         query = {
             Const.DB_ORDER_TYPE: order_type,
-            Const.DB_OPEN_DATE_TIME: open_date_time,
+            Const.DB_OPEN_DATETIME: open_date_time,
             Const.DB_SYMBOL: symbol,
             Const.DB_INTERVAL: interval,
             Const.DB_PRICE: price,

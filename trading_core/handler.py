@@ -612,11 +612,30 @@ class ExchangeHandler:
     ) -> HistoryData:
         return self._api.get_history_data(history_data_param, **kwargs)
 
+    def get_open_leverages(
+        self, symbol: str = None, order_id: str = None
+    ) -> list[LeverageModel]:
+        return self._api.get_open_leverages(symbol=symbol, order_id=order_id)
+
+    def get_close_leverages(self, position_id: str, symbol: str = None, limit: int = 1):
+        return self._api.get_close_leverages(
+            position_id=position_id, symbol=symbol, limit=limit
+        )
+
+    def get_position(self, symbol: str, order_id: str) -> LeverageModel:
+        return self._api.get_position(symbol=symbol, order_id=order_id)
+
     def create_order(self, position_mdl: OrderModel):
         return self._api.create_order(position_mdl)
 
-    def create_leverage(self, position_mdl: LeverageModel):
+    def create_leverage(self, position_mdl: LeverageModel) -> LeverageModel:
         return self._api.create_leverage(position_mdl)
+
+    def close_order(self, position_id: str) -> OrderModel:
+        return self._api.close_order(position_id)
+
+    def close_leverage(self, symbol: str, position_id: str) -> LeverageModel:
+        return self._api.close_leverage(symbol=symbol, position_id=position_id)
 
     def get_end_datetime(self, interval: str, **kwargs) -> datetime:
         original_datetime = datetime.now()

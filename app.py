@@ -475,7 +475,7 @@ def remove_alert(_id):
 # @app.route("/orders", methods=["POST"])
 # def create_order():
 #     order_type = request.json.get(Const.DB_ORDER_TYPE)
-#     open_date_time = request.json.get(Const.DB_OPEN_DATE_TIME)
+#     open_date_time = request.json.get(Const.DB_OPEN_DATETIME)
 #     symbol = request.json.get(Const.DB_SYMBOL)
 #     interval = request.json.get(Const.DB_INTERVAL)
 #     price = request.json.get(Const.DB_PRICE)

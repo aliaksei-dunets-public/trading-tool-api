@@ -54,6 +54,8 @@ class OrderReason(str, Enum):
     TAKE_PROFIT = "Take Profit"
     SIGNAL = "Signal"
     MANUAL = "Manual"
+    CANCEL = "Cancel"
+    TRADER = "Trader"
     NONE = ""
 
 
@@ -357,6 +359,7 @@ class OrderCloseModel(BaseModel):
     close_datetime: datetime = datetime.now()
     close_reason: OrderReason = OrderReason.NONE
     total_profit: float = 0
+    fee: float = 0
 
     def to_mongodb_doc(self):
         return {
@@ -365,6 +368,7 @@ class OrderCloseModel(BaseModel):
             "close_datetime": self.close_datetime,
             "close_reason": self.close_reason,
             "total_profit": self.total_profit,
+            "fee": self.fee,
         }
 
 
@@ -399,9 +403,9 @@ class OrderModel(
     OrderCloseModel,
     OrderAnalyticModel,
 ):
+    order_id: str = ""
     session_id: str
     quantity: float
-    fee: float = 0
     take_profit: float = 0
 
     def calculate_high_price(self, price: float = 0) -> float:
@@ -434,6 +438,7 @@ class OrderModel(
 
     def to_mongodb_doc(self):
         order = {
+            "order_id": self.order_id,
             "session_id": self.session_id,
             "type": self.type,
             "side": self.side,
@@ -462,7 +467,7 @@ class OrderModel(
 
 
 class LeverageModel(OrderModel):
-    order_id: str
+    position_id: str = ""
     account_id: str
     leverage: int = 1
 
@@ -472,6 +477,7 @@ class LeverageModel(OrderModel):
 
     def to_mongodb_doc(self):
         leverage = {
+            "position_id": self.position_id,
             "order_id": self.order_id,
             "session_id": self.session_id,
             "account_id": self.account_id,

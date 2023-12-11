@@ -50,9 +50,9 @@ class BalanceManager:
         self.__change_indicator = True
 
     # Operation value for Open is -, and for Close +
-    def recalculate_balance(self, position_balance: float, fee: float = 0):
+    def recalculate_balance(self, total_profit: float, fee: float = 0):
         self.__balance_mdl.total_balance = (
-            self.__balance_mdl.total_balance + position_balance - fee
+            self.__balance_mdl.total_balance + total_profit + fee
         )
         self.__change_indicator = True
 
@@ -128,16 +128,13 @@ class TraderBase:
         if not self.data_mng.has_open_position():
             open_mdl.open_reason = cmn.OrderReason.MANUAL
             position = self.data_mng.open_position(open_mdl)
-            self.balance_mng.save_balance()
             return position
 
     def close_position(self) -> bool:
         if self.data_mng.has_open_position():
-            if self.data_mng.close_position():
-                self.balance_mng.save_balance()
-                return True
-            else:
-                return False
+            self.data_mng.close_position()
+            self.balance_mng.save_balance()
+            return True
 
     def run(self):
         logger.info(f"{self.__class__.__name__}: Trading has started.")
@@ -167,7 +164,6 @@ class TraderBase:
 
         signal_mdl = cmn.SignalModel(**signal_data)
         self._process_signal(signal_mdl)
-
         self.balance_mng.save_balance()
 
     def _process_signal(self, signal_mdl: cmn.SignalModel):
@@ -200,19 +196,39 @@ class TraderManager(TraderBase):
             BalanceHandler.get_balance_4_session(session_id=self.session_mdl.id)
         )
 
-        self.api_mng: DataManagerBase = DataManagerBase.get_api_manager(trader_mng=self)
         self.data_mng: DataManagerBase = DataManagerBase.get_db_manager(trader_mng=self)
+        self.api_mng: DataManagerBase = DataManagerBase.get_api_manager(trader_mng=self)
 
-        self.api_mng.synchronize(self.data_mng)
-        self.data_mng.synchronize(self.api_mng)
+        self.data_mng.synchronize(manager=self.api_mng)
+
+    def open_position(self, open_mdl: cmn.OrderOpenModel) -> cmn.OrderOpenModel:
+        open_mdl.open_reason = cmn.OrderReason.MANUAL
+
+        if not self.data_mng.has_open_position():
+            api_mng_position = self.api_mng.open_position(open_mdl)
+            data_mng_position = self.data_mng.open_position_by_ref(api_mng_position)
+            return data_mng_position
+
+    def close_position(self) -> bool:
+        api_order_close_mdl = None
+
+        if self.api_mng.has_open_position():
+            api_order_close_mdl = self.api_mng.close_position()
+
+        if self.data_mng.has_open_position():
+            self.data_mng.close_position(order_close_mdl=api_order_close_mdl)
+            self.balance_mng.save_balance()
+
+        return True
 
     def _decide_to_open_position(self, signal_mdl: cmn.SignalModel):
-        self.api_mng.open_position_by_signal(signal_mdl)
-        self.data_mng.open_position_by_signal(signal_mdl)
+        api_mng_position = self.api_mng.open_position_by_signal(signal_mdl)
+        data_mng_position = self.data_mng.open_position_by_ref(api_mng_position)
+        return data_mng_position
 
     def _decide_to_close_position(self, signal_mdl: cmn.SignalModel):
-        self.api_mng.close_position_by_signal(signal_mdl)
-        self.data_mng.open_position_by_signal(signal_mdl)
+        api_order_close_mdl = self.api_mng.close_position_by_signal(signal_mdl)
+        self.data_mng.close_position(order_close_mdl=api_order_close_mdl)
 
 
 class SimulatorManager(TraderBase):
@@ -368,13 +384,29 @@ class DataManagerBase:
         # Open the position
         return self.open_position(open_mdl)
 
-    def close_position(self, order_close_mdl: cmn.OrderCloseModel = None) -> bool:
-        result = False
-        position_id = self._current_position.id
+    def open_position_by_ref(self, position_mdl: cmn.OrderModel) -> cmn.OrderModel:
+        # Persit an openning position
+        created_position_mdl = self._open_position(position_mdl)
+        # Post processing of the position
+        created_position_mdl = self._after_open_position(
+            position_mdl=created_position_mdl
+        )
+
+        logger.info(
+            f"{self.__class__.__name__}: Position {created_position_mdl.id} for {created_position_mdl.open_datetime} has been opened"
+        )
+
+        return created_position_mdl
+
+    def close_position(
+        self, order_close_mdl: cmn.OrderCloseModel = None
+    ) -> cmn.OrderCloseModel:
+        id = self._current_position.id
 
         # Generate current order close model for Manual Close
         if not order_close_mdl:
             close_price = self._get_current_price(price_type=cmn.PriceType.ASK)
+            fee = self._get_fee()
 
             close_details_data = {
                 Const.DB_STATUS: cmn.OrderStatus.closed,
@@ -385,29 +417,37 @@ class DataManagerBase:
                     quantity=self._current_position.quantity,
                     open_price=self._current_position.open_price,
                     close_price=close_price,
+                    fee=fee,
                 ),
+                Const.DB_FEE: fee,
             }
 
             order_close_mdl = cmn.OrderCloseModel(**close_details_data)
 
         order_close_mdl = self._prepare_close_position(order_close_mdl)
         if order_close_mdl:
-            result = self._close_position(order_close_mdl)
-            if result:
-                self._after_close_position(order_close_mdl=order_close_mdl)
+            order_close_mdl = self._close_position(order_close_mdl)
+            self._after_close_position(order_close_mdl=order_close_mdl)
 
-                logger.info(
-                    f"{self.__class__.__name__}: Position {position_id} for {order_close_mdl.close_datetime} has been closed"
-                )
+            logger.info(
+                f"{self.__class__.__name__}: Position {id} for {order_close_mdl.close_datetime} has been closed"
+            )
 
-        return result
+        return order_close_mdl
 
-    def close_position_by_signal(self, signal_mdl: cmn.SignalModel) -> bool:
+    def close_position_by_signal(
+        self, signal_mdl: cmn.SignalModel
+    ) -> cmn.OrderCloseModel:
         order_close_mdl = self._side_mng.get_close_details_by_signal(
-            position_mdl=self._current_position, signal_mdl=signal_mdl
+            position_mdl=self._current_position,
+            signal_mdl=signal_mdl,
+            fee=self._get_fee(),
         )
 
         return self.close_position(order_close_mdl)
+
+    def cancel_position(self) -> bool:
+        pass
 
     def recalculate_position(self, signal_mdl: cmn.SignalModel):
         # Highest Order price
@@ -441,7 +481,7 @@ class DataManagerBase:
     def has_open_position(self) -> bool:
         return True if self._current_position else False
 
-    def synchronize(self, data_mng):
+    def synchronize(self, manager):
         raise Exception(f"DataManagerBase: synchronize() isn't implemented")
 
     def _init_open_positions(self):
@@ -462,7 +502,6 @@ class DataManagerBase:
             Const.DB_STATUS: cmn.OrderStatus.opened,
             Const.DB_SYMBOL: self._session_mdl.symbol,
             Const.DB_QUANTITY: self._get_quantity(open_price),
-            Const.DB_FEE: self._get_fee(),
             Const.DB_STOP_LOSS: self._side_mng.get_stop_loss(open_price),
             Const.DB_IS_TRAILING_STOP: self._session_mdl.is_trailing_stop,
             Const.DB_TAKE_PROFIT: self._side_mng.get_take_profit(open_price),
@@ -484,9 +523,6 @@ class DataManagerBase:
         # Set the created leverage as a current position
         self._set_current_postion(position_mdl)
 
-        # Recalulate balance after open a position
-        self._recalculate_balance()
-
         return position_mdl
 
     def _prepare_close_position(
@@ -498,6 +534,7 @@ class DataManagerBase:
             self._current_position.close_price = order_close_mdl.close_price
             self._current_position.close_reason = order_close_mdl.close_reason
             self._current_position.total_profit = order_close_mdl.total_profit
+            self._current_position.fee = order_close_mdl.fee
 
             return order_close_mdl
         else:
@@ -567,7 +604,7 @@ class DataManagerBase:
         total_balance = self._get_current_balance()
         symbol_fee = self._symbol_mdl.trading_fee
         fee = total_balance * symbol_fee / 100
-        return fee
+        return -fee
 
     def _get_current_price(
         self, price_type: cmn.PriceType = cmn.PriceType.BID
@@ -589,24 +626,16 @@ class DataManagerBase:
 
     def _get_current_balance(self, fee: float = 0) -> float:
         # Take Total Balance from Balance Model and take into account Fee if it's required
-        return self._balance_mng.get_total_balance() - fee
+        return self._balance_mng.get_total_balance() + fee
 
     def _recalculate_balance(self):
-        # This is negative value for open and position for close position action
-        if self._current_position.status == cmn.OrderStatus.opened:
-            position_balance = self._current_position.calculate_balance()
+        if self._current_position.status == cmn.OrderStatus.closed:
+            self._balance_mng.add_total_profit(self._current_position.total_profit)
             self._balance_mng.add_fee(self._current_position.fee)
             self._balance_mng.recalculate_balance(
-                position_balance=(-1 * position_balance), fee=self._current_position.fee
+                total_profit=self._current_position.total_profit,
+                fee=self._current_position.fee,
             )
-
-        elif self._current_position.status == cmn.OrderStatus.closed:
-            position_volume = (
-                self._current_position.calculate_balance()
-                + self._current_position.total_profit
-            )
-            self._balance_mng.add_total_profit(self._current_position.total_profit)
-            self._balance_mng.recalculate_balance(position_balance=position_volume)
 
     def _calculate_trailing_stop_loss(self, signal_mdl: cmn.SignalModel):
         pass
@@ -629,7 +658,8 @@ class OrderManagerBase(DataManagerBase):
 
 
 class OrderApiManager(OrderManagerBase):
-    pass
+    def synchronize(self, manager: OrderManagerBase):
+        pass
 
 
 class OrderDatabaseManager(OrderManagerBase):
@@ -644,13 +674,18 @@ class OrderDatabaseManager(OrderManagerBase):
 
     #     return created_position_mdl
 
-    def close_position_by_signal(self, signal_mdl: cmn.SignalModel) -> bool:
+    def close_position_by_signal(
+        self, signal_mdl: cmn.SignalModel
+    ) -> cmn.OrderCloseModel:
         pass
 
     def get_positions(self) -> list[cmn.OrderModel]:
         return OrderHandler.get_orders(
             session_id=self._session_mdl.id, status=cmn.OrderStatus.opened
         )
+
+    def synchronize(self, manager: OrderManagerBase):
+        pass
 
 
 class OrderLocalDataManager(OrderManagerBase):
@@ -686,7 +721,50 @@ class LeverageManagerBase(DataManagerBase):
 
 
 class LeverageApiManager(LeverageManagerBase):
-    pass
+    def get_open_positions(self) -> list:
+        api_positions = self._exchange_handler.get_open_leverages(
+            symbol=self._session_mdl.symbol
+        )
+
+        for position_mdl in api_positions:
+            position_mdl.session_id = self._session_mdl.id
+            position_mdl.leverage = self._session_mdl.leverage
+
+        return api_positions
+
+    def open_position(self, open_mdl: cmn.LeverageModel) -> cmn.LeverageModel:
+        # Prepate model for opennig
+        position_mdl = self._prepare_open_position(open_mdl)
+
+        # Persit an openning position
+        created_position_mdl = self._open_position(position_mdl)
+        # # Post processing of the position
+        # created_position_mdl = self._after_open_position(
+        #     position_mdl=created_position_mdl
+        # )
+
+        logger.info(
+            f"{self.__class__.__name__}: Position {created_position_mdl.id} for {created_position_mdl.open_datetime} has been opened"
+        )
+
+        return created_position_mdl
+
+    def synchronize(self, manager: LeverageManagerBase):
+        pass
+
+    def _open_position(self, position_mdl: cmn.LeverageModel) -> cmn.LeverageModel:
+        return self._exchange_handler.create_leverage(position_mdl)
+
+    def close_position(self) -> cmn.OrderCloseModel:
+        result = self._exchange_handler.close_leverage(
+            symbol=self._current_position.symbol,
+            position_id=self._current_position.position_id,
+        )
+
+        # Set the current position = None
+        self._set_current_postion()
+
+        return result
 
 
 class LeverageDatabaseManager(LeverageManagerBase):
@@ -696,6 +774,7 @@ class LeverageDatabaseManager(LeverageManagerBase):
 
         if self._current_position:
             current_price = self._get_current_price(cmn.PriceType.ASK)
+            fee = self._get_fee()
 
             for position in positions:
                 if position.status == cmn.OrderStatus.opened:
@@ -705,7 +784,9 @@ class LeverageDatabaseManager(LeverageManagerBase):
                         quantity=self._current_position.quantity,
                         open_price=self._current_position.open_price,
                         close_price=current_price,
+                        fee=fee,
                     )
+                    position.fee = fee
 
         return positions
 
@@ -713,6 +794,35 @@ class LeverageDatabaseManager(LeverageManagerBase):
         return LeverageHandler.get_leverages(
             session_id=self._session_mdl.id, status=cmn.OrderStatus.opened
         )
+
+    def synchronize(self, manager: LeverageManagerBase):
+        # manager - api data manager works with the Trader
+        if self._current_position:
+            # Open position exists in the Database
+            if manager._current_position:
+                # Open position exists in the Trader
+                if (
+                    self._current_position.order_id
+                    != manager._current_position.order_id
+                ):
+                    # Position order IDs aren't matched -> cancel the position in the Database
+                    self.cancel_position()
+            else:
+                # Open position doens't exists in the Exhange Trader -> cancel the position in the Database
+                self.cancel_position()
+        else:
+            # Open position doen't exist in the Database
+            if manager._current_position:
+                # Open position exists in the Trader -> open the position in the Database
+                # open_position = self._exchange_handler.get_position(
+                #     symbol=self._session_mdl.symbol,
+                #     order_id=manager._current_position.order_id,
+                # )
+
+                # manager._current_position.side = open_position.side
+                manager._current_position.open_reason = cmn.OrderReason.TRADER
+
+                self.open_position_by_ref(position_mdl=manager._current_position)
 
     def _open_position(self, position_mdl: cmn.LeverageModel):
         return LeverageHandler.create_leverage(position_mdl)
@@ -722,10 +832,22 @@ class LeverageDatabaseManager(LeverageManagerBase):
             id=self._current_position.id, query=trailing_stop_mdl.to_mongodb_doc()
         )
 
-    def _close_position(self, order_close_mdl: cmn.OrderCloseModel) -> bool:
-        return LeverageHandler.update_leverage(
+    def _close_position(
+        self, order_close_mdl: cmn.OrderCloseModel
+    ) -> cmn.OrderCloseModel:
+        LeverageHandler.update_leverage(
             id=self._current_position.id, query=order_close_mdl.to_mongodb_doc()
         )
+        return order_close_mdl
+
+    def cancel_position(self) -> bool:
+        api_order_closed_mdl = self._exchange_handler.get_close_leverages(
+            position_id=self._current_position.position_id,
+            symbol=self._current_position.symbol,
+            limit=2,
+        )
+
+        return self.close_position(api_order_closed_mdl)
 
 
 class LeverageLocalDataManager(LeverageManagerBase):
@@ -749,7 +871,9 @@ class LeverageLocalDataManager(LeverageManagerBase):
         self._local_positions[position_mdl.id] = position_mdl
         return position_mdl
 
-    def _close_position(self, order_close_mdl: cmn.OrderCloseModel) -> bool:
+    def _close_position(
+        self, order_close_mdl: cmn.OrderCloseModel
+    ) -> cmn.OrderCloseModel:
         current_position: cmn.LeverageModel = self._local_positions[
             self._current_position.id
         ]
@@ -759,8 +883,9 @@ class LeverageLocalDataManager(LeverageManagerBase):
         current_position.close_price = order_close_mdl.close_price
         current_position.close_reason = order_close_mdl.close_reason
         current_position.total_profit = order_close_mdl.total_profit
+        current_position.fee = order_close_mdl.fee
 
-        return True
+        return order_close_mdl
 
     def _update_position(self, trailing_stop_mdl: cmn.TrailingStopModel) -> bool:
         return True
@@ -794,7 +919,7 @@ class SideManager:
         return self.get_close_details_by_signal(position_mdl, signal_mdl) != None
 
     def get_close_details_by_signal(
-        self, position_mdl: cmn.OrderModel, signal_mdl: cmn.SignalModel
+        self, position_mdl: cmn.OrderModel, signal_mdl: cmn.SignalModel, fee: float = 0
     ) -> cmn.OrderCloseModel:
         raise Exception(
             "Robot: SideManager - get_close_details_by_signal() isn't implemented"
@@ -815,7 +940,7 @@ class SideManager:
         return (price * self._session_mdl.take_profit_rate) / 100
 
     def get_total_profit(
-        self, quantity: float, open_price: float, close_price: float
+        self, quantity: float, open_price: float, close_price: float, fee: float = 0
     ) -> float:
         pass
 
@@ -823,7 +948,7 @@ class SideManager:
 # Short Positions
 class SellManager(SideManager):
     def get_close_details_by_signal(
-        self, position_mdl: cmn.OrderModel, signal_mdl: cmn.SignalModel
+        self, position_mdl: cmn.OrderModel, signal_mdl: cmn.SignalModel, fee: float = 0
     ) -> cmn.OrderCloseModel:
         close_price = 0
         close_reason = ""
@@ -847,6 +972,7 @@ class SellManager(SideManager):
             quantity=position_mdl.quantity,
             open_price=position_mdl.open_price,
             close_price=close_price,
+            fee=fee,
         )
 
         close_details_data = {
@@ -855,6 +981,7 @@ class SellManager(SideManager):
             Const.DB_CLOSE_PRICE: close_price,
             Const.DB_CLOSE_REASON: close_reason,
             Const.DB_TOTAL_PROFIT: total_profit,
+            Const.DB_FEE: fee,
         }
 
         return cmn.OrderCloseModel(**close_details_data)
@@ -887,15 +1014,15 @@ class SellManager(SideManager):
             return 0
 
     def get_total_profit(
-        self, quantity: float, open_price: float, close_price: float
+        self, quantity: float, open_price: float, close_price: float, fee: float = 0
     ) -> float:
-        return quantity * (open_price - close_price)
+        return (quantity * (open_price - close_price)) + fee
 
 
 # LONG Position
 class BuyManager(SideManager):
     def get_close_details_by_signal(
-        self, position_mdl: cmn.OrderModel, signal_mdl: cmn.SignalModel
+        self, position_mdl: cmn.OrderModel, signal_mdl: cmn.SignalModel, fee: float = 0
     ) -> cmn.OrderCloseModel:
         close_price = 0
         close_reason = ""
@@ -920,6 +1047,7 @@ class BuyManager(SideManager):
             quantity=position_mdl.quantity,
             open_price=position_mdl.open_price,
             close_price=close_price,
+            fee=fee,
         )
 
         close_details_data = {
@@ -928,6 +1056,7 @@ class BuyManager(SideManager):
             Const.DB_CLOSE_PRICE: close_price,
             Const.DB_CLOSE_REASON: close_reason,
             Const.DB_TOTAL_PROFIT: total_profit,
+            Const.DB_FEE: fee,
         }
 
         return cmn.OrderCloseModel(**close_details_data)
@@ -960,9 +1089,9 @@ class BuyManager(SideManager):
             return 0
 
     def get_total_profit(
-        self, quantity: float, open_price: float, close_price: float
+        self, quantity: float, open_price: float, close_price: float, fee: float = 0
     ) -> float:
-        return quantity * (close_price - open_price)
+        return (quantity * (close_price - open_price)) + fee
 
 
 class Robot:

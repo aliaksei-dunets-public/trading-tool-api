@@ -47,6 +47,7 @@ class Const:
     DB_CHANNEL_ID = "channel_id"
     DB_SESSION_ID = "session_id"
     DB_ORDER_ID = "order_id"
+    DB_POSITION_ID = "position_id"
     DB_TRADER_ID = "trader_id"
     DB_SYMBOL = "symbol"
     DB_NAME = "name"
@@ -89,11 +90,33 @@ class Const:
     FLD_PRICE_TYPE = "price_type"
 
     # API fields
+    API_FLD_ID = FLD_ID
+    API_FLD_ACCOUNT_ID = "accountId"
+    API_FLD_ORDER_ID = "orderId"
+    API_FLD_POSITION_ID = "positionId"
     API_FLD_SYMBOL = DB_SYMBOL
     API_FLD_INTERVAL = FLD_INTERVAL
     API_FLD_END_TIME = "endTime"
     API_FLD_LIMIT = FLD_LIMIT
+    API_FLD_PRICE = "price"
+    API_FLD_QUANTITY = "quantity"
+    API_FLD_EXECUTED_QUANTITY = "executedQty"
+    API_FLD_EXEC_QUANTITY = "execQuantity"
+    API_FLD_EXECUTED_PRICE = "execPrice"
+    API_FLD_EXECUTED_TIMESTAMP = "execTimestamp"
+    API_FLD_TRANSACT_TIME = "transactTime"
+    API_FLD_STATUS = "status"
+    API_FLD_TYPE = "type"
+    API_FLD_SIDE = "side"
+    API_FLD_MARGIN = "margin"
+    API_FLD_FEE = "fee"
     API_FLD_PRICE_TYPE = "priceType"
+    API_FLD_TAKE_PROFIT = "takeProfit"
+    API_FLD_STOP_LOSS = "stopLoss"
+    API_FLD_OPEN_PRICE = "openPrice"
+    API_FLD_OPEN_QUANTITY = "openQuantity"
+    API_FLD_OPEN_TIMESTAMP = "openTimestamp"
+    API_FLD_RPL = "rplConverted"
 
     ########################### Legacy code ####################################
 
@@ -106,9 +129,8 @@ class Const:
     DB_SIGNALS = "signals"
     DB_COMMENT = "comment"
     DB_ORDER_TYPE = "order_type"
-    DB_OPEN_DATE_TIME = "open_date_time"
     DB_OPEN_PRICE = "open_price"
-    DB_CLOSE_DATE_TIME = "close_date_time"
+    # DB_CLOSE_DATE_TIME = "close_date_time"
     # DB_CLOSE_PRICE = "close_price"
     DB_ALERT_TYPE = "alert_type"
     DB_INIT_BALANCE = "init_balance"

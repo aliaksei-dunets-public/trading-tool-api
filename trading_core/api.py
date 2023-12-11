@@ -13,13 +13,16 @@ from enum import Enum
 from .common import (
     SymbolStatus,
     SymbolType,
+    OrderStatus,
     OrderType,
+    OrderReason,
     OrderSideType,
     ExchangeId,
     HistoryDataParam,
     SymbolModel,
     TraderModel,
     OrderModel,
+    OrderCloseModel,
     LeverageModel,
 )
 from .core import logger, config, HistoryData
@@ -53,10 +56,29 @@ class ExchangeApiBase:
     ) -> HistoryData:
         pass
 
+    def get_open_leverages(
+        self, symbol: str = None, order_id: str = None
+    ) -> list[LeverageModel]:
+        pass
+
+    def get_close_leverages(
+        self, position_id: str, symbol: str = None, limit: int = 1, recv_window=None
+    ):
+        pass
+
+    def get_position(self, symbol: str, order_id: str) -> LeverageModel:
+        pass
+
     def create_order(self, position_mdl: OrderModel) -> OrderModel:
         pass
 
     def create_leverage(self, position_mdl: LeverageModel) -> LeverageModel:
+        pass
+
+    def close_order(self, position_id: str) -> OrderModel:
+        pass
+
+    def close_leverage(self, symbol: str, position_id: str) -> LeverageModel:
         pass
 
     def get_end_datetime(
@@ -100,10 +122,13 @@ class DzengiComApi(ExchangeApiBase):
     # Order Endpoints
     ORDER_ENDPOINT = "order"
     CURRENT_OPEN_ORDERS_ENDPOINT = "openOrders"
+    GET_ORDER_ENDPOINT = "fetchOrder"
+    CANCEL_ORDER = "cancelOrder"
 
     # Leverage Endpoints
     CLOSE_TRADING_POSITION_ENDPOINT = "closeTradingPosition"
     TRADING_POSITIONS_ENDPOINT = "tradingPositions"
+    TRADING_POSITIONS_HISTORY_ENDPOINT = "tradingPositionsHistory"
     LEVERAGE_SETTINGS_ENDPOINT = "leverageSettings"
     UPDATE_TRADING_ORDERS_ENDPOINT = "updateTradingOrder"
     UPDATE_TRADING_POSITION_ENDPOINT = "updateTradingPosition"
@@ -301,128 +326,369 @@ class DzengiComApi(ExchangeApiBase):
         pass
 
     def create_leverage(self, position_mdl: LeverageModel) -> LeverageModel:
-        return self.create_position(
+        created_position = self._create_position(
             account_id=position_mdl.account_id,
             symbol=position_mdl.symbol,
             side=position_mdl.side,
             order_type=position_mdl.type,
             quantity=position_mdl.quantity,
             leverage=position_mdl.leverage,
-            stop_loss=position_mdl.stop_loss,
-            take_profit=position_mdl.take_profit,
+            stop_loss=position_mdl.stop_loss if position_mdl.stop_loss > 0 else None,
+            take_profit=position_mdl.take_profit
+            if position_mdl.take_profit > 0
+            else None,
         )
 
-    def create_position(
-        self,
-        symbol,
-        side: OrderSideType,
-        order_type: OrderType,
-        quantity: float,
-        account_id: str = None,
-        expire_timestamp: datetime = None,
-        guaranteed_stop_loss: bool = False,
-        stop_loss: float = None,
-        take_profit: float = None,
-        leverage: int = None,
-        price: float = None,
-        new_order_resp_type="FULL",
-        recv_window=None,
-    ):
+        order_id = created_position[Const.API_FLD_ORDER_ID]
+        open_leverages = self.get_open_leverages(
+            symbol=position_mdl.symbol, order_id=order_id
+        )
+
+        position_mdl.id = open_leverages[0].id
+        position_mdl.open_datetime = self.getDatetimeByUnixTimeMs(
+            created_position[Const.API_FLD_TRANSACT_TIME]
+        )
+        position_mdl.open_price = float(created_position[Const.API_FLD_PRICE])
+        position_mdl.order_id = order_id
+        position_mdl.quantity = float(created_position[Const.API_FLD_EXECUTED_QUANTITY])
+
+        return position_mdl
+
+    def close_order(self):
+        pass
+
+    def close_leverage(
+        self, symbol: str, position_id: str, recv_window=None
+    ) -> OrderCloseModel:
         """
-        To create a market or limit order in the exchange trading mode, and
-        market, limit or stop order in the leverage trading mode.
-        Please note that to open an order within the ‘leverage’ trading mode
-        symbolLeverage should be used and additional accountId parameter should
-        be mentioned in the request.
-        :param symbol: In order to mention the right symbolLeverage it should
-        be checked with the ‘symbol’ parameter value from the exchangeInfo
-        endpoint. In case ‘symbol’ has currencies in its name then the
-        following format should be used: ‘BTC%2FUSD_LEVERAGE’. In case
-        ‘symbol’ has only an asset name then for the leverage trading mode the
-        following format is correct: ‘Oil%20-%20Brent’.
-        :param side:
-        :param order_type:
-        :param quantity:
-        :param account_id:
-        :param expire_timestamp:
-        :param guaranteed_stop_loss:
-        :param stop_loss:
-        :param take_profit:
-        :param leverage:
-        :param price: Required for LIMIT orders
-        :param new_order_resp_type: newOrderRespType in the exchange trading
-        mode for MARKET order RESULT or FULL can be mentioned. MARKET order
-        type default to FULL. LIMIT order type can be only RESULT. For the
-        leverage trading mode only RESULT is available.
+        Close an active leverage trade.
+
+        :param position_id:
         :param recv_window: The value cannot be greater than 60000.
         :return: dict object
 
-        Response RESULT:
+        Response example:
+        Example:
         {
-           "clientOrderId" : "00000000-0000-0000-0000-00000002cac8",
-           "status" : "FILLED",
-           "cummulativeQuoteQty" : null,
-           "executedQty" : "0.001",
-           "type" : "MARKET",
-           "transactTime" : 1577446511069,
-           "origQty" : "0.001",
-           "symbol" : "BTC/USD",
-           "timeInForce" : "FOK",
-           "side" : "BUY",
-           "price" : "7173.6186",
-           "orderId" : "00000000-0000-0000-0000-00000002cac8"
-        }
-        Response FULL:
-        {
-          "orderId" : "00000000-0000-0000-0000-00000002ca43",
-          "price" : "7183.3881",
-          "clientOrderId" : "00000000-0000-0000-0000-00000002ca43",
-          "side" : "BUY",
-          "cummulativeQuoteQty" : null,
-          "origQty" : "0.001",
-          "transactTime" : 1577445603997,
-          "type" : "MARKET",
-          "executedQty" : "0.001",
-          "status" : "FILLED",
-          "fills" : [
-           {
-             "price" : "7169.05",
-             "qty" : "0.001",
-             "commissionAsset" : "dUSD",
-             "commission" : "0"
-           }
-          ],
-          "timeInForce" : "FOK",
-          "symbol" : "BTC/USD"
+            "request": [
+                {
+                "id": 242057,
+                "accountId": 2376109060084932,
+                "instrumentId": "45076691096786116",
+                "rqType": "ORDER_NEW",
+                "state": "PROCESSED",
+                "createdTimestamp": 1587031306969
+                }
+            ]
         }
         """
         self._validate_recv_window(recv_window)
-        self._validate_new_order_resp_type(new_order_resp_type, order_type)
 
-        if order_type == OrderType.LIMIT:
-            if not price:
-                raise ValueError(
-                    "For LIMIT orders price is required or "
-                    f"should be greater than 0. Got {price}"
-                )
-
-        expire_timestamp_epoch = self.getUnixTimeMsByDatetime(expire_timestamp)
-
-        return self._post(
-            self.ORDER_ENDPOINT,
-            accountId=account_id,
-            expireTimestamp=expire_timestamp_epoch,
-            guaranteedStopLoss=guaranteed_stop_loss,
-            leverage=leverage,
-            newOrderRespType=new_order_resp_type,
-            price=price,
-            quantity=quantity,
+        response = self._post(
+            self.CLOSE_TRADING_POSITION_ENDPOINT,
+            positionId=position_id,
             recvWindow=recv_window,
-            side=side.value,
-            stopLoss=stop_loss,
+        )
+
+        closed_mdl = self.get_close_leverages(
+            position_id=position_id, symbol=symbol, limit=2
+        )
+
+        return closed_mdl
+
+    # Orders
+    def get_open_orders(self, symbol=None, recv_window=None):
+        """
+        Get all open orders on a symbol. Careful when accessing this with no
+        symbol.
+        If the symbol is not sent, orders for all symbols will be returned in
+        an array.
+
+        :param symbol: Symbol - In order to receive orders within an ‘exchange’
+        trading mode ‘symbol’ parameter value from the exchangeInfo endpoint:
+        ‘BTC%2FUSD’.
+        In order to mention the right symbolLeverage it should be checked with
+        the ‘symbol’ parameter value from the exchangeInfo endpoint. In case
+        ‘symbol’ has currencies in its name then the following format should be
+        used: ‘BTC%2FUSD_LEVERAGE’. In case ‘symbol’ has only an asset name
+        then for the leverage trading mode the following format is correct:
+         ‘Oil%20-%20Brent.’
+        :param recv_window: The value cannot be greater than 60000.
+        :return: dict object
+
+        Response:
+        [
+          {
+            "symbol": "LTC/BTC",
+            "orderId": "1",
+            "orderListId": -1,
+            "clientOrderId": "myOrder1",
+            "price": "0.1",
+            "origQty": "1.0",
+            "executedQty": "0.0",
+            "cummulativeQuoteQty": "0.0",
+            "status": "NEW",
+            "timeInForce": "GTC",
+            "type": "LIMIT",
+            "side": "BUY",
+            "stopPrice": "0.0",
+            "time": 1499827319559,
+            "updateTime": 1499827319559,
+            "isWorking": true,
+            "origQuoteOrderQty": "0.000000"
+          }
+        ]
+        """
+
+        self._validate_recv_window(recv_window)
+
+        return self._get(
+            self.CURRENT_OPEN_ORDERS_ENDPOINT,
             symbol=symbol,
+            recvWindow=recv_window,
+        )
+
+    def cancel_order(self, symbol, order_id, recv_window=None):
+        """
+        Cancel an active order within exchange and leverage trading modes.
+
+        :param symbol:
+        :param order_id:
+        :param recv_window: The value cannot be greater than 60000.
+        :return: dict object
+
+        Response:
+        {
+          "symbol": "LTC/BTC",
+          "origClientOrderId": "myOrder1",
+          "orderId": "4",
+          "orderListId": -1,
+          "clientOrderId": "cancelMyOrder1",
+          "price": "2.00000000",
+          "origQty": "1.00000000",
+          "executedQty": "0.00000000",
+          "cummulativeQuoteQty": "0.00000000",
+          "status": "CANCELED",
+          "timeInForce": "GTC",
+          "type": "LIMIT",
+          "side": "BUY"
+        }
+        """
+
+        self._validate_recv_window(recv_window)
+        return self._delete(
+            self.ORDER_ENDPOINT,
+            symbol=symbol,
+            orderId=order_id,
+            recvWindow=recv_window,
+        )
+
+    def get_position(
+        self, symbol: str, order_id: str, recv_window=None
+    ) -> LeverageModel:
+        self._validate_recv_window(recv_window)
+        position = self._get(
+            self.GET_ORDER_ENDPOINT,
+            symbol=symbol,
+            orderId=order_id,
+            recvWindow=recv_window,
+        )
+
+        if position[Const.API_FLD_STATUS] == "FILLED":
+            status = OrderStatus.opened
+        else:
+            status = OrderStatus.closed
+
+        position_data = {
+            Const.DB_SESSION_ID: "1",
+            Const.DB_SYMBOL: position[Const.API_FLD_SYMBOL],
+            Const.DB_ORDER_ID: position[Const.API_FLD_ORDER_ID],
+            Const.DB_STATUS: status,
+            Const.DB_ACCOUNT_ID: str(position[Const.API_FLD_ACCOUNT_ID]),
+            Const.DB_SIDE: position[Const.API_FLD_SIDE],
+            Const.DB_TYPE: position[Const.API_FLD_TYPE],
+            Const.DB_OPEN_PRICE: position[Const.API_FLD_EXECUTED_PRICE],
+            Const.DB_QUANTITY: position[Const.API_FLD_EXEC_QUANTITY],
+            Const.DB_FEE: position[Const.API_FLD_MARGIN],
+        }
+        position_mdl = LeverageModel(**position_data)
+
+        return position_mdl
+
+    # Leverage
+    def get_open_leverages(
+        self, symbol: str = None, order_id: str = None, recv_window=None
+    ) -> list[LeverageModel]:
+        """
+
+        :param recv_window:recvWindow cannot be greater than 60000
+        Default value : 5000
+        :return: dict object
+        Example:
+        {
+            "positions": [
+                {
+                    "accountId": 2376109060084932,
+                    "id": "00a02503-0079-54c4-0000-00004067006b",
+                    "instrumentId": "45076691096786116",
+                    "orderId": "00a02503-0079-54c4-0000-00004067006a",
+                    "openQuantity": 0.01,
+                    "openPrice": 6734.4,
+                    "closeQuantity": 0.0,
+                    "closePrice": 0,
+                    "takeProfit": 7999.15,
+                    "stopLoss": 5999.15,
+                    "guaranteedStopLoss": false,
+                    "rpl": 0,
+                    "rplConverted": 0,
+                    "swap": -0.00335894,
+                    "swapConverted": -0.00335894,
+                    "fee": -0.050508,
+                    "dividend": 0,
+                    "margin": 0.5,
+                    "state": "ACTIVE",
+                    "currency": "USD",
+                    "createdTimestamp": 1586953061455,
+                    "openTimestamp": 1586953061243,
+                    "cost": 33.73775,
+                    "symbol": “BTC/USD_LEVERAGE”
+                },
+                .....
+            ]
+        }
+        """
+        position_models = []
+
+        self._validate_recv_window(recv_window)
+        api_positions = self._get(
+            self.TRADING_POSITIONS_ENDPOINT, recvWindow=recv_window
+        )
+
+        for position in api_positions["positions"]:
+            if (symbol and symbol != position[Const.API_FLD_SYMBOL]) or (
+                order_id and order_id != position[Const.API_FLD_ORDER_ID]
+            ):
+                continue
+
+            side = OrderSideType.buy
+            quantity = position[Const.API_FLD_OPEN_QUANTITY]
+            if quantity < 0:
+                quantity = -quantity
+                side = OrderSideType.sell
+
+            position_data = {
+                Const.DB_SESSION_ID: "1",
+                Const.DB_POSITION_ID: position[Const.API_FLD_ID],
+                Const.DB_ORDER_ID: position[Const.API_FLD_ORDER_ID],
+                Const.DB_ACCOUNT_ID: str(position[Const.API_FLD_ACCOUNT_ID]),
+                Const.DB_SYMBOL: position[Const.API_FLD_SYMBOL],
+                Const.DB_STATUS: OrderStatus.opened,
+                Const.DB_SIDE: side,
+                Const.DB_TYPE: OrderType.market,
+                Const.DB_OPEN_PRICE: position[Const.API_FLD_OPEN_PRICE],
+                Const.DB_OPEN_DATETIME: self.getDatetimeByUnixTimeMs(
+                    position[Const.API_FLD_OPEN_TIMESTAMP]
+                ),
+                Const.DB_QUANTITY: quantity,
+                Const.DB_FEE: position[Const.API_FLD_FEE],
+                Const.DB_STOP_LOSS: position[Const.API_FLD_STOP_LOSS]
+                if Const.API_FLD_STOP_LOSS in position
+                else 0,
+                Const.DB_TAKE_PROFIT: position[Const.API_FLD_TAKE_PROFIT]
+                if Const.API_FLD_TAKE_PROFIT in position
+                else 0,
+            }
+            position_models.append(LeverageModel(**position_data))
+
+        return position_models
+
+    # Leverage
+    def get_close_leverages(
+        self, position_id: str, symbol: str = None, limit: int = 1, recv_window=None
+    ) -> OrderCloseModel:
+        """
+
+        :param recv_window:recvWindow cannot be greater than 60000
+        Default value : 5000
+        :return: dict object
+        Example:
+        "status":"OK",
+        "correlationId":"2",
+        "payload":{
+            "history":[
+                {
+                    "accountId":19039018800469188,
+                    "accountCurrency":"USD",
+                    "positionId":"00a18509-0079-54c4-0000-00004062007b",
+                    "currency":"USD",
+                    "executionType":"IOC",
+                    "quantity":-0.1,
+                    "price":44.95,
+                    "source":"USER",
+                    "status":"CLOSED",
+                    "rpl":-0.002,
+                    "rplConverted":-0.002,
+                    "fee":0,
+                    "createdTimestamp":1606999328398,
+                    "execTimestamp":1606999315265,
+                    "symbol":"Oil - Crude."
+                }
+            ]
+        }
+        """
+        position_models = []
+
+        self._validate_recv_window(recv_window)
+        api_positions = self._get(
+            self.TRADING_POSITIONS_HISTORY_ENDPOINT,
+            recvWindow=recv_window,
+            symbol=symbol,
+            limit=limit,
+        )
+
+        for position in api_positions["history"]:
+            if position_id != position[Const.API_FLD_POSITION_ID]:
+                continue
+
+            close_details_data = {
+                Const.DB_STATUS: OrderStatus.closed,
+                Const.DB_CLOSE_DATETIME: self.getDatetimeByUnixTimeMs(
+                    position[Const.API_FLD_EXECUTED_TIMESTAMP]
+                ),
+                Const.DB_CLOSE_PRICE: position[Const.API_FLD_PRICE],
+                Const.DB_CLOSE_REASON: OrderReason.TRADER,
+                Const.DB_TOTAL_PROFIT: position[Const.API_FLD_RPL],
+                Const.DB_FEE: position[Const.API_FLD_FEE],
+            }
+
+            return OrderCloseModel(**close_details_data)
+
+    def update_trading_position(
+        self,
+        position_id,
+        stop_loss: float = None,
+        take_profit: float = None,
+        guaranteed_stop_loss=False,
+        recv_window=None,
+    ):
+        """
+        To edit current leverage trade by changing stop loss and take profit
+        levels.
+
+        :return: dict object
+        Example:
+        {
+            "requestId": 242040,
+            "state": “PROCESSED”
+        }
+        """
+        self._validate_recv_window(recv_window)
+        return self._post(
+            self.UPDATE_TRADING_POSITION_ENDPOINT,
+            positionId=position_id,
+            guaranteedStopLoss=guaranteed_stop_loss,
+            stopLoss=stop_loss,
             takeProfit=take_profit,
-            type=order_type.value,
         )
 
     def get_end_datetime(
@@ -712,6 +978,119 @@ class DzengiComApi(ExchangeApiBase):
             )
             raise Exception(response.text)
 
+    def _create_position(
+        self,
+        symbol,
+        side: OrderSideType,
+        order_type: OrderType,
+        quantity: float,
+        account_id: str = None,
+        expire_timestamp: datetime = None,
+        guaranteed_stop_loss: bool = False,
+        stop_loss: float = None,
+        take_profit: float = None,
+        leverage: int = None,
+        price: float = None,
+        new_order_resp_type="FULL",
+        recv_window=None,
+    ):
+        """
+        To create a market or limit order in the exchange trading mode, and
+        market, limit or stop order in the leverage trading mode.
+        Please note that to open an order within the ‘leverage’ trading mode
+        symbolLeverage should be used and additional accountId parameter should
+        be mentioned in the request.
+        :param symbol: In order to mention the right symbolLeverage it should
+        be checked with the ‘symbol’ parameter value from the exchangeInfo
+        endpoint. In case ‘symbol’ has currencies in its name then the
+        following format should be used: ‘BTC%2FUSD_LEVERAGE’. In case
+        ‘symbol’ has only an asset name then for the leverage trading mode the
+        following format is correct: ‘Oil%20-%20Brent’.
+        :param side:
+        :param order_type:
+        :param quantity:
+        :param account_id:
+        :param expire_timestamp:
+        :param guaranteed_stop_loss:
+        :param stop_loss:
+        :param take_profit:
+        :param leverage:
+        :param price: Required for LIMIT orders
+        :param new_order_resp_type: newOrderRespType in the exchange trading
+        mode for MARKET order RESULT or FULL can be mentioned. MARKET order
+        type default to FULL. LIMIT order type can be only RESULT. For the
+        leverage trading mode only RESULT is available.
+        :param recv_window: The value cannot be greater than 60000.
+        :return: dict object
+
+        Response RESULT:
+        {
+           "clientOrderId" : "00000000-0000-0000-0000-00000002cac8",
+           "status" : "FILLED",
+           "cummulativeQuoteQty" : null,
+           "executedQty" : "0.001",
+           "type" : "MARKET",
+           "transactTime" : 1577446511069,
+           "origQty" : "0.001",
+           "symbol" : "BTC/USD",
+           "timeInForce" : "FOK",
+           "side" : "BUY",
+           "price" : "7173.6186",
+           "orderId" : "00000000-0000-0000-0000-00000002cac8"
+        }
+        Response FULL:
+        {
+          "orderId" : "00000000-0000-0000-0000-00000002ca43",
+          "price" : "7183.3881",
+          "clientOrderId" : "00000000-0000-0000-0000-00000002ca43",
+          "side" : "BUY",
+          "cummulativeQuoteQty" : null,
+          "origQty" : "0.001",
+          "transactTime" : 1577445603997,
+          "type" : "MARKET",
+          "executedQty" : "0.001",
+          "status" : "FILLED",
+          "fills" : [
+           {
+             "price" : "7169.05",
+             "qty" : "0.001",
+             "commissionAsset" : "dUSD",
+             "commission" : "0"
+           }
+          ],
+          "timeInForce" : "FOK",
+          "symbol" : "BTC/USD"
+        }
+        """
+        self._validate_recv_window(recv_window)
+        self._validate_new_order_resp_type(new_order_resp_type, order_type)
+
+        if order_type == OrderType.limit:
+            if not price:
+                raise ValueError(
+                    "For LIMIT orders price is required or "
+                    f"should be greater than 0. Got {price}"
+                )
+
+        expire_timestamp_epoch = self.getUnixTimeMsByDatetime(expire_timestamp)
+
+        return self._post(
+            self.ORDER_ENDPOINT,
+            accountId=account_id,
+            expireTimestamp=expire_timestamp_epoch,
+            guaranteedStopLoss=guaranteed_stop_loss,
+            leverage=leverage,
+            newOrderRespType=new_order_resp_type,
+            price=price,
+            quantity=quantity,
+            recvWindow=recv_window,
+            side=side.value,
+            stopLoss=stop_loss,
+            symbol=symbol,
+            takeProfit=take_profit,
+            type=order_type.value,
+        )
+
     def _validate_recv_window(self, recv_window):
         max_value = self.RECV_WINDOW_MAX_LIMIT
         if recv_window and recv_window > max_value:
@@ -743,13 +1122,13 @@ class DzengiComApi(ExchangeApiBase):
                 )
 
     def _get_params_with_signature(self, **kwargs):
-        api_secret = self._trader_model.decrypt_key(self._trader_model.api_secret)
+        # api_secret = self._trader_model.decrypt_key(self._trader_model.api_secret)
 
-        # api_secret = config.get_env_value("CURRENCY_COM_API_SECRET")
-        # if not api_secret:
-        #     raise Exception(
-        #         f"ExchangeApiBase: {self._trader_model.exchange_id} - API secret is not maintained"
-        #     )
+        api_secret = config.get_env_value("CURRENCY_COM_API_SECRET")
+        if not api_secret:
+            raise Exception(
+                f"ExchangeApiBase: {self._trader_model.exchange_id} - API secret is not maintained"
+            )
 
         t = self.getUnixTimeMsByDatetime(datetime.now())
         kwargs["timestamp"] = t
@@ -762,20 +1141,20 @@ class DzengiComApi(ExchangeApiBase):
         return {"signature": sign, **kwargs}
 
     def _get_header(self, **kwargs):
-        api_key = self._trader_model.decrypt_key(self._trader_model.api_key)
+        # api_key = self._trader_model.decrypt_key(self._trader_model.api_key)
 
-        # api_key = config.get_env_value("CURRENCY_COM_API_KEY")
-        # if not api_key:
-        #     raise Exception(
-        #         f"ExchangeApiBase: {self._trader_model.exchange_id} - API key is not maintained"
-        #     )
+        api_key = config.get_env_value("CURRENCY_COM_API_KEY")
+        if not api_key:
+            raise Exception(
+                f"ExchangeApiBase: {self._trader_model.exchange_id} - API key is not maintained"
+            )
 
         return {**kwargs, self.HEADER_API_KEY_NAME: api_key}
 
     def _get(self, path, **kwargs):
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
             logger.info(
-                f"ExchangeApiBase: {self._trader_model.exchange_id} - GET /{path}"
+                f"ExchangeApiBase: {self._trader_model.exchange_id} - GET /{path}({kwargs})"
             )
 
         url = self._get_url(path)
@@ -799,7 +1178,7 @@ class DzengiComApi(ExchangeApiBase):
     def _post(self, path, **kwargs):
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
             logger.info(
-                f"ExchangeApiBase: {self._trader_model.exchange_id} - POST /{path}"
+                f"ExchangeApiBase: {self._trader_model.exchange_id} - POST /{path}({kwargs})"
             )
 
         url = self._get_url(path)

@@ -78,31 +78,49 @@ from trading_core.responser import (
 
 # from trading_core.core import config
 # from trading_core.model import model
-# from trading_core.handler import DemoCurrencyComApi, OrderSide, OrderType
+from trading_core.handler import DemoCurrencyComApi, OrderSide, OrderType
 
-# try:
-#     handler = DemoCurrencyComApi()
+import trading_core.common as cmn
+from trading_core.handler import ExchangeHandler
 
-#     # print(handler.get_account_info())
+symbol = "BTC/USD_LEVERAGE"
+position_id = (
+    # "00a02503-1e55-311e-0000-000080642df4"
+    "00a02503-1e55-311e-0000-000080643577"
+)
 
-#     # print(
-#     #     handler.new_order(
-#     #         symbol="LTC/USD_LEVERAGE",
-#     #         side=OrderSide.BUY,
-#     #         order_type=OrderType.MARKET,
-#     #         quantity=1,
-#     #         account_id="167893441795404062",
-#     #     )
-#     # )
 
-#     print(handler.close_trading_position("00a0c503-1e55-311e-0000-0000802c029b"))
+try:
+    handler = ExchangeHandler("6561ed12bddd0fa310fe17b2")
 
-#     # print(handler.get_open_orders())
+    position = handler.get_position(symbol, position_id)
+    print(position)
 
-#     print(handler.get_trading_positions())
+    # handler.close_leverage(position_id=position_id)
 
-# except Exception as err:
-#     print(err)
+    positions = handler.get_close_leverages(position_id=position_id)
+    print(positions)
+
+    # print(handler.get_account_info())
+
+    # print(
+    #     handler.new_order(
+    #         symbol="LTC/USD_LEVERAGE",
+    #         side=OrderSide.BUY,
+    #         order_type=OrderType.MARKET,
+    #         quantity=1,
+    #         account_id="167893441795404062",
+    #     )
+    # )
+
+    # print(handler.close_trading_position("00a0c503-1e55-311e-0000-0000802c029b"))
+
+    # print(handler.get_open_orders())
+
+    # print(handler.get_trading_positions())
+
+except Exception as err:
+    print(err)
 
 ########################## Demo Accaunt ###############################################
 
@@ -163,29 +181,29 @@ from trading_core.responser import (
 
 ########################### Trend ###############################################
 
-symbol = "EPAM."
-interval = Const.TA_INTERVAL_30M
-strategy = Const.TA_STRATEGY_CCI_20_TREND_100
+# symbol = "EPAM."
+# interval = Const.TA_INTERVAL_30M
+# strategy = Const.TA_STRATEGY_CCI_20_TREND_100
 
-param = HistoryDataParam(
-    interval=interval,
-    symbol=symbol,
-    limit=1,
-)
+# param = HistoryDataParam(
+#     interval=interval,
+#     symbol=symbol,
+#     limit=1,
+# )
 
-history_data = ExchangeHandler.get_handler().get_history_data(
-    param, price_type=PriceType.BID.value
-)
-candle_bar = history_data.getDataFrame().tail(1)
+# history_data = ExchangeHandler.get_handler().get_history_data(
+#     param, price_type=PriceType.BID.value
+# )
+# candle_bar = history_data.getDataFrame().tail(1)
 
-print(candle_bar)
+# print(candle_bar)
 
-history_data_1 = ExchangeHandler.get_handler().get_history_data(
-    param, price_type=PriceType.ASK.value
-)
-candle_bar_1 = history_data_1.getDataFrame().tail(1)
+# history_data_1 = ExchangeHandler.get_handler().get_history_data(
+#     param, price_type=PriceType.ASK.value
+# )
+# candle_bar_1 = history_data_1.getDataFrame().tail(1)
 
-print(candle_bar_1)
+# print(candle_bar_1)
 
 
 # param = ParamSymbolIntervalLimit(
