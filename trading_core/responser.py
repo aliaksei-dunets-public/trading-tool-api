@@ -640,8 +640,8 @@ class ResponserWeb(ResponserBase):
         return TraderHandler.get_trader(id)
 
     @decorator_json
-    def get_traders(self, user_email: str = None) -> json:
-        return TraderHandler.get_traders_by_email(user_email)
+    def get_traders(self, user_email: str = None, status: int = None) -> json:
+        return TraderHandler.get_traders_by_email(user_email=user_email, status=status)
 
     @decorator_json
     def create_trader(self, trader_model: TraderModel) -> json:
@@ -690,20 +690,21 @@ class ResponserWeb(ResponserBase):
 
     @decorator_json
     def create_session(
-        self, session_model: SessionModel, balance_model: BalanceModel
+        self, session_mdl: SessionModel, balance_mdl: BalanceModel
     ) -> json:
-        if session_model.session_type == SessionType.TRADING:
+        if session_mdl.session_type == SessionType.TRADING:
+            # Check balance of the account
             total_balance = BalanceHandler.get_account_balance(
-                account_id=balance_model.account_id,
-                init_balance=balance_model.init_balance,
+                account_id=balance_mdl.account_id,
+                init_balance=balance_mdl.init_balance,
             )
             reserved_balance = total_balance + total_balance * 0.2
 
             exchange_handler = ExchangeHandler.get_handler(
-                trader_id=session_model.trader_id
+                trader_id=session_mdl.trader_id
             )
             account = exchange_handler.get_account_info(
-                account_id=balance_model.account_id
+                account_id=balance_mdl.account_id
             )
             account_balance = (
                 account[Const.API_FLD_ACCOUNT_FREE]
@@ -714,10 +715,21 @@ class ResponserWeb(ResponserBase):
                     f"There are not enough funds in the account to create this session. Increase the balance or reduce the initial balance of the session."
                 )
 
-        session = SessionHandler.create_session(session_model)
+            # Check duplicates of entries
+            existing_sessions = SessionHandler.get_sessions(
+                user_id=session_mdl.user_id,
+                trader_id=session_mdl.trader_id,
+                symbol=session_mdl.symbol,
+            )
+            if existing_sessions:
+                raise Exception(
+                    f"There are a duplicate of session for symbol {session_mdl.symbol}"
+                )
 
-        balance_model.session_id = session.id
-        balance = BalanceHandler.create_balance(balance_model)
+        session = SessionHandler.create_session(session_mdl)
+
+        balance_mdl.session_id = session.id
+        balance = BalanceHandler.create_balance(balance_mdl)
 
         return session
 

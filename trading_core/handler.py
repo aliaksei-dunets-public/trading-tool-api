@@ -331,18 +331,28 @@ class TraderHandler:
         return TraderHandler._read_traders(user_id=user_id)
 
     @staticmethod
-    def get_traders_by_email(user_email: str = None) -> list[TraderModel]:
+    def get_traders_by_email(
+        user_email: str = None, status: int = None
+    ) -> list[TraderModel]:
         user_mdl = buffer_runtime_handler.get_user_handler().get_user_by_email(
             email=user_email
         )
         if user_mdl.technical_user:
             return TraderHandler._read_traders()
         else:
-            return TraderHandler._read_traders(user_id=user_mdl.id)
+            return TraderHandler._read_traders(user_id=user_mdl.id, status=status)
 
     @staticmethod
     def _read_traders(**kwargs) -> list[TraderModel]:
-        entries_db = MongoTrader().get_many(kwargs)
+        query = {**kwargs}
+        status = kwargs.get(Const.DB_STATUS)
+        if Const.DB_STATUS in query:
+            if status in ["", "undefined", None]:
+                status = -2
+
+            query[Const.DB_STATUS] = {"$gte": int(status)}
+
+        entries_db = MongoTrader().get_many(query)
         result = [TraderModel(**entry) for entry in entries_db]
         return result
 
@@ -386,6 +396,7 @@ class SessionHandler:
     def get_sessions(
         user_id: str = None,
         trader_id: str = None,
+        symbol: str = None,
         interval: str = None,
         status: SessionStatus = None,
     ):
@@ -395,6 +406,8 @@ class SessionHandler:
             query[Const.DB_USER_ID] = user_id
         if trader_id:
             query[Const.DB_TRADER_ID] = trader_id
+        if symbol:
+            query[Const.DB_SYMBOL] = symbol
         if interval:
             query[Const.DB_INTERVAL] = interval
         if status:

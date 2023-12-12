@@ -85,7 +85,8 @@ def get_trader(id):
 @app.route("/traders", methods=["GET"])
 def get_traders():
     user_email = request.headers.get("User-Email")
-    return responser.get_traders(user_email)
+    status = request.args.get("status", None)
+    return responser.get_traders(user_email=user_email, status=status)
 
 
 @app.route("/trader", methods=["POST"])
