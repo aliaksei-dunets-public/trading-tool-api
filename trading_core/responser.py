@@ -720,6 +720,7 @@ class ResponserWeb(ResponserBase):
                 user_id=session_mdl.user_id,
                 trader_id=session_mdl.trader_id,
                 symbol=session_mdl.symbol,
+                session_type=SessionType.TRADING,
             )
             if existing_sessions:
                 raise Exception(

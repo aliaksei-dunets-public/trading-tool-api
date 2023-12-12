@@ -53,6 +53,7 @@ class Const:
     DB_STATUS = "status"
     DB_TYPE = "type"
     DB_SIDE = "side"
+    DB_SESSION_TYPE = "session_type"
     DB_ACCOUNT_ID = "account_id"
     DB_CURRENCY = "currency"
     DB_QUANTITY = "quantity"

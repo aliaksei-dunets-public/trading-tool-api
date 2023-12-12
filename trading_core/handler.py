@@ -23,6 +23,7 @@ from .common import (
     UserModel,
     TraderModel,
     SessionModel,
+    SessionType,
     BalanceModel,
     OrderModel,
     LeverageModel,
@@ -399,6 +400,7 @@ class SessionHandler:
         symbol: str = None,
         interval: str = None,
         status: SessionStatus = None,
+        session_type: SessionType = None,
     ):
         query = {}
 
@@ -406,6 +408,8 @@ class SessionHandler:
             query[Const.DB_USER_ID] = user_id
         if trader_id:
             query[Const.DB_TRADER_ID] = trader_id
+        if session_type:
+            query[Const.DB_SESSION_TYPE] = session_type
         if symbol:
             query[Const.DB_SYMBOL] = symbol
         if interval:
