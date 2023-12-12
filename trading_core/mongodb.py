@@ -59,6 +59,11 @@ class MongoBase:
     def get_many(self, query: dict = {}) -> list:
         return list(self._collection.find(query))
 
+    def aggregate(self, query: dict = {}) -> list:
+        if not query:
+            raise Exception(f"DB: aggregate - Query is empty")
+        return list(self._collection.aggregate(query))
+
     def add_param_to_query(self, query: dict, param: str, value: str) -> dict:
         if value:
             query[param] = value

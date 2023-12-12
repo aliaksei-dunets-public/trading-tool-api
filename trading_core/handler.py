@@ -259,7 +259,7 @@ class TraderHandler:
 
             elif trader_mdl.api_key and trader_mdl.api_secret:
                 try:
-                    exchange_handler.get_account_info()
+                    exchange_handler.get_accounts()
                     trader_status = TraderStatus.PRIVATE
 
                 except Exception:
@@ -428,7 +428,7 @@ class BalanceHandler:
 
     @staticmethod
     def get_balances(session_id: str = None):
-        query = {"session_id": session_id} if session_id else {}
+        query = {Const.DB_SESSION_ID: session_id} if session_id else {}
         entries_db = MongoBalance().get_many(query)
         result = [BalanceModel(**entry) for entry in entries_db]
 
@@ -436,9 +436,24 @@ class BalanceHandler:
 
     @staticmethod
     def get_balance_4_session(session_id: str):
-        entriy_db = MongoBalance().get_one_by_filter({"session_id": session_id})
+        entriy_db = MongoBalance().get_one_by_filter({Const.DB_SESSION_ID: session_id})
         result = BalanceModel(**entriy_db)
         return result
+
+    @staticmethod
+    def get_account_balance(account_id: str, init_balance: float) -> float:
+        query = [
+            {"$match": {Const.DB_ACCOUNT_ID: account_id}},
+            {
+                "$group": {
+                    "_id": "$account_id",
+                    "total_balance": {"$sum": "$total_balance"},
+                }
+            },
+        ]
+        aggregates_db = MongoBalance().aggregate(query)
+
+        return aggregates_db[0][Const.DB_TOTAL_BALANCE] + init_balance
 
 
 class OrderHandler:
@@ -593,8 +608,16 @@ class ExchangeHandler:
     def ping_server(self, **kwargs) -> bool:
         return self._api.ping_server()
 
-    def get_account_info(self) -> list:
-        return self._api.get_account_info()
+    def get_accounts(self) -> list:
+        return self._api.get_accounts()
+
+    def get_account_info(self, account_id) -> dict:
+        accounts = self.get_accounts()
+        for account in accounts:
+            if account[Const.API_FLD_ACCOUNT_ID] == account_id:
+                return account
+
+        raise Exception(f"ExchangeHandler: {account_id} can't be determined")
 
     def get_leverage_settings(self, symbol: str) -> list:
         if not symbol:
@@ -1528,9 +1551,7 @@ class CurrencyComApi(StockExchangeApiBase):
         """
         return requests.get(CurrencyComApi.SERVER_TIME_ENDPOINT)
 
-    def get_account_info(
-        self, show_zero_balance: bool = False, recv_window: int = None
-    ):
+    def get_accounts(self, show_zero_balance: bool = False, recv_window: int = None):
         """
         Get current account information
 
@@ -1834,44 +1855,6 @@ class CurrencyComApi(StockExchangeApiBase):
 
     # Leverage
     def get_trading_positions(self, recv_window=None):
-        """
-
-        :param recv_window:recvWindow cannot be greater than 60000
-        Default value : 5000
-        :return: dict object
-        Example:
-        {
-            "positions": [
-                {
-                    "accountId": 2376109060084932,
-                    "id": "00a02503-0079-54c4-0000-00004067006b",
-                    "instrumentId": "45076691096786116",
-                    "orderId": "00a02503-0079-54c4-0000-00004067006a",
-                    "openQuantity": 0.01,
-                    "openPrice": 6734.4,
-                    "closeQuantity": 0.0,
-                    "closePrice": 0,
-                    "takeProfit": 7999.15,
-                    "stopLoss": 5999.15,
-                    "guaranteedStopLoss": false,
-                    "rpl": 0,
-                    "rplConverted": 0,
-                    "swap": -0.00335894,
-                    "swapConverted": -0.00335894,
-                    "fee": -0.050508,
-                    "dividend": 0,
-                    "margin": 0.5,
-                    "state": "ACTIVE",
-                    "currency": "USD",
-                    "createdTimestamp": 1586953061455,
-                    "openTimestamp": 1586953061243,
-                    "cost": 33.73775,
-                    "symbol": “BTC/USD_LEVERAGE”
-                },
-                .....
-            ]
-        }
-        """
         self._validate_recv_window(recv_window)
         return self._get(
             CurrencyComApi.TRADING_POSITIONS_ENDPOINT, recvWindow=recv_window

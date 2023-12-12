@@ -42,7 +42,7 @@ class ExchangeApiBase:
     def get_intervals(self) -> list:
         pass
 
-    def get_account_info(self) -> list:
+    def get_accounts(self) -> list:
         pass
 
     def get_leverage_settings(self, symbol: str) -> list:
@@ -159,9 +159,7 @@ class DzengiComApi(ExchangeApiBase):
     def get_api_endpoints(self) -> str:
         return "https://api-adapter.backend.currency.com/api/v2/"
 
-    def get_account_info(
-        self, show_zero_balance: bool = False, recv_window: int = None
-    ):
+    def get_accounts(self, show_zero_balance: bool = False, recv_window: int = None):
         """
         Get current account information
 
@@ -351,6 +349,7 @@ class DzengiComApi(ExchangeApiBase):
         position_mdl.open_price = float(created_position[Const.API_FLD_PRICE])
         position_mdl.order_id = order_id
         position_mdl.quantity = float(created_position[Const.API_FLD_EXECUTED_QUANTITY])
+        position_mdl.fee = float(open_leverages[0].fee)
 
         return position_mdl
 
@@ -519,44 +518,6 @@ class DzengiComApi(ExchangeApiBase):
     def get_open_leverages(
         self, symbol: str = None, order_id: str = None, recv_window=None
     ) -> list[LeverageModel]:
-        """
-
-        :param recv_window:recvWindow cannot be greater than 60000
-        Default value : 5000
-        :return: dict object
-        Example:
-        {
-            "positions": [
-                {
-                    "accountId": 2376109060084932,
-                    "id": "00a02503-0079-54c4-0000-00004067006b",
-                    "instrumentId": "45076691096786116",
-                    "orderId": "00a02503-0079-54c4-0000-00004067006a",
-                    "openQuantity": 0.01,
-                    "openPrice": 6734.4,
-                    "closeQuantity": 0.0,
-                    "closePrice": 0,
-                    "takeProfit": 7999.15,
-                    "stopLoss": 5999.15,
-                    "guaranteedStopLoss": false,
-                    "rpl": 0,
-                    "rplConverted": 0,
-                    "swap": -0.00335894,
-                    "swapConverted": -0.00335894,
-                    "fee": -0.050508,
-                    "dividend": 0,
-                    "margin": 0.5,
-                    "state": "ACTIVE",
-                    "currency": "USD",
-                    "createdTimestamp": 1586953061455,
-                    "openTimestamp": 1586953061243,
-                    "cost": 33.73775,
-                    "symbol": “BTC/USD_LEVERAGE”
-                },
-                .....
-            ]
-        }
-        """
         position_models = []
 
         self._validate_recv_window(recv_window)
@@ -606,36 +567,6 @@ class DzengiComApi(ExchangeApiBase):
     def get_close_leverages(
         self, position_id: str, symbol: str = None, limit: int = 1, recv_window=None
     ) -> OrderCloseModel:
-        """
-
-        :param recv_window:recvWindow cannot be greater than 60000
-        Default value : 5000
-        :return: dict object
-        Example:
-        "status":"OK",
-        "correlationId":"2",
-        "payload":{
-            "history":[
-                {
-                    "accountId":19039018800469188,
-                    "accountCurrency":"USD",
-                    "positionId":"00a18509-0079-54c4-0000-00004062007b",
-                    "currency":"USD",
-                    "executionType":"IOC",
-                    "quantity":-0.1,
-                    "price":44.95,
-                    "source":"USER",
-                    "status":"CLOSED",
-                    "rpl":-0.002,
-                    "rplConverted":-0.002,
-                    "fee":0,
-                    "createdTimestamp":1606999328398,
-                    "execTimestamp":1606999315265,
-                    "symbol":"Oil - Crude."
-                }
-            ]
-        }
-        """
         position_models = []
 
         self._validate_recv_window(recv_window)
@@ -650,13 +581,21 @@ class DzengiComApi(ExchangeApiBase):
             if position_id != position[Const.API_FLD_POSITION_ID]:
                 continue
 
+            order_reason = OrderReason.TRADER
+            if position[Const.API_FLD_SOURCE] == "TP":
+                order_reason = OrderReason.TAKE_PROFIT
+            elif position[Const.API_FLD_SOURCE] == "SL":
+                order_reason = OrderReason.STOP_LOSS
+            elif position[Const.API_FLD_SOURCE] == "USER":
+                order_reason = OrderReason.MANUAL
+
             close_details_data = {
                 Const.DB_STATUS: OrderStatus.closed,
                 Const.DB_CLOSE_DATETIME: self.getDatetimeByUnixTimeMs(
                     position[Const.API_FLD_EXECUTED_TIMESTAMP]
                 ),
                 Const.DB_CLOSE_PRICE: position[Const.API_FLD_PRICE],
-                Const.DB_CLOSE_REASON: OrderReason.TRADER,
+                Const.DB_CLOSE_REASON: order_reason,
                 Const.DB_TOTAL_PROFIT: position[Const.API_FLD_RPL],
                 Const.DB_FEE: position[Const.API_FLD_FEE],
             }
@@ -1122,13 +1061,13 @@ class DzengiComApi(ExchangeApiBase):
                 )
 
     def _get_params_with_signature(self, **kwargs):
-        # api_secret = self._trader_model.decrypt_key(self._trader_model.api_secret)
+        api_secret = self._trader_model.decrypt_key(self._trader_model.api_secret)
 
-        api_secret = config.get_env_value("CURRENCY_COM_API_SECRET")
-        if not api_secret:
-            raise Exception(
-                f"ExchangeApiBase: {self._trader_model.exchange_id} - API secret is not maintained"
-            )
+        # api_secret = config.get_env_value("CURRENCY_COM_API_SECRET")
+        # if not api_secret:
+        #     raise Exception(
+        #         f"ExchangeApiBase: {self._trader_model.exchange_id} - API secret is not maintained"
+        #     )
 
         t = self.getUnixTimeMsByDatetime(datetime.now())
         kwargs["timestamp"] = t
@@ -1141,13 +1080,13 @@ class DzengiComApi(ExchangeApiBase):
         return {"signature": sign, **kwargs}
 
     def _get_header(self, **kwargs):
-        # api_key = self._trader_model.decrypt_key(self._trader_model.api_key)
+        api_key = self._trader_model.decrypt_key(self._trader_model.api_key)
 
-        api_key = config.get_env_value("CURRENCY_COM_API_KEY")
-        if not api_key:
-            raise Exception(
-                f"ExchangeApiBase: {self._trader_model.exchange_id} - API key is not maintained"
-            )
+        # api_key = config.get_env_value("CURRENCY_COM_API_KEY")
+        # if not api_key:
+        #     raise Exception(
+        #         f"ExchangeApiBase: {self._trader_model.exchange_id} - API key is not maintained"
+        #     )
 
         return {**kwargs, self.HEADER_API_KEY_NAME: api_key}
 

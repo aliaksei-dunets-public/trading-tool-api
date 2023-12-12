@@ -19,7 +19,6 @@ class Const:
     # Strategies
     TA_STRATEGY_CCI_14_TREND_100 = "CCI_14_TREND_100"
     TA_STRATEGY_CCI_14_BASED_TREND_100 = "CCI_14_BASED_TREND_100"
-    TA_STRATEGY_CCI_14_TREND_170_165 = "CCI_14_TREND_170_165"
     TA_STRATEGY_CCI_20_TREND_100 = "CCI_20_TREND_100"
     TA_STRATEGY_CCI_20_BASED_TREND_100 = "CCI_20_BASED_TREND_100"
     TA_STRATEGY_CCI_20_100_TREND_UP_LEVEL = "CCI_20_100_TREND_UP_LEVEL"
@@ -74,6 +73,8 @@ class Const:
     DB_HIGH_PRICE = "high_price"
     DB_LOW_PRICE = "low_price"
     DB_DATE_TIME = "date_time"
+    DB_INIT_BALANCE = "init_balance"
+    DB_TOTAL_BALANCE = "total_balance"
     DB_CREATED_AT = "created_at"
     DB_CREATED_BY = "created_by"
     DB_CHANGED_AT = "changed_at"
@@ -116,7 +117,10 @@ class Const:
     API_FLD_OPEN_PRICE = "openPrice"
     API_FLD_OPEN_QUANTITY = "openQuantity"
     API_FLD_OPEN_TIMESTAMP = "openTimestamp"
-    API_FLD_RPL = "rplConverted"
+    API_FLD_RPL = "rpl"
+    API_FLD_SOURCE = "source"
+    API_FLD_ACCOUNT_FREE = "free"
+    API_FLD_ACCOUNT_LOCKED = "locked"
 
     ########################### Legacy code ####################################
 
@@ -133,7 +137,7 @@ class Const:
     # DB_CLOSE_DATE_TIME = "close_date_time"
     # DB_CLOSE_PRICE = "close_price"
     DB_ALERT_TYPE = "alert_type"
-    DB_INIT_BALANCE = "init_balance"
+
     DB_LIMIT = "limit"
     DB_FEE_RATE = "fee_rate"
     DB_PRICE = "price"

@@ -123,14 +123,6 @@ class TestConfig(unittest.TestCase):
                 Const.LENGTH: 14,
                 Const.VALUE: 100,
             },
-            Const.TA_STRATEGY_CCI_14_TREND_170_165: {
-                Const.CODE: Const.TA_STRATEGY_CCI_14_TREND_170_165,
-                Const.NAME: "CCI(14): Indicator direction Trend +/- 170 | 165",
-                Const.LENGTH: 14,
-                Const.VALUE: 170,
-                Const.OPEN_VALUE: 170,
-                Const.CLOSE_VALUE: 165,
-            },
             Const.TA_STRATEGY_CCI_20_TREND_100: {
                 Const.CODE: Const.TA_STRATEGY_CCI_20_TREND_100,
                 Const.NAME: "CCI(20): Indicator against Trend +/- 100",
@@ -609,10 +601,6 @@ class TestModel(unittest.TestCase):
                 Const.NAME: "CCI(14): Indicator against Trend +/- 100",
             },
             {
-                Const.CODE: Const.TA_STRATEGY_CCI_14_TREND_170_165,
-                Const.NAME: "CCI(14): Indicator direction Trend +/- 170 | 165",
-            },
-            {
                 Const.CODE: Const.TA_STRATEGY_CCI_20_TREND_100,
                 Const.NAME: "CCI(20): Indicator against Trend +/- 100",
             },
@@ -627,7 +615,6 @@ class TestModel(unittest.TestCase):
     def test_get_strategy_codes(self):
         expected_result = [
             Const.TA_STRATEGY_CCI_14_TREND_100,
-            Const.TA_STRATEGY_CCI_14_TREND_170_165,
             Const.TA_STRATEGY_CCI_20_TREND_100,
             Const.TA_STRATEGY_CCI_50_TREND_0,
         ]
@@ -639,7 +626,6 @@ class TestModel(unittest.TestCase):
             Const.TA_STRATEGY_CCI_50_TREND_0,
             Const.TA_STRATEGY_CCI_20_TREND_100,
             Const.TA_STRATEGY_CCI_14_TREND_100,
-            Const.TA_STRATEGY_CCI_14_TREND_170_165,
         ]
         self.assertEqual(model.get_sorted_strategy_codes(), expected_result)
 
@@ -2604,10 +2590,6 @@ class FlaskAPITestCase(unittest.TestCase):
             {
                 Const.CODE: Const.TA_STRATEGY_CCI_14_TREND_100,
                 Const.NAME: "CCI(14): Indicator against Trend +/- 100",
-            },
-            {
-                Const.CODE: Const.TA_STRATEGY_CCI_14_TREND_170_165,
-                Const.NAME: "CCI(14): Indicator direction Trend +/- 170 | 165",
             },
             {
                 Const.CODE: Const.TA_STRATEGY_CCI_20_TREND_100,

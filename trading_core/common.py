@@ -77,7 +77,6 @@ class SignalType(str, Enum):
 class StrategyType(str, Enum):
     CCI_14_TREND_100 = "CCI_14_TREND_100"
     CCI_14_BASED_TREND_100 = "CCI_14_BASED_TREND_100"
-    CCI_14_TREND_170_165 = "CCI_14_TREND_170_165"
     CCI_20_TREND_100 = "CCI_20_TREND_100"
     CCI_20_BASED_TREND_100 = "CCI_20_BASED_TREND_100"
     CCI_20_100_TREND_UP_LEVEL = "CCI_20_100_TREND_UP_LEVEL"
@@ -313,11 +312,26 @@ class SessionModel(AdminModel, IdentifierModel, SymbolIntervalStrategyModel):
     trading_type: TradingType
     session_type: SessionType
 
+    # # Balance Details
+    # account_id: str = ""
+    # currency: str
+    # init_balance: float
+    # total_balance: float = 0
+    # total_profit: float = 0
+    # total_fee: float = 0
+
     # Trading Details
     leverage: int = 1
     take_profit_rate: float = 0
     stop_loss_rate: float = 0
     is_trailing_stop: bool = False
+
+    # @validator("total_balance", pre=True, always=True)
+    # def init_total_balance(cls, total_balance, values):
+    #     total_balance = (
+    #         values.get("init_balance") if total_balance == 0 else total_balance
+    #     )
+    #     return total_balance
 
     def to_mongodb_doc(self):
         return {
@@ -326,6 +340,12 @@ class SessionModel(AdminModel, IdentifierModel, SymbolIntervalStrategyModel):
             "status": self.status,
             "trading_type": self.trading_type,
             "session_type": self.session_type,
+            # "account_id": self.account_id,
+            # "currency": self.currency,
+            # "init_balance": self.init_balance,
+            # "total_balance": self.total_balance,
+            # "total_profit": self.total_profit,
+            # "total_fee": self.total_fee,
             "symbol": self.symbol,
             "interval": self.interval,
             "strategy": self.strategy,

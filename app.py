@@ -112,8 +112,8 @@ def check_trader_status(trader_id):
 
 
 @app.route("/trader_accounts/<trader_id>", methods=["GET"])
-def get_account_info(trader_id):
-    return responser.get_account_info(trader_id)
+def get_accounts(trader_id):
+    return responser.get_accounts(trader_id)
 
 
 @app.route("/trader_leverages/<trader_id>", methods=["GET"])
@@ -143,7 +143,14 @@ def get_sessions():
 def create_session():
     session_data = request.get_json()
     session_model = SessionModel(**session_data)
-    return responser.create_session(session_model)
+
+    balance_data = request.get_json()
+    balance_data[Const.DB_SESSION_ID] = "temp_session_id"
+    balance_model = BalanceModel(**balance_data)
+
+    session = responser.create_session(session_model, balance_model)
+
+    return session
 
 
 @app.route("/session/<session_id>/activate", methods=["POST"])

@@ -101,7 +101,7 @@ try:
     positions = handler.get_close_leverages(position_id=position_id)
     print(positions)
 
-    # print(handler.get_account_info())
+    # print(handler.get_accounts())
 
     # print(
     #     handler.new_order(

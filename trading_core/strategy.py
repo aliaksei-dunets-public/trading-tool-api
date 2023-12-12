@@ -125,8 +125,6 @@ class StrategyFactory:
             Const.TA_STRATEGY_CCI_20_TREND_100,
         ]:
             self.__instance = Strategy_CCI(strategy_config_inst)
-        elif code == Const.TA_STRATEGY_CCI_14_TREND_170_165:
-            self.__instance = StrategyDirectionTrend_CCI(strategy_config_inst)
         elif code in [
             Const.TA_STRATEGY_CCI_14_BASED_TREND_100,
             Const.TA_STRATEGY_CCI_20_BASED_TREND_100,
@@ -313,50 +311,6 @@ class Strategy_CCI(StrategyBase):
                 decision = Const.STRONG_BUY
 
         return decision
-
-
-class StrategyDirectionTrend_CCI(Strategy_CCI):
-    def __init__(self, strategy_config_inst: StrategyConfig):
-        Strategy_CCI.__init__(self, strategy_config_inst)
-        self._open_value = self.get_strategy_config().get_property(Const.OPEN_VALUE)
-        self._close_value = self.get_strategy_config().get_property(Const.CLOSE_VALUE)
-
-    def _determineSignal(self, cci_df):
-        signals = []
-
-        for i in range(len(cci_df)):
-            decision = ""
-
-            if i == 0:
-                signals.append(decision)
-                continue
-
-            current_value = cci_df.iloc[i, 5]
-            previous_value = cci_df.iloc[i - 1, 5]
-
-            # LONG
-            if current_value >= self._open_value and previous_value < self._open_value:
-                decision = Const.STRONG_BUY
-            elif (
-                current_value <= self._close_value
-                and previous_value > self._close_value
-            ):
-                decision = Const.SELL
-            # SHORT
-            elif (
-                current_value <= -self._open_value
-                and previous_value > -self._open_value
-            ):
-                decision = Const.STRONG_SELL
-            elif (
-                current_value >= -self._close_value
-                and previous_value < -self._close_value
-            ):
-                decision = Const.BUY
-
-            signals.append(decision)
-
-        return signals
 
 
 class StrategyDirectionBasedTrend_CCI(Strategy_CCI):

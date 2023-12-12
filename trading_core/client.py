@@ -180,9 +180,7 @@ class Client(object):
             headers=self._get_header(),
         )
 
-    def get_account_info(
-        self, show_zero_balance: bool = False, recv_window: int = None
-    ):
+    def get_accounts(self, show_zero_balance: bool = False, recv_window: int = None):
         """
         Get current account information
 

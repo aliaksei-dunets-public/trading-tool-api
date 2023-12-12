@@ -28,6 +28,7 @@ from trading_core.common import (
     UserModel,
     TraderModel,
     SessionModel,
+    SessionType,
     BalanceModel,
     OrderModel,
     LeverageModel,
@@ -671,11 +672,54 @@ class ResponserWeb(ResponserBase):
 
     @decorator_json
     def get_sessions(self, user_email: str) -> json:
-        return SessionHandler.get_sessions_by_email(user_email)
+        sessions = []
+
+        sessions_mdl = SessionHandler.get_sessions_by_email(user_email)
+
+        for session_mdl in sessions_mdl:
+            balance_mdl = BalanceHandler.get_balance_4_session(
+                session_id=session_mdl.id
+            )
+
+            session = session_mdl.model_dump()
+            session["balance"] = balance_mdl.model_dump()
+
+            sessions.append(session)
+
+        return sessions
 
     @decorator_json
-    def create_session(self, session_model: SessionModel) -> json:
-        return SessionHandler.create_session(session_model)
+    def create_session(
+        self, session_model: SessionModel, balance_model: BalanceModel
+    ) -> json:
+        if session_model.session_type == SessionType.TRADING:
+            total_balance = BalanceHandler.get_account_balance(
+                account_id=balance_model.account_id,
+                init_balance=balance_model.init_balance,
+            )
+            reserved_balance = total_balance + total_balance * 0.2
+
+            exchange_handler = ExchangeHandler.get_handler(
+                trader_id=session_model.trader_id
+            )
+            account = exchange_handler.get_account_info(
+                account_id=balance_model.account_id
+            )
+            account_balance = (
+                account[Const.API_FLD_ACCOUNT_FREE]
+                + account[Const.API_FLD_ACCOUNT_LOCKED]
+            )
+            if account_balance < reserved_balance:
+                raise Exception(
+                    f"There are not enough funds in the account to create this session. Increase the balance or reduce the initial balance of the session."
+                )
+
+        session = SessionHandler.create_session(session_model)
+
+        balance_model.session_id = session.id
+        balance = BalanceHandler.create_balance(balance_model)
+
+        return session
 
     @decorator_json
     def activate_session(self, session_id: str) -> json:
@@ -765,8 +809,8 @@ class ResponserWeb(ResponserBase):
         return TransactionHandler.create_transaction(transaction_model)
 
     @decorator_json
-    def get_account_info(self, trader_id: str) -> json:
-        return ExchangeHandler.get_handler(trader_id=trader_id).get_account_info()
+    def get_accounts(self, trader_id: str) -> json:
+        return ExchangeHandler.get_handler(trader_id=trader_id).get_accounts()
 
     @decorator_json
     def get_leverage_settings(self, trader_id: str, symbol: str) -> json:
