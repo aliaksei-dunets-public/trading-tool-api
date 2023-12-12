@@ -466,7 +466,10 @@ class BalanceHandler:
         ]
         aggregates_db = MongoBalance().aggregate(query)
 
-        return aggregates_db[0][Const.DB_TOTAL_BALANCE] + init_balance
+        if aggregates_db:
+            return aggregates_db[0][Const.DB_TOTAL_BALANCE] + init_balance
+        else:
+            return init_balance
 
 
 class OrderHandler:
