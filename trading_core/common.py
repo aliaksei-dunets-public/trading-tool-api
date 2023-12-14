@@ -394,24 +394,28 @@ class OrderCloseModel(BaseModel):
 
 class TrailingStopModel(BaseModel):
     stop_loss: float = 0
-    is_trailing_stop: bool = False
-    high_price: float = 0
-    low_price: float = 0
+    take_profit: float = 0
 
     def to_mongodb_doc(self):
         return {
             "stop_loss": self.stop_loss,
-            "is_trailing_stop": self.is_trailing_stop,
-            "high_price": self.high_price,
-            "low_price": self.low_price,
+            "take_profit": self.take_profit,
         }
 
 
 class OrderAnalyticModel(BaseModel):
+    high_price: float = 0
+    low_price: float = 0
     percent: float = 0
     high_percent: float = 0
     low_percent: float = 0
     balance: float = 0
+
+    def to_mongodb_doc(self):
+        return {
+            "high_price": self.high_price,
+            "low_price": self.low_price,
+        }
 
 
 class OrderModel(
@@ -426,7 +430,6 @@ class OrderModel(
     order_id: str = ""
     session_id: str
     quantity: float
-    take_profit: float = 0
 
     def calculate_high_price(self, price: float = 0) -> float:
         self.high_price = self.high_price if self.high_price >= price else price
@@ -467,7 +470,6 @@ class OrderModel(
             "quantity": self.quantity,
             "fee": self.fee,
             "stop_loss": self.stop_loss,
-            "is_trailing_stop": self.is_trailing_stop,
             "take_profit": self.take_profit,
             "open_price": self.open_price,
             "open_datetime": self.open_datetime,
@@ -509,7 +511,6 @@ class LeverageModel(OrderModel):
             "fee": self.fee,
             "leverage": self.leverage,
             "stop_loss": self.stop_loss,
-            "is_trailing_stop": self.is_trailing_stop,
             "take_profit": self.take_profit,
             "open_price": self.open_price,
             "open_datetime": self.open_datetime,

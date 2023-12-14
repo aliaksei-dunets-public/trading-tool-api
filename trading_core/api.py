@@ -342,12 +342,12 @@ class DzengiComApi(ExchangeApiBase):
             symbol=position_mdl.symbol, order_id=order_id
         )
 
-        position_mdl.id = open_leverages[0].id
+        position_mdl.position_id = open_leverages[0].position_id
+        position_mdl.order_id = order_id
         position_mdl.open_datetime = self.getDatetimeByUnixTimeMs(
             created_position[Const.API_FLD_TRANSACT_TIME]
         )
         position_mdl.open_price = float(created_position[Const.API_FLD_PRICE])
-        position_mdl.order_id = order_id
         position_mdl.quantity = float(created_position[Const.API_FLD_EXECUTED_QUANTITY])
         position_mdl.fee = float(open_leverages[0].fee)
 

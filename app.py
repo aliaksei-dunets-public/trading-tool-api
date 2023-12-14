@@ -562,6 +562,8 @@ def get_history_simulation():
         request.args.get(Const.SRV_IS_TRAILING_STOP_LOSS, "false")
     )
     take_profit_rate = request.args.get(Const.SRV_TAKE_PROFIT_RATE, 0)
+    init_balance = float(request.args.get(Const.SRV_INIT_BALANCE, 100))
+    limit = int(request.args.get(Const.SRV_LIMIT, 400))
 
     try:
         user_email = request.headers.get("User-Email")
@@ -570,7 +572,6 @@ def get_history_simulation():
         session_data = {
             "trader_id": trader_id,
             "user_id": user_data.id,
-            # "status": "",
             "trading_type": trading_type,
             "session_type": SessionType.HISTORY,
             "symbol": symbol,
@@ -583,7 +584,7 @@ def get_history_simulation():
 
         session_mdl = SessionModel(**session_data)
         session_mng = SessionManager(session_mdl)
-        session_mng.run()
+        session_mng.run(init_balance=init_balance, limit=limit)
 
         balance_mdl = session_mng.get_balance_manager().get_balance_model()
         posistions = [item.model_dump() for item in session_mng.get_positions()]

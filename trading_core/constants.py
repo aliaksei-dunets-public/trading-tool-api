@@ -240,6 +240,7 @@ class Const:
     CLOSE_VALUE = "close_value"
 
     # Service params
+    SRV_LIMIT = "limit"
     SRV_INIT_BALANCE = "init_balance"
     SRV_STOP_LOSS_RATE = "stop_loss_rate"
     SRV_IS_TRAILING_STOP_LOSS = "is_trailing_stop"
