@@ -268,12 +268,12 @@ class TraderBase:
             return True
 
     def save(self):
-        self.balance_mng.save_balance()
         if self.balance_mng.get_change_indicator():
             self.transaction_mng.add_transaction(
                 type=cmn.TransactionType.DB_UPDATE_BALANCE,
                 data=self.balance_mng.get_balance_model().model_dump(),
             )
+        self.balance_mng.save_balance()
         # self.transaction_mng.save_transactions()
 
     def _process_signal(self, signal_mdl: cmn.SignalModel):
