@@ -814,8 +814,12 @@ class ResponserWeb(ResponserBase):
         return TransactionHandler.get_transaction(id)
 
     @decorator_json
-    def get_transactions(self, order_id: str = None) -> json:
-        return TransactionHandler.get_transactions(order_id)
+    def get_transactions(
+        self, user_id: str = None, session_id: str = None, local_order_id: str = None
+    ) -> json:
+        return TransactionHandler.get_transactions(
+            user_id=user_id, session_id=session_id, local_order_id=local_order_id
+        )
 
     @decorator_json
     def create_transaction(self, transaction_model: TransactionModel) -> json:

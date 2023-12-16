@@ -30,6 +30,17 @@ class MongoBase:
         result = self._collection.insert_one(query)
         return str(result.inserted_id)
 
+    def insert_many(self, entries: list) -> list:
+        if not entries:
+            raise Exception(f"DB: INSERT_MANY - Entries are missed")
+        else:
+            for entry in entries:
+                entry[Const.DB_CREATED_AT] = datetime.utcnow()
+                entry[Const.DB_CHANGED_AT] = datetime.utcnow()
+
+            result = self._collection.insert_many(entries)
+            return result.inserted_ids
+
     def update_one(self, id: str, query: dict) -> bool:
         return self.__update_one(id=id, query=query)
 

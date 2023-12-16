@@ -16,6 +16,7 @@ from trading_core.responser import (
 )
 from trading_core.common import (
     BaseModel,
+    TransactionModel,
     UserModel,
     TraderModel,
     SessionModel,
@@ -241,8 +242,13 @@ def get_transaction(id):
 
 @app.route("/transactions", methods=["GET"])
 def get_transactions():
-    order_id = request.args.get("order_id")
-    return responser.get_transactions(order_id)
+    local_order_id = request.args.get(Const.DB_LOCAL_ORDER_ID, None)
+    user_id = request.args.get(Const.DB_USER_ID, None)
+    session_id = request.args.get(Const.DB_SESSION_ID, None)
+
+    return responser.get_transactions(
+        user_id=user_id, session_id=session_id, local_order_id=local_order_id
+    )
 
 
 @app.route("/transaction", methods=["POST"])
@@ -588,10 +594,12 @@ def get_history_simulation():
 
         balance_mdl = session_mng.get_balance_manager().get_balance_model()
         posistions = [item.model_dump() for item in session_mng.get_positions()]
+        transactions = [item.model_dump() for item in session_mng.get_transactions()]
 
         session_response = session_mdl.model_dump()
         session_response["balance"] = balance_mdl.model_dump()
         session_response["positions"] = posistions
+        session_response["transactions"] = transactions
 
         response = [session_response]
 

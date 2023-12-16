@@ -60,8 +60,13 @@ class OrderReason(str, Enum):
 
 
 class TransactionType(str, Enum):
-    open = "OPEN"
-    close = "CLOSE"
+    DB_CREATE_POSITION = "DB: Position Create"
+    DB_UPDATE_POSITION = "DB: Position Update"
+    DB_CLOSE_POSITION = "DB: Position Close"
+    DB_UPDATE_BALANCE = "DB: Balance Update"
+    API_CREATE_POSITION = "API: Position Create"
+    API_UPDATE_POSITION = "API: Position Update"
+    API_CLOSE_POSITION = "API: Position Close"
 
 
 class SignalType(str, Enum):
@@ -529,21 +534,21 @@ class LeverageModel(OrderModel):
 
 
 class TransactionModel(AdminModel, IdentifierModel):
-    order_id: str
+    local_order_id: str = ""
+    order_id: str = ""
     session_id: str
-    type: TransactionType
-    price: float
-    quantity: float
-    fee: float = 0
+    user_id: str
     date_time: datetime
+    type: TransactionType
+    data: dict
 
     def to_mongodb_doc(self):
         return {
+            "local_order_id": self.local_order_id,
             "order_id": self.order_id,
             "session_id": self.session_id,
-            "type": self.type,
-            "price": self.price,
-            "quantity": self.quantity,
-            "fee": self.fee,
+            "user_id": self.user_id,
             "date_time": self.date_time,
+            "type": self.type,
+            "data": self.data,
         }

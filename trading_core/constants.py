@@ -46,6 +46,7 @@ class Const:
     DB_CHANNEL_ID = "channel_id"
     DB_SESSION_ID = "session_id"
     DB_ORDER_ID = "order_id"
+    DB_LOCAL_ORDER_ID = "local_order_id"
     DB_POSITION_ID = "position_id"
     DB_TRADER_ID = "trader_id"
     DB_SYMBOL = "symbol"
@@ -80,6 +81,7 @@ class Const:
     DB_CREATED_BY = "created_by"
     DB_CHANGED_AT = "changed_at"
     DB_CHANGED_BY = "changed_by"
+    DB_TRANSACTION_DATA = "data"
 
     # Fields
     FLD_SYMBOL = DB_SYMBOL

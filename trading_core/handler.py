@@ -374,6 +374,7 @@ class SessionHandler:
 
         MongoOrder().delete_many(query)
         MongoLeverage().delete_many(query)
+        MongoTransaction().delete_many(query)
         MongoBalance().delete_many(query)
         session_deletion = MongoSession().delete_one(id=id)
 
@@ -573,6 +574,16 @@ class TransactionHandler:
         return TransactionHandler.get_transaction(id)
 
     @staticmethod
+    def create_transactions(transactions_mdl: list[TransactionModel]):
+        transactions = []
+        for transaction_mdl in transactions_mdl:
+            transactions.append(transaction_mdl.to_mongodb_doc())
+        ids = MongoTransaction().insert_many(transactions)
+        if not ids:
+            raise Exception(f"Error during create_transactions operation")
+        return ids
+
+    @staticmethod
     def get_transaction(id: str) -> TransactionModel:
         entry = MongoTransaction().get_one(id)
         if not entry:
@@ -580,8 +591,17 @@ class TransactionHandler:
         return TransactionModel(**entry)
 
     @staticmethod
-    def get_transactions(order_id: str = None):
-        query = {"order_id": order_id} if order_id else {}
+    def get_transactions(
+        user_id: str = None, session_id: str = None, local_order_id: str = None
+    ):
+        query = {}
+        if user_id:
+            query[Const.DB_USER_ID] = user_id
+        elif not query and session_id:
+            query[Const.DB_SESSION_ID] = session_id
+        elif not query and local_order_id:
+            query[Const.DB_LOCAL_ORDER_ID] = local_order_id
+
         entries_db = MongoTransaction().get_many(query)
         result = [TransactionModel(**entry) for entry in entries_db]
 

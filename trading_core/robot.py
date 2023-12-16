@@ -21,6 +21,7 @@ from .handler import (
     BalanceHandler,
     OrderHandler,
     LeverageHandler,
+    TransactionHandler,
     ExchangeHandler,
     buffer_runtime_handler,
 )
@@ -38,6 +39,65 @@ logging.basicConfig(
 logger = logging.getLogger("robot")
 
 
+class TransactionManager:
+    def __init__(self, session_mdl: cmn.SessionModel):
+        self.__session_mdl: cmn.SessionModel = session_mdl
+        self.__transaction_models: list[cmn.TransactionModel] = []
+
+    def add_transaction(
+        self,
+        type: cmn.TransactionType,
+        local_order_id: str = "",
+        order_id: str = "",
+        date_time: datetime = datetime.now(),
+        data: dict = {},
+        save: bool = True,
+    ):
+        transaction_mdl = cmn.TransactionModel(
+            **{
+                Const.DB_LOCAL_ORDER_ID: local_order_id,
+                Const.DB_ORDER_ID: order_id,
+                Const.DB_SESSION_ID: self.__session_mdl.id,
+                Const.DB_USER_ID: self.__session_mdl.user_id,
+                Const.DB_DATE_TIME: date_time,
+                Const.DB_TYPE: type,
+                Const.DB_TRANSACTION_DATA: data,
+            }
+        )
+        if save:
+            self.create_transaction(transaction_mdl)
+        else:
+            self.add_transaction_model(transaction_mdl)
+
+    def add_transaction_model(self, transaction_mdl: cmn.TransactionModel):
+        if transaction_mdl:
+            self.__transaction_models.append(transaction_mdl)
+
+            logger.info(
+                f"{self.__class__.__name__}: {self.__session_mdl.id} - Add transaction {transaction_mdl.type} for {transaction_mdl.date_time}"
+            )
+
+    def create_transaction(self, transaction_mdl: cmn.TransactionModel):
+        TransactionHandler().create_transaction(transaction_mdl)
+        logger.info(
+            f"{self.__class__.__name__}: {self.__session_mdl.id} - The transaction {transaction_mdl.type} for {transaction_mdl.session_id} have been saved"
+        )
+
+    def get_transactions(self) -> list:
+        return self.__transaction_models
+
+    def save_transactions(self):
+        if self.__transaction_models:
+            TransactionHandler().create_transactions(self.__transaction_models)
+
+            # Clear transactions buffer
+            self.__transaction_models = []
+
+            logger.info(
+                f"{self.__class__.__name__}: {self.__session_mdl.id} - The transactions have been saved"
+            )
+
+
 class BalanceManager:
     def __init__(self, balance_mdl: cmn.BalanceModel):
         self.__balance_mdl: cmn.BalanceModel = balance_mdl
@@ -48,6 +108,9 @@ class BalanceManager:
 
     def get_account_id(self):
         return self.__balance_mdl.account_id
+
+    def get_change_indicator(self) -> bool:
+        return self.__change_indicator
 
     def get_total_balance(self):
         return self.__balance_mdl.total_balance
@@ -107,6 +170,9 @@ class SessionManager:
     def get_positions(self) -> list:
         return self._trader_mng.get_positions()
 
+    def get_transactions(self) -> list:
+        return self._trader_mng.transaction_mng.get_transactions()
+
     def get_balance_manager(self) -> BalanceManager:
         return self._trader_mng.balance_mng
 
@@ -126,6 +192,7 @@ class SessionManager:
 class TraderBase:
     def __init__(self, session_mdl: cmn.SessionModel):
         self.session_mdl: cmn.SessionModel = session_mdl
+        self.transaction_mng: TransactionManager = TransactionManager(self.session_mdl)
         self.balance_mng: BalanceManager = None
         self.data_mng: DataManagerBase = None
 
@@ -183,21 +250,31 @@ class TraderBase:
 
         signal_mdl = cmn.SignalModel(**signal_data)
         self._process_signal(signal_mdl)
-        self.balance_mng.save_balance()
+        self.save()
 
     def open_position(self, open_mdl: cmn.OrderOpenModel) -> cmn.OrderOpenModel:
         logger.info(f"{self.__class__.__name__}: The Trader is openning a position")
         if not self.data_mng.has_open_position():
             open_mdl.open_reason = cmn.OrderReason.MANUAL
             position = self.data_mng.open_position(open_mdl)
+            self.save()
             return position
 
     def close_position(self) -> bool:
         logger.info(f"{self.__class__.__name__}: The Trader is closing the positions")
         if self.data_mng.has_open_position():
             self.data_mng.close_position()
-            self.balance_mng.save_balance()
+            self.save()
             return True
+
+    def save(self):
+        self.balance_mng.save_balance()
+        if self.balance_mng.get_change_indicator():
+            self.transaction_mng.add_transaction(
+                type=cmn.TransactionType.DB_UPDATE_BALANCE,
+                data=self.balance_mng.get_balance_model().model_dump(),
+            )
+        # self.transaction_mng.save_transactions()
 
     def _process_signal(self, signal_mdl: cmn.SignalModel):
         logger.info(
@@ -251,6 +328,7 @@ class TraderManager(TraderBase):
             open_mdl.open_reason = cmn.OrderReason.MANUAL
             api_mng_position = self.api_mng.open_position(open_mdl)
             data_mng_position = self.data_mng.open_position_by_ref(api_mng_position)
+            self.save()
             return data_mng_position
 
     def close_position(self) -> bool:
@@ -262,7 +340,7 @@ class TraderManager(TraderBase):
 
         if self.data_mng.has_open_position():
             self.data_mng.close_position(order_close_mdl=api_order_close_mdl)
-            self.balance_mng.save_balance()
+            self.save()
 
         return True
 
@@ -342,8 +420,8 @@ class HistorySimulatorManager(TraderBase):
 
 class DataManagerBase:
     def __init__(self, trader_mng: TraderBase):
+        self._trader_mng = trader_mng
         self._session_mdl: cmn.SessionModel = trader_mng.session_mdl
-        self._balance_mng: BalanceManager = trader_mng.balance_mng
 
         self._exchange_handler: ExchangeHandler = ExchangeHandler(
             self._session_mdl.trader_id
@@ -546,7 +624,7 @@ class DataManagerBase:
         return True if self._current_position else False
 
     def synchronize(self, manager):
-        self._balance_mng.save_balance()
+        self._trader_mng.save()
 
     def _init_open_positions(self):
         current_postion = None
@@ -708,12 +786,14 @@ class DataManagerBase:
 
     def _get_current_balance(self, fee: float = 0) -> float:
         # Take Total Balance from Balance Model and take into account Fee if it's required
-        return self._balance_mng.get_total_balance() + fee
+        return self._trader_mng.balance_mng.get_total_balance() + fee
 
     def _recalculate_balance(self):
         if self._current_position.status == cmn.OrderStatus.closed:
-            self._balance_mng.add_fee(self._current_position.fee)
-            self._balance_mng.recalculate_balance(self._current_position.total_profit)
+            self._trader_mng.balance_mng.add_fee(self._current_position.fee)
+            self._trader_mng.balance_mng.recalculate_balance(
+                self._current_position.total_profit
+            )
 
 
 class OrderManagerBase(DataManagerBase):
@@ -756,7 +836,9 @@ class LeverageManagerBase(DataManagerBase):
     def _get_open_position_template(self, open_mdl: cmn.OrderOpenModel) -> dict:
         position_template = super()._get_open_position_template(open_mdl)
         position_template[Const.DB_POSITION_ID] = "000002"
-        position_template[Const.DB_ACCOUNT_ID] = self._balance_mng.get_account_id()
+        position_template[
+            Const.DB_ACCOUNT_ID
+        ] = self._trader_mng.balance_mng.get_account_id()
         position_template[Const.DB_LEVERAGE] = self._session_mdl.leverage
         return position_template
 
@@ -812,6 +894,13 @@ class LeverageApiManager(LeverageManagerBase):
             position_id=self._current_position.position_id,
         )
 
+        self._trader_mng.transaction_mng.add_transaction(
+            order_id=self._current_position.order_id,
+            type=cmn.TransactionType.API_CLOSE_POSITION,
+            date_time=order_close_mdl.close_datetime,
+            data=order_close_mdl.model_dump(),
+        )
+
         # Set the current position = None
         self._set_current_postion()
 
@@ -826,7 +915,16 @@ class LeverageApiManager(LeverageManagerBase):
         logger.info(
             f"{self.__class__.__name__}: An position template for openning via API - {position_mdl.model_dump()}"
         )
-        return self._exchange_handler.create_leverage(position_mdl)
+        created_position_mdl = self._exchange_handler.create_leverage(position_mdl)
+
+        self._trader_mng.transaction_mng.add_transaction(
+            order_id=created_position_mdl.order_id,
+            type=cmn.TransactionType.API_CREATE_POSITION,
+            date_time=created_position_mdl.open_datetime,
+            data=created_position_mdl.model_dump(),
+        )
+
+        return created_position_mdl
 
 
 class LeverageDatabaseManager(LeverageManagerBase):
@@ -910,15 +1008,32 @@ class LeverageDatabaseManager(LeverageManagerBase):
         logger.info(
             f"{self.__class__.__name__}: An position template for openning in the DB - {position_mdl.model_dump()}"
         )
-        return LeverageHandler.create_leverage(position_mdl)
+        created_position_mdl = LeverageHandler.create_leverage(position_mdl)
+
+        self._trader_mng.transaction_mng.add_transaction(
+            local_order_id=created_position_mdl.id,
+            type=cmn.TransactionType.DB_CREATE_POSITION,
+            date_time=created_position_mdl.open_datetime,
+            data=created_position_mdl.model_dump(),
+        )
+
+        return created_position_mdl
 
     def _update_position(self, query: dict) -> bool:
         logger.info(
             f"{self.__class__.__name__}: Update the leverage {self._current_position.id} in the DB"
         )
-        return LeverageHandler.update_leverage(
+        result = LeverageHandler.update_leverage(
             id=self._current_position.id, query=query
         )
+
+        self._trader_mng.transaction_mng.add_transaction(
+            local_order_id=self._current_position.id,
+            type=cmn.TransactionType.DB_UPDATE_POSITION,
+            data=query,
+        )
+
+        return result
 
     def _close_position(
         self, order_close_mdl: cmn.OrderCloseModel
@@ -929,6 +1044,14 @@ class LeverageDatabaseManager(LeverageManagerBase):
         LeverageHandler.update_leverage(
             id=self._current_position.id, query=order_close_mdl.to_mongodb_doc()
         )
+
+        self._trader_mng.transaction_mng.add_transaction(
+            local_order_id=self._current_position.id,
+            type=cmn.TransactionType.DB_CLOSE_POSITION,
+            date_time=order_close_mdl.close_datetime,
+            data=order_close_mdl.model_dump(),
+        )
+
         return order_close_mdl
 
     def _close_position_by_ref(self) -> bool:
@@ -966,9 +1089,26 @@ class LeverageLocalDataManager(LeverageManagerBase):
             self._current_position.stop_loss = trailing_stop_mdl.stop_loss
             self._current_position.take_profit = trailing_stop_mdl.take_profit
 
+            self._trader_mng.transaction_mng.add_transaction(
+                local_order_id=self._current_position.id,
+                type=cmn.TransactionType.DB_UPDATE_POSITION,
+                date_time=signal_mdl.date_time,
+                data=trailing_stop_mdl.model_dump(),
+                save=False,
+            )
+
     def _open_position(self, position_mdl: cmn.LeverageModel):
         # Simulate creation of the order
         position_mdl.id = str(ObjectId())
+
+        self._trader_mng.transaction_mng.add_transaction(
+            local_order_id=position_mdl.id,
+            type=cmn.TransactionType.DB_CREATE_POSITION,
+            date_time=position_mdl.open_datetime,
+            data=position_mdl.model_dump(),
+            save=False,
+        )
+
         return position_mdl
 
     def _after_open_position(self, position_mdl: cmn.LeverageModel):
@@ -991,6 +1131,14 @@ class LeverageLocalDataManager(LeverageManagerBase):
         current_position.close_reason = order_close_mdl.close_reason
         current_position.total_profit = order_close_mdl.total_profit
         current_position.fee += order_close_mdl.fee
+
+        self._trader_mng.transaction_mng.add_transaction(
+            local_order_id=current_position.id,
+            type=cmn.TransactionType.DB_CLOSE_POSITION,
+            date_time=current_position.close_datetime,
+            data=order_close_mdl.model_dump(),
+            save=False,
+        )
 
         return order_close_mdl
 
