@@ -257,7 +257,6 @@ class TraderBase:
         if not self.data_mng.has_open_position():
             open_mdl.open_reason = cmn.OrderReason.MANUAL
             position = self.data_mng.open_position(open_mdl)
-            self.save()
             return position
 
     def close_position(self) -> bool:
@@ -274,7 +273,6 @@ class TraderBase:
                 data=self.balance_mng.get_balance_model().model_dump(),
             )
         self.balance_mng.save_balance()
-        # self.transaction_mng.save_transactions()
 
     def _process_signal(self, signal_mdl: cmn.SignalModel):
         logger.info(
@@ -328,7 +326,6 @@ class TraderManager(TraderBase):
             open_mdl.open_reason = cmn.OrderReason.MANUAL
             api_mng_position = self.api_mng.open_position(open_mdl)
             data_mng_position = self.data_mng.open_position_by_ref(api_mng_position)
-            self.save()
             return data_mng_position
 
     def close_position(self) -> bool:
@@ -999,6 +996,13 @@ class LeverageDatabaseManager(LeverageManagerBase):
             self._current_position.take_profit = trailing_stop_mdl.take_profit
             query.update(trailing_stop_mdl.to_mongodb_doc())
 
+            self._trader_mng.transaction_mng.add_transaction(
+                local_order_id=self._current_position.id,
+                type=cmn.TransactionType.DB_UPDATE_POSITION,
+                date_time=signal_mdl.date_time,
+                data=query,
+            )
+
         if not self._update_position(query):
             raise Exception(
                 f"DataManagerBase: _update_position() - Error during update position {self._current_position.id}"
@@ -1025,12 +1029,6 @@ class LeverageDatabaseManager(LeverageManagerBase):
         )
         result = LeverageHandler.update_leverage(
             id=self._current_position.id, query=query
-        )
-
-        self._trader_mng.transaction_mng.add_transaction(
-            local_order_id=self._current_position.id,
-            type=cmn.TransactionType.DB_UPDATE_POSITION,
-            data=query,
         )
 
         return result
