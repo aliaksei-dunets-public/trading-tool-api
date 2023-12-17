@@ -17,6 +17,28 @@ class PriceType(str, Enum):
     ASK = "ask"
 
 
+class Interval(str, Enum):
+    MIN_1 = "1m"  # 1
+    MIN_3 = "3m"  # 3
+    MIN_5 = "5m"  # 5
+    MIN_15 = "15m"  # 15
+    MIN_30 = "30m"  # 30
+    HOUR_1 = "1h"  # 60
+    HOUR_2 = "2h"  # 120
+    HOUR_4 = "4h"  # 240
+    HOUR_6 = "6h"  # 360
+    HOUR_12 = "12h"  # 720
+    DAY_1 = "1d"
+    WEEK_1 = "1w"
+    MONTH_1 = "1month"
+
+
+class Importance(str, Enum):
+    LOW = "Low"
+    MEDIUM = "Medium"
+    HIGH = "High"
+
+
 class SymbolType(str, Enum):
     leverage = "LEVERAGE"
     spot = "SPOT"
@@ -156,7 +178,13 @@ class SymbolModel(SymbolIdModel):
 
 
 class IntervalIdModel(BaseModel):
-    interval: str
+    interval: Interval
+
+
+class IntervalModel(IntervalIdModel):
+    name: str
+    order: int
+    importance: Importance
 
 
 class StrategyIdModel(BaseModel):

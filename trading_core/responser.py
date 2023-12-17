@@ -215,8 +215,12 @@ class ResponserBase:
 
         return symbol_handler.get_symbol_list(**kwargs)
 
-    def get_intervals(self, importances: list = None) -> list:
-        return model.get_intervals_config(importances)
+    def get_intervals(
+        self, trader_id: str = None, user_id: str = None, importances: list = None
+    ) -> list:
+        return buffer_runtime_handler.get_interval_handler(
+            trader_id=trader_id, user_id=user_id
+        ).get_interval_models(importances)
 
     def get_indicators(self) -> list:
         return model.get_indicators_config()
@@ -398,8 +402,12 @@ class ResponserWeb(ResponserBase):
         return symbol_handler.get_symbol_list(**kwargs)
 
     @decorator_json
-    def get_intervals(self, importances: list = None) -> json:
-        return super().get_intervals(importances=importances)
+    def get_intervals(
+        self, trader_id: str = None, user_id: str = None, importances: list = None
+    ) -> json:
+        return super().get_intervals(
+            trader_id=trader_id, user_id=user_id, importances=importances
+        )
 
     @decorator_json
     def get_indicators(self) -> json:

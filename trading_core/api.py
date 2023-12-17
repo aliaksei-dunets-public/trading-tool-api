@@ -11,6 +11,7 @@ import hashlib
 from enum import Enum
 
 from .common import (
+    Importance,
     SymbolStatus,
     SymbolType,
     OrderStatus,
@@ -18,6 +19,8 @@ from .common import (
     OrderReason,
     OrderSideType,
     ExchangeId,
+    Interval,
+    IntervalModel,
     HistoryDataParam,
     SymbolModel,
     TraderModel,
@@ -39,7 +42,7 @@ class ExchangeApiBase:
     def get_api_endpoints(self) -> str:
         return None
 
-    def get_intervals(self) -> list:
+    def get_intervals(self) -> list[IntervalModel]:
         pass
 
     def get_accounts(self) -> list:
@@ -91,6 +94,12 @@ class ExchangeApiBase:
 
     def is_trading_available(self, interval: str, trading_timeframes: dict) -> bool:
         pass
+
+    def _map_interval(self, api_interval: str = None, interval: Interval = None):
+        if api_interval:
+            return interval
+        elif interval:
+            return api_interval
 
 
 class DzengiComApi(ExchangeApiBase):
@@ -218,6 +227,17 @@ class DzengiComApi(ExchangeApiBase):
         )
         return result["values"]
 
+    def get_intervals(self) -> list[Interval]:
+        return [
+            self._map_interval(api_interval=self.TA_API_INTERVAL_5M),
+            self._map_interval(api_interval=self.TA_API_INTERVAL_15M),
+            self._map_interval(api_interval=self.TA_API_INTERVAL_30M),
+            self._map_interval(api_interval=self.TA_API_INTERVAL_1H),
+            self._map_interval(api_interval=self.TA_API_INTERVAL_4H),
+            self._map_interval(api_interval=self.TA_API_INTERVAL_1D),
+            self._map_interval(api_interval=self.TA_API_INTERVAL_1WK),
+        ]
+
     def get_symbols(self, **kwargs) -> dict[SymbolModel]:
         symbols = {}
 
@@ -282,7 +302,9 @@ class DzengiComApi(ExchangeApiBase):
         # Prepare URL parameters
         url_params = {
             Const.API_FLD_SYMBOL: history_data_param.symbol,
-            Const.API_FLD_INTERVAL: history_data_param.interval,
+            Const.API_FLD_INTERVAL: self._map_interval(
+                interval=history_data_param.interval
+            ),
             Const.API_FLD_LIMIT: history_data_param.limit,
         }
 
@@ -359,28 +381,6 @@ class DzengiComApi(ExchangeApiBase):
     def close_leverage(
         self, symbol: str, position_id: str, recv_window=None
     ) -> OrderCloseModel:
-        """
-        Close an active leverage trade.
-
-        :param position_id:
-        :param recv_window: The value cannot be greater than 60000.
-        :return: dict object
-
-        Response example:
-        Example:
-        {
-            "request": [
-                {
-                "id": 242057,
-                "accountId": 2376109060084932,
-                "instrumentId": "45076691096786116",
-                "rqType": "ORDER_NEW",
-                "state": "PROCESSED",
-                "createdTimestamp": 1587031306969
-                }
-            ]
-        }
-        """
         self._validate_recv_window(recv_window)
 
         response = self._post(
@@ -653,6 +653,8 @@ class DzengiComApi(ExchangeApiBase):
 
         if not isinstance(original_datetime, datetime):
             raise ValueError("Input parameter must be a datetime object.")
+
+        interval = self._map_interval(interval=interval)
 
         if interval in [
             self.TA_API_INTERVAL_5M,
@@ -1158,6 +1160,12 @@ class DzengiComApi(ExchangeApiBase):
 
     def _get_url(self, path: str) -> str:
         return self.get_api_endpoints() + path
+
+    def _map_interval(self, api_interval: str = None, interval: Interval = None) -> str:
+        if api_interval:
+            return api_interval
+        elif interval:
+            return interval
 
 
 class DemoDzengiComApi(DzengiComApi):

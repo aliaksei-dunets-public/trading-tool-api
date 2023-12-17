@@ -308,8 +308,12 @@ def index():
 
 @app.route("/intervals", methods=["GET"])
 def get_intervals():
+    trader_id = request.args.get(Const.DB_TRADER_ID, None)
+    user_id = request.args.get(Const.DB_USER_ID, None)
     importances = request.args.getlist(Const.IMPORTANCE, None)
-    return responser.get_intervals(importances=importances)
+    return responser.get_intervals(
+        trader_id=trader_id, user_id=user_id, importances=importances
+    )
 
 
 @app.route("/symbols", methods=["GET"])

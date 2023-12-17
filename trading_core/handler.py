@@ -14,6 +14,9 @@ from .constants import Const
 from .core import logger, config, Symbol, HistoryData, RuntimeBufferStore
 from .api import ExchangeApiBase, DzengiComApi, DemoDzengiComApi
 from .common import (
+    Importance,
+    Interval,
+    IntervalModel,
     HistoryDataParam,
     TraderStatus,
     OrderStatus,
@@ -666,6 +669,9 @@ class ExchangeHandler:
             )
         return self._api.get_leverage_settings(symbol=symbol)
 
+    def get_intervals(self) -> list[IntervalModel]:
+        return self._api.get_intervals()
+
     def get_symbols(self, **kwargs) -> dict[Symbol]:
         # Send a request to an API to get symbols
         return self._api.get_symbols()
@@ -724,6 +730,155 @@ class BaseOnExchangeHandler:
 
     def get_exchange_id(self) -> ExchangeId:
         return self._exchange_handler.get_exchange_id()
+
+
+class IntervalHandler(BaseOnExchangeHandler):
+    def __init__(self, exchange_handler: ExchangeHandler = None):
+        super().__init__(exchange_handler)
+
+        self.__interval_mdls: list[IntervalModel] = []
+        intervals = self._exchange_handler.get_intervals()
+        for interval in intervals:
+            self.__interval_mdls.append(self.get_interval_vh(interval))
+
+    @staticmethod
+    def get_intervals_dict_vh() -> dict:
+        return {
+            # 1m - LOW
+            Interval.MIN_1: IntervalModel(
+                interval=Interval.MIN_1,
+                name="1 minute",
+                order=10,
+                importance=Importance.LOW,
+            ),
+            # 3m - LOW
+            Interval.MIN_3: IntervalModel(
+                interval=Interval.MIN_3,
+                name="3 minutes",
+                order=20,
+                importance=Importance.LOW,
+            ),
+            # 5m - LOW
+            Interval.MIN_5: IntervalModel(
+                interval=Interval.MIN_5,
+                name="5 minutes",
+                order=30,
+                importance=Importance.LOW,
+            ),
+            # 15m - LOW
+            Interval.MIN_15: IntervalModel(
+                interval=Interval.MIN_15,
+                name="15 minutes",
+                order=40,
+                importance=Importance.LOW,
+            ),
+            # 30m - LOW
+            Interval.MIN_30: IntervalModel(
+                interval=Interval.MIN_30,
+                name="30 minutes",
+                order=50,
+                importance=Importance.LOW,
+            ),
+            # 1h - MEDIUM
+            Interval.HOUR_1: IntervalModel(
+                interval=Interval.HOUR_1,
+                name="1 hour",
+                order=60,
+                importance=Importance.MEDIUM,
+            ),
+            # 2h - MEDIUM
+            Interval.HOUR_2: IntervalModel(
+                interval=Interval.HOUR_2,
+                name="2 hours",
+                order=70,
+                importance=Importance.MEDIUM,
+            ),
+            # 4h - MEDIUM
+            Interval.HOUR_4: IntervalModel(
+                interval=Interval.HOUR_4,
+                name="4 hours",
+                order=80,
+                importance=Importance.MEDIUM,
+            ),
+            # 6h - MEDIUM
+            Interval.HOUR_6: IntervalModel(
+                interval=Interval.HOUR_6,
+                name="6 hours",
+                order=90,
+                importance=Importance.MEDIUM,
+            ),
+            # 12h - HIGH
+            Interval.HOUR_12: IntervalModel(
+                interval=Interval.HOUR_12,
+                name="12 hours",
+                order=100,
+                importance=Importance.HIGH,
+            ),
+            # 1d - HIGH
+            Interval.DAY_1: IntervalModel(
+                interval=Interval.DAY_1,
+                name="1 day",
+                order=110,
+                importance=Importance.HIGH,
+            ),
+            # 1w - HIGH
+            Interval.WEEK_1: IntervalModel(
+                interval=Interval.WEEK_1,
+                name="1 week",
+                order=120,
+                importance=Importance.HIGH,
+            ),
+            # 1month - HIGH
+            Interval.MONTH_1: IntervalModel(
+                interval=Interval.MONTH_1,
+                name="1 month",
+                order=130,
+                importance=Importance.HIGH,
+            ),
+        }
+
+    @staticmethod
+    def get_intervals_list_vh() -> list[IntervalModel]:
+        return [
+            interval_mdl
+            for interval_mdl in IntervalHandler.get_intervals_dict_vh().values()
+        ]
+
+    @staticmethod
+    def get_interval_vh(interval: Interval) -> IntervalModel:
+        intervals_dict_vh = IntervalHandler.get_intervals_dict_vh()
+        if not interval in intervals_dict_vh:
+            raise Exception(f"Interval {interval.value} doesn't exist")
+        else:
+            return intervals_dict_vh[interval]
+
+    def get_intervals(self, importances: list[Importance] = None) -> list:
+        return [
+            interval_mdl.interval
+            for interval_mdl in self.get_interval_models(importances)
+        ]
+
+    def get_interval_model(self, interval: Interval) -> IntervalModel:
+        for interval_mdl in self.__interval_mdls:
+            if interval_mdl.interval == interval:
+                return interval_mdl
+
+        raise Exception(
+            f"Interval {interval.value} doesn't exist for {self.get_exchange_id()}"
+        )
+
+    def get_interval_models(
+        self, importances: list[Importance] = None
+    ) -> list[IntervalModel]:
+        interval_mdls = []
+
+        for interval_mdl in self.__interval_mdls:
+            if importances and interval_mdl.importance not in importances:
+                continue
+            else:
+                interval_mdls.append(interval_mdl)
+
+        return interval_mdls
 
 
 class SymbolHandler(BaseOnExchangeHandler):
@@ -856,6 +1011,7 @@ class BufferRuntimeHandlers:
             class_._instance = object.__new__(class_, *args, **kwargs)
             class_.__symbol_handler = {}
             class_.__history_data_handler = {}
+            class_.__interval_handler = {}
             class_.__user_handler = UserHandler()
         return class_._instance
 
@@ -888,9 +1044,23 @@ class BufferRuntimeHandlers:
     def get_user_handler(self):
         return self.__user_handler
 
+    def get_interval_handler(
+        self, trader_id: str = None, user_id: str = None
+    ) -> IntervalHandler:
+        exchange_handler = ExchangeHandler.get_handler(
+            trader_id=trader_id, user_id=user_id
+        )
+        trader_id = exchange_handler.get_trader_id()
+        if not trader_id in self.__interval_handler:
+            interval_handler = IntervalHandler(exchange_handler=exchange_handler)
+            self.__interval_handler[trader_id] = interval_handler
+
+        return self.__interval_handler[trader_id]
+
     def clear_buffer(self):
         self.__symbol_handler = {}
         self.__history_data_handler = {}
+        self.__interval_handler = {}
         self.__user_handler.get_buffer().clear_buffer()
 
 
