@@ -101,6 +101,7 @@ class Const:
     API_FLD_SYMBOL = DB_SYMBOL
     API_FLD_INTERVAL = FLD_INTERVAL
     API_FLD_END_TIME = "endTime"
+    API_FLD_END = "end"
     API_FLD_LIMIT = FLD_LIMIT
     API_FLD_PRICE = "price"
     API_FLD_QUANTITY = "quantity"
@@ -124,6 +125,7 @@ class Const:
     API_FLD_SOURCE = "source"
     API_FLD_ACCOUNT_FREE = "free"
     API_FLD_ACCOUNT_LOCKED = "locked"
+    API_FLD_CATEGORY = "category"
 
     ########################### Legacy code ####################################
 

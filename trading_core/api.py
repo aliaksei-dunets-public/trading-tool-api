@@ -92,6 +92,47 @@ class ExchangeApiBase:
     def calculate_trading_timeframe(self, trading_time: str) -> dict:
         pass
 
+    def getOffseUnixTimeMsByInterval(self, interval: str) -> int:
+        """
+        Calculates the Unix timestamp in milliseconds for the offset datetime based on the specified interval.
+        Args:
+            interval (str): The interval for calculating the Unix timestamp.
+        Returns:
+            int: The Unix timestamp in milliseconds.
+        """
+
+        local_datetime = datetime.now()
+        offset_datetime = self.get_end_datetime(
+            interval=interval, original_datetime=local_datetime, closed_bars=True
+        )
+        return self.getUnixTimeMsByDatetime(offset_datetime)
+
+    @staticmethod
+    def getUnixTimeMsByDatetime(original_datetime: datetime) -> int:
+        """
+        Calculates the Unix timestamp in milliseconds for the datetime.
+        Args:
+            original_datetime (datetime): The datetime object.
+        Returns:
+            int: The Unix timestamp in milliseconds.
+        """
+        if original_datetime:
+            return int(original_datetime.timestamp() * 1000)
+        else:
+            return None
+
+    @staticmethod
+    def getDatetimeByUnixTimeMs(timestamp: int) -> datetime:
+        """
+        Converts a Unix timestamp in milliseconds to a datetime object.
+        Args:
+            timestamp (int): The Unix timestamp in milliseconds.
+        Returns:
+            datetime: The datetime object.
+        """
+
+        return datetime.fromtimestamp(timestamp / 1000.0)
+
     def is_trading_available(self, interval: str, trading_timeframes: dict) -> bool:
         pass
 
@@ -100,6 +141,288 @@ class ExchangeApiBase:
             return interval
         elif interval:
             return api_interval
+
+    def _get_api_klines(self, url_params: dict) -> dict:
+        response = requests.get(
+            self._get_url(self.KLINES_DATA_ENDPOINT), params=url_params
+        )
+
+        if response.status_code == 200:
+            # Get data from API
+            return json.loads(response.text)
+        else:
+            logger.error(
+                f"{self.__class__.__name__}: {self._trader_model.exchange_id} - __get_api_klines({url_params}) -> {response.text}"
+            )
+            raise Exception(response.text)
+
+    def _get_url(self, path: str) -> str:
+        return self.get_api_endpoints() + path
+
+
+class ByBitComApi(ExchangeApiBase):
+    # Public API Endpoints
+    SERVER_TIME_ENDPOINT = "market/time"
+    INSTRUMENTS_INFO_ENDPOINT = "market/instruments-info"
+    KLINES_DATA_ENDPOINT = "market/kline"
+
+    TA_API_INTERVAL_1 = "1"
+    TA_API_INTERVAL_3 = "3"
+    TA_API_INTERVAL_5 = "5"
+    TA_API_INTERVAL_15 = "15"
+    TA_API_INTERVAL_30 = "30"
+    TA_API_INTERVAL_60 = "60"
+    TA_API_INTERVAL_120 = "120"
+    TA_API_INTERVAL_240 = "240"
+    TA_API_INTERVAL_360 = "360"
+    TA_API_INTERVAL_720 = "720"
+    TA_API_INTERVAL_D = "D"
+    TA_API_INTERVAL_W = "W"
+    TA_API_INTERVAL_M = "M"
+
+    CATEGORY_LINEAR = "linear"
+
+    def get_api_endpoints(self) -> str:
+        return "https://api.bybit.com/v5/"
+
+    def ping_server(self, **kwargs) -> bool:
+        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+            logger.info(
+                f"{self.__class__.__name__}: {self._trader_model.exchange_id} - ping_server({kwargs})"
+            )
+
+        response = requests.get(self._get_url(self.SERVER_TIME_ENDPOINT))
+
+        if response.status_code == 200:
+            return True
+        else:
+            logger.error(f"{self.__class__.__name__}: ping_server - {response.text}")
+            return False
+
+    def get_intervals(self) -> list[IntervalType]:
+        return [
+            self._map_interval(api_interval=self.TA_API_INTERVAL_5),
+            self._map_interval(api_interval=self.TA_API_INTERVAL_15),
+            self._map_interval(api_interval=self.TA_API_INTERVAL_30),
+            self._map_interval(api_interval=self.TA_API_INTERVAL_60),
+            self._map_interval(api_interval=self.TA_API_INTERVAL_240),
+            self._map_interval(api_interval=self.TA_API_INTERVAL_720),
+            self._map_interval(api_interval=self.TA_API_INTERVAL_D),
+            self._map_interval(api_interval=self.TA_API_INTERVAL_W),
+        ]
+
+    def get_symbols(self, **kwargs) -> dict[SymbolModel]:
+        symbols_leverages = self._get_symbols(category=self.CATEGORY_LINEAR)
+        # symbols_spot = self._get_symbols(category="spot")
+        return symbols_leverages
+
+    def get_history_data(
+        self, history_data_param: SymbolIntervalLimitModel, **kwargs
+    ) -> HistoryData:
+        # Prepare URL parameters
+        url_params = {
+            Const.API_FLD_CATEGORY: self.CATEGORY_LINEAR,
+            Const.API_FLD_SYMBOL: history_data_param.symbol,
+            Const.API_FLD_INTERVAL: self._map_interval(
+                interval=history_data_param.interval
+            ),
+            Const.API_FLD_LIMIT: history_data_param.limit,
+        }
+
+        # Boolean importing parameters closed_bars in order to get only closed bar for the current moment
+        closed_bar = kwargs.get(Const.FLD_CLOSED_BAR, False)
+
+        # If closed_bars indicator is True -> calculated endTime for the API
+        if closed_bar:
+            url_params[Const.API_FLD_END] = self.getOffseUnixTimeMsByInterval(
+                history_data_param.interval
+            )
+            url_params[Const.API_FLD_LIMIT] = url_params[Const.API_FLD_LIMIT] + 1
+
+        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+            logger.info(
+                f"{self.__class__.__name__}: {self._trader_model.exchange_id} - get_history_data({url_params})"
+            )
+
+        json_api_response = self._get_api_klines(url_params)
+
+        # Convert API response to the DataFrame with columns: 'Datetime', 'Open', 'High', 'Low', 'Close', 'Volume'
+        df = self._convertResponseToDataFrame(json_api_response)
+
+        # Create an instance of HistoryData
+        obj_history_data = HistoryData(
+            symbol=history_data_param.symbol,
+            interval=history_data_param.interval,
+            limit=history_data_param.limit,
+            dataFrame=df,
+        )
+
+        return obj_history_data
+
+    def _convertResponseToDataFrame(self, api_response: list) -> pd.DataFrame:
+        """
+        Converts the API response into a DataFrame containing historical data.
+        Args:
+            api_response (list): The API response as a list.
+        Returns:
+            DataFrame: DataFrame with columns: 'Datetime', 'Open', 'High', 'Low', 'Close', 'Volume'
+        """
+
+        COLUMN_DATETIME_FLOAT = "DatetimeFloat"
+
+        df = pd.DataFrame(
+            api_response,
+            columns=[
+                COLUMN_DATETIME_FLOAT,
+                Const.COLUMN_OPEN,
+                Const.COLUMN_HIGH,
+                Const.COLUMN_LOW,
+                Const.COLUMN_CLOSE,
+                Const.COLUMN_VOLUME,
+            ],
+        )
+        df[Const.COLUMN_DATETIME] = df.apply(
+            lambda x: pd.to_datetime(
+                self.getDatetimeByUnixTimeMs(x[COLUMN_DATETIME_FLOAT])
+            ),
+            axis=1,
+        )
+        df.set_index(Const.COLUMN_DATETIME, inplace=True)
+        df.drop([COLUMN_DATETIME_FLOAT], axis=1, inplace=True)
+        df = df.astype(float)
+
+        return df
+
+    def _get_symbols(self, **kwargs) -> dict[SymbolModel]:
+        symbols = {}
+
+        params = {
+            "category": kwargs.get("category", self.CATEGORY_LINEAR),
+            "status": "Trading",
+        }
+
+        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+            logger.info(
+                f"{self.__class__.__name__}: {self._trader_model.exchange_id} - getSymbols({params})"
+            )
+
+        response = requests.get(
+            url=self._get_url(self.INSTRUMENTS_INFO_ENDPOINT),
+            params=params,
+        )
+
+        if response.status_code == 200:
+            json_api_response = json.loads(response.text)
+
+            result = json_api_response["result"]
+            category = result["category"]
+
+            # Create an instance of Symbol and add to the list
+            for row in result["list"]:
+                if row["quoteCoin"] == "USDT":
+                    status_converted = (
+                        SymbolStatus.open
+                        if row["status"] == "TRADING"
+                        else SymbolStatus.close
+                    )
+
+                    quantity_step = (
+                        row["lotSizeFilter"]["qtyStep"]
+                        if category == self.CATEGORY_LINEAR
+                        else row["quotePrecision"]
+                    )
+
+                    symbol_data = {
+                        "symbol": row["symbol"],
+                        "name": row["symbol"],
+                        "status": status_converted,
+                        "type": SymbolType.leverage
+                        if category == self.CATEGORY_LINEAR
+                        else SymbolType.spot,
+                        "trading_time": "",
+                        "currency": row["quoteCoin"],
+                        "quote_precision": len(quantity_step.split(".")[1])
+                        if "." in quantity_step
+                        else 0,
+                        "trading_fee": 0,
+                    }
+
+                    symbol_model = SymbolModel(**symbol_data)
+
+                    symbols[symbol_model.symbol] = symbol_model
+                else:
+                    continue
+
+            return symbols
+
+        else:
+            logger.error(
+                f"ExchangeApiBase: {self._trader_model.exchange_id} - getSymbols -> {response.text}"
+            )
+            raise Exception(response.text)
+
+    def _map_interval(
+        self, api_interval: str = None, interval: IntervalType = None
+    ) -> str:
+        if api_interval:
+            if api_interval == self.TA_API_INTERVAL_1:
+                return IntervalType.MIN_1
+            elif api_interval == self.TA_API_INTERVAL_3:
+                return IntervalType.MIN_3
+            elif api_interval == self.TA_API_INTERVAL_5:
+                return IntervalType.MIN_5
+            elif api_interval == self.TA_API_INTERVAL_15:
+                return IntervalType.MIN_15
+            elif api_interval == self.TA_API_INTERVAL_30:
+                return IntervalType.MIN_30
+            elif api_interval == self.TA_API_INTERVAL_60:
+                return IntervalType.HOUR_1
+            elif api_interval == self.TA_API_INTERVAL_120:
+                return IntervalType.HOUR_2
+            elif api_interval == self.TA_API_INTERVAL_240:
+                return IntervalType.HOUR_4
+            elif api_interval == self.TA_API_INTERVAL_360:
+                return IntervalType.HOUR_6
+            elif api_interval == self.TA_API_INTERVAL_720:
+                return IntervalType.HOUR_12
+            elif api_interval == self.TA_API_INTERVAL_D:
+                return IntervalType.DAY_1
+            elif api_interval == self.TA_API_INTERVAL_W:
+                return IntervalType.WEEK_1
+            elif api_interval == self.TA_API_INTERVAL_M:
+                return IntervalType.MONTH_1
+        elif interval:
+            if interval == IntervalType.MIN_1:
+                return self.TA_API_INTERVAL_1
+            elif interval == IntervalType.MIN_3:
+                return self.TA_API_INTERVAL_3
+            elif interval == IntervalType.MIN_5:
+                return self.TA_API_INTERVAL_5
+            elif interval == IntervalType.MIN_15:
+                return self.TA_API_INTERVAL_15
+            elif interval == IntervalType.MIN_30:
+                return self.TA_API_INTERVAL_30
+            elif interval == IntervalType.HOUR_1:
+                return self.TA_API_INTERVAL_60
+            elif interval == IntervalType.HOUR_2:
+                return self.TA_API_INTERVAL_120
+            elif interval == IntervalType.HOUR_4:
+                return self.TA_API_INTERVAL_240
+            elif interval == IntervalType.HOUR_6:
+                return self.TA_API_INTERVAL_360
+            elif interval == IntervalType.HOUR_12:
+                return self.TA_API_INTERVAL_720
+            elif interval == IntervalType.DAY_1:
+                return self.TA_API_INTERVAL_D
+            elif interval == IntervalType.WEEK_1:
+                return self.TA_API_INTERVAL_W
+            elif interval == IntervalType.MONTH_1:
+                return self.TA_API_INTERVAL_M
+
+
+class DemoByBitComApi(ByBitComApi):
+    def get_api_endpoints(self) -> str:
+        return "https://api-testnet.bybit.com/v5/"
 
 
 class DzengiComApi(ExchangeApiBase):
@@ -324,7 +647,7 @@ class DzengiComApi(ExchangeApiBase):
 
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
             logger.info(
-                f"ExchangeApiBase: {self._trader_model.exchange_id} - get_history_data()"
+                f"ExchangeApiBase: {self._trader_model.exchange_id} - get_history_data({url_params})"
             )
 
         json_api_response = self._get_api_klines(url_params)
@@ -788,21 +1111,6 @@ class DzengiComApi(ExchangeApiBase):
 
         return df
 
-    def getOffseUnixTimeMsByInterval(self, interval: str) -> int:
-        """
-        Calculates the Unix timestamp in milliseconds for the offset datetime based on the specified interval.
-        Args:
-            interval (str): The interval for calculating the Unix timestamp.
-        Returns:
-            int: The Unix timestamp in milliseconds.
-        """
-
-        local_datetime = datetime.now()
-        offset_datetime = self.get_end_datetime(
-            interval=interval, original_datetime=local_datetime, closed_bars=True
-        )
-        return self.getUnixTimeMsByDatetime(offset_datetime)
-
     def calculate_trading_timeframe(self, trading_time: str) -> dict:
         timeframes = {}
 
@@ -866,20 +1174,6 @@ class DzengiComApi(ExchangeApiBase):
         return False
 
     @staticmethod
-    def getUnixTimeMsByDatetime(original_datetime: datetime) -> int:
-        """
-        Calculates the Unix timestamp in milliseconds for the datetime.
-        Args:
-            original_datetime (datetime): The datetime object.
-        Returns:
-            int: The Unix timestamp in milliseconds.
-        """
-        if original_datetime:
-            return int(original_datetime.timestamp() * 1000)
-        else:
-            return None
-
-    @staticmethod
     def getTimezoneDifference() -> int:
         """
         Calculates the difference in hours between the local timezone and UTC.
@@ -892,32 +1186,6 @@ class DzengiComApi(ExchangeApiBase):
         delta = local_time - utc_time
 
         return math.ceil(delta.total_seconds() / 3600)
-
-    @staticmethod
-    def getDatetimeByUnixTimeMs(timestamp: int) -> datetime:
-        """
-        Converts a Unix timestamp in milliseconds to a datetime object.
-        Args:
-            timestamp (int): The Unix timestamp in milliseconds.
-        Returns:
-            datetime: The datetime object.
-        """
-
-        return datetime.fromtimestamp(timestamp / 1000.0)
-
-    def _get_api_klines(self, url_params: dict) -> dict:
-        response = requests.get(
-            self._get_url(self.KLINES_DATA_ENDPOINT), params=url_params
-        )
-
-        if response.status_code == 200:
-            # Get data from API
-            return json.loads(response.text)
-        else:
-            logger.error(
-                f"ExchangeApiBase: {self._trader_model.exchange_id} - __get_api_klines -> {response.text}"
-            )
-            raise Exception(response.text)
 
     def _create_position(
         self,
@@ -1157,9 +1425,6 @@ class DzengiComApi(ExchangeApiBase):
             raise Exception(
                 f"ExchangeApiBase: {self._trader_model.exchange_id} - DELETE /{path} -> {response.status_code}: {response.text}"
             )
-
-    def _get_url(self, path: str) -> str:
-        return self.get_api_endpoints() + path
 
     def _map_interval(
         self, api_interval: str = None, interval: IntervalType = None

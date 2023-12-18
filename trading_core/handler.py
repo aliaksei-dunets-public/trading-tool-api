@@ -12,7 +12,13 @@ from enum import Enum
 
 from .constants import Const
 from .core import logger, config, Symbol, HistoryData, RuntimeBufferStore
-from .api import ExchangeApiBase, DzengiComApi, DemoDzengiComApi
+from .api import (
+    ExchangeApiBase,
+    DzengiComApi,
+    DemoDzengiComApi,
+    ByBitComApi,
+    DemoByBitComApi,
+)
 from .common import (
     Importance,
     IntervalType,
@@ -625,6 +631,10 @@ class ExchangeHandler:
             self._api = DzengiComApi(self.__trader_model)
         elif self.__trader_model.exchange_id == ExchangeId.demo_dzengi_com:
             self._api = DemoDzengiComApi(self.__trader_model)
+        elif self.__trader_model.exchange_id == ExchangeId.bybit_com:
+            self._api = ByBitComApi(self.__trader_model)
+        elif self.__trader_model.exchange_id == ExchangeId.demo_bybit_com:
+            self._api = DemoByBitComApi(self.__trader_model)
         else:
             raise Exception(
                 f"ExchangeHandler: {self.__trader_model.exchange_id} implementation is missed"
@@ -896,6 +906,10 @@ class SymbolHandler(BaseOnExchangeHandler):
         timeframe = {}
         symbol_mdl = self.get_symbol(symbol=symbol)
         trading_time = symbol_mdl.trading_time
+
+        if trading_time == "":
+            return True
+
         if self._buffer_timeframes.is_data_in_buffer(trading_time):
             timeframe = self._buffer_timeframes.get_buffer(trading_time)
         else:
@@ -935,7 +949,7 @@ class SymbolHandler(BaseOnExchangeHandler):
         name = kwargs.get(Const.DB_NAME, None)
         status = kwargs.get(Const.DB_STATUS, None)
         type = kwargs.get(Const.DB_TYPE, None)
-        currency = kwargs.get(Const.DB_CURRENCY, None)
+        # currency = kwargs.get(Const.DB_CURRENCY, None)
 
         for symbol_model in symbol_models.values():
             if symbol and symbol != symbol_model.symbol:
@@ -946,8 +960,8 @@ class SymbolHandler(BaseOnExchangeHandler):
                 continue
             if type and type != symbol_model.type:
                 continue
-            if currency and currency != symbol_model.currency:
-                continue
+            # if currency and currency != symbol_model.currency:
+            #     continue
             else:
                 symbol_list.append(symbol_model)
 
@@ -1766,41 +1780,6 @@ class CurrencyComApi(StockExchangeApiBase):
     def get_accounts(self, show_zero_balance: bool = False, recv_window: int = None):
         """
         Get current account information
-
-        :param show_zero_balance: will or will not show accounts with zero
-        balances. Default value False
-        :param recv_window: the value cannot be greater than 60000
-        Default value 5000
-        :return: dict object
-        Response:
-        {
-            "makerCommission":0.20,
-            "takerCommission":0.20,
-            "buyerCommission":0.20,
-            "sellerCommission":0.20,
-            "canTrade":true,
-            "canWithdraw":true,
-            "canDeposit":true,
-            "updateTime":1586935521,
-            "balances":[
-                {
-                    "accountId":"2376104765040206",
-                    "collateralCurrency":true,
-                    "asset":"BYN",
-                    "free":0.0,
-                    "locked":0.0,
-                    "default":false
-                },
-                {
-                    "accountId":"2376109060084932",
-                    "collateralCurrency":true,
-                    "asset":"USD",
-                    "free":515.59092523,
-                    "locked":0.0,
-                    "default":true
-                }
-            ]
-        }
         """
         self._validate_recv_window(recv_window)
         return self._get(
@@ -1819,38 +1798,6 @@ class CurrencyComApi(StockExchangeApiBase):
     ):
         """
         Get trades for a specific account and symbol.
-
-        :param symbol: Symbol - In order to receive orders within an ‘exchange’
-        trading mode ‘symbol’ parameter value from the exchangeInfo endpoint:
-        ‘BTC%2FUSD’.
-        In order to mention the right symbolLeverage it should be checked with
-        the ‘symbol’ parameter value from the exchangeInfo endpoint. In case
-        ‘symbol’ has currencies in its name then the following format should be
-        used: ‘BTC%2FUSD_LEVERAGE’. In case ‘symbol’ has only an asset name
-        then for the leverage trading mode the following format is correct:
-         ‘Oil%20-%20Brent.’
-        :param start_time:
-        :param end_time:
-        :param limit: 	Default Value: 500; Max Value: 1000.
-        :param recv_window: The value cannot be greater than 60000.
-        Default value : 5000
-        :return: dict object
-        Response:
-        [
-          {
-            "symbol": "BTC/USD",
-            "orderId": "100234",
-            "orderListId": -1,
-            "price": "4.00000100",
-            "qty": "12.00000000",
-            "quoteQty": "48.000012",
-            "commission": "10.10000000",
-            "commissionAsset": "BTC",
-            "time": 1499865549590,
-            "isBuyer": true,
-            "isMaker": false
-          }
-        ]
         """
         self._validate_limit(limit)
         self._validate_recv_window(recv_window)

@@ -23,6 +23,7 @@ from .handler import ExchangeHandler, SymbolHandler
 from .trend import TrendCCI
 
 from trading_core.common import (
+    ExchangeId,
     IntervalType,
     SymbolIntervalLimitModel,
     BaseModel,
@@ -631,6 +632,13 @@ class ResponserWeb(ResponserBase):
     @decorator_json
     def delete_user(self, id: str) -> json:
         return UserHandler.delete_user(id)
+
+    @decorator_json
+    def get_exchanges(self) -> json:
+        return [
+            {"name": item.name, "value": item.value, "descr": item.__doc__}
+            for item in ExchangeId
+        ]
 
     @decorator_json
     def get_trader(self, id: str) -> json:

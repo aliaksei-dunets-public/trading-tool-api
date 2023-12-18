@@ -140,6 +140,14 @@ class OrderStatus(str, Enum):
 class ExchangeId(str, Enum):
     demo_dzengi_com = "DEMO_DZENGI_COM"
     dzengi_com = "DZENGI_COM"
+    demo_bybit_com = "DEMO_BYBIT_COM"
+    bybit_com = "BYBIT_COM"
+
+
+ExchangeId.demo_dzengi_com.__doc__ = "Demo: Dzengi.com"
+ExchangeId.dzengi_com.__doc__ = "Dzengi.com"
+ExchangeId.demo_bybit_com.__doc__ = "Demo: ByBit.com"
+ExchangeId.bybit_com.__doc__ = "ByBit.com"
 
 
 ################## ID models #######################

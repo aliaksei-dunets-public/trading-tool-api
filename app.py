@@ -120,6 +120,11 @@ def get_leverage_settings(trader_id):
     return responser.get_leverage_settings(trader_id=trader_id, symbol=symbol)
 
 
+@app.route("/exchanges", methods=["GET"])
+def get_exchanges():
+    return responser.get_exchanges()
+
+
 ######################### Session ###########################
 @app.route("/session/<id>", methods=["GET"])
 def get_session(id):

@@ -432,11 +432,12 @@ class StrategyDirectionBasedTrend_CCI(Strategy_CCI):
                         decision = ""
                     elif decision == Const.SELL:
                         decision = Const.STRONG_SELL
-                else:
-                    if trend_previous == Const.STRONG_TREND_DOWN:
-                        decision = Const.BUY
-                    elif trend_previous == Const.STRONG_TREND_UP:
-                        decision = Const.SELL
+                # Remove signal for close position - use stop loss and take profit
+                # else:
+                #     if trend_previous == Const.STRONG_TREND_DOWN:
+                #         decision = Const.BUY
+                #     elif trend_previous == Const.STRONG_TREND_UP:
+                #         decision = Const.SELL
 
             elif trend == Const.STRONG_TREND_UP:
                 if trend_up_level in [Const.STRONG_TREND_UP, Const.TREND_UP]:
@@ -446,9 +447,10 @@ class StrategyDirectionBasedTrend_CCI(Strategy_CCI):
                     elif decision == Const.BUY:
                         decision = Const.STRONG_BUY
 
-            elif trend == Const.TREND_UP:
-                if trend_previous in [Const.STRONG_TREND_DOWN, Const.TREND_DOWN]:
-                    decision = Const.BUY
+            # Remove signal for close position - use stop loss and take profit
+            # elif trend == Const.TREND_UP:
+            #     if trend_previous in [Const.STRONG_TREND_DOWN, Const.TREND_DOWN]:
+            #         decision = Const.BUY
 
             elif trend == Const.STRONG_TREND_DOWN:
                 if trend_up_level in [Const.STRONG_TREND_DOWN, Const.TREND_DOWN]:
@@ -458,28 +460,10 @@ class StrategyDirectionBasedTrend_CCI(Strategy_CCI):
                     elif decision == Const.SELL:
                         decision = Const.STRONG_SELL
 
-            elif trend == Const.TREND_DOWN:
-                if trend_previous in [Const.STRONG_TREND_UP, Const.TREND_UP]:
-                    decision = Const.SELL
-
-            # if trend_up_level == Const.STRONG_TREND_UP:
-            #     if trend == Const.STRONG_TREND_UP:
-            #         decision = self._get_signal_decision(current_value, previous_value)
-            #         if decision in [Const.SELL, Const.STRONG_SELL]:
-            #             decision = ""
-            #         elif decision == Const.BUY:
-            #             decision = Const.STRONG_BUY
-            #     elif trend_previous == Const.STRONG_TREND_UP:
+            # Remove signal for close position - use stop loss and take profit
+            # elif trend == Const.TREND_DOWN:
+            #     if trend_previous in [Const.STRONG_TREND_UP, Const.TREND_UP]:
             #         decision = Const.SELL
-            # elif trend_up_level == Const.STRONG_TREND_DOWN:
-            #     if trend == Const.STRONG_TREND_DOWN:
-            #         decision = self._get_signal_decision(current_value, previous_value)
-            #         if decision in [Const.BUY, Const.STRONG_BUY]:
-            #             decision = ""
-            #         elif decision == Const.SELL:
-            #             decision = Const.STRONG_SELL
-            #     elif trend_previous == Const.STRONG_TREND_DOWN:
-            #         decision = Const.BUY
 
             signals.append(decision)
 
@@ -566,16 +550,20 @@ class Strategy_CCI_100_TrendUpLevel(Strategy_CCI):
             previous_value = cci_df.iloc[i - 1, 5]
 
             trend = cci_df.iloc[i, 6]
-            trend_previous = cci_df.iloc[i - 1, 6]
+            # trend_previous = cci_df.iloc[i - 1, 6]
 
             decision = self._get_signal_decision(current_value, previous_value)
 
             if trend in [Const.STRONG_TREND_UP, Const.TREND_UP]:
-                if decision in [Const.STRONG_SELL]:
+                if decision in [Const.STRONG_SELL, Const.SELL]:
                     decision = ""
+                elif decision == Const.BUY:
+                    decision = Const.STRONG_BUY
             elif trend in [Const.STRONG_TREND_DOWN, Const.TREND_DOWN]:
-                if decision in [Const.STRONG_BUY]:
+                if decision in [Const.STRONG_BUY, Const.BUY]:
                     decision = ""
+                elif decision == Const.SELL:
+                    decision = Const.STRONG_SELL
 
             signals.append(decision)
 
