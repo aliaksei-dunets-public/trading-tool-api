@@ -15,9 +15,9 @@ from .core import logger, config, Symbol, HistoryData, RuntimeBufferStore
 from .api import ExchangeApiBase, DzengiComApi, DemoDzengiComApi
 from .common import (
     Importance,
-    Interval,
+    IntervalType,
     IntervalModel,
-    HistoryDataParam,
+    SymbolIntervalLimitModel,
     TraderStatus,
     OrderStatus,
     SessionStatus,
@@ -77,7 +77,9 @@ class BufferSingleDictionary(BufferBaseHandler):
 
 
 class BufferHistoryDataHandler(BufferBaseHandler):
-    def get_buffer(self, history_data_param: HistoryDataParam, **kwargs) -> HistoryData:
+    def get_buffer(
+        self, history_data_param: SymbolIntervalLimitModel, **kwargs
+    ) -> HistoryData:
         symbol = history_data_param.symbol
         interval = history_data_param.interval
         limit = history_data_param.limit
@@ -677,7 +679,7 @@ class ExchangeHandler:
         return self._api.get_symbols()
 
     def get_history_data(
-        self, history_data_param: HistoryDataParam, **kwargs
+        self, history_data_param: SymbolIntervalLimitModel, **kwargs
     ) -> HistoryData:
         return self._api.get_history_data(history_data_param, **kwargs)
 
@@ -745,92 +747,92 @@ class IntervalHandler(BaseOnExchangeHandler):
     def get_intervals_dict_vh() -> dict:
         return {
             # 1m - LOW
-            Interval.MIN_1: IntervalModel(
-                interval=Interval.MIN_1,
+            IntervalType.MIN_1: IntervalModel(
+                interval=IntervalType.MIN_1,
                 name="1 minute",
                 order=10,
                 importance=Importance.LOW,
             ),
             # 3m - LOW
-            Interval.MIN_3: IntervalModel(
-                interval=Interval.MIN_3,
+            IntervalType.MIN_3: IntervalModel(
+                interval=IntervalType.MIN_3,
                 name="3 minutes",
                 order=20,
                 importance=Importance.LOW,
             ),
             # 5m - LOW
-            Interval.MIN_5: IntervalModel(
-                interval=Interval.MIN_5,
+            IntervalType.MIN_5: IntervalModel(
+                interval=IntervalType.MIN_5,
                 name="5 minutes",
                 order=30,
                 importance=Importance.LOW,
             ),
             # 15m - LOW
-            Interval.MIN_15: IntervalModel(
-                interval=Interval.MIN_15,
+            IntervalType.MIN_15: IntervalModel(
+                interval=IntervalType.MIN_15,
                 name="15 minutes",
                 order=40,
                 importance=Importance.LOW,
             ),
             # 30m - LOW
-            Interval.MIN_30: IntervalModel(
-                interval=Interval.MIN_30,
+            IntervalType.MIN_30: IntervalModel(
+                interval=IntervalType.MIN_30,
                 name="30 minutes",
                 order=50,
                 importance=Importance.LOW,
             ),
             # 1h - MEDIUM
-            Interval.HOUR_1: IntervalModel(
-                interval=Interval.HOUR_1,
+            IntervalType.HOUR_1: IntervalModel(
+                interval=IntervalType.HOUR_1,
                 name="1 hour",
                 order=60,
                 importance=Importance.MEDIUM,
             ),
             # 2h - MEDIUM
-            Interval.HOUR_2: IntervalModel(
-                interval=Interval.HOUR_2,
+            IntervalType.HOUR_2: IntervalModel(
+                interval=IntervalType.HOUR_2,
                 name="2 hours",
                 order=70,
                 importance=Importance.MEDIUM,
             ),
             # 4h - MEDIUM
-            Interval.HOUR_4: IntervalModel(
-                interval=Interval.HOUR_4,
+            IntervalType.HOUR_4: IntervalModel(
+                interval=IntervalType.HOUR_4,
                 name="4 hours",
                 order=80,
                 importance=Importance.MEDIUM,
             ),
             # 6h - MEDIUM
-            Interval.HOUR_6: IntervalModel(
-                interval=Interval.HOUR_6,
+            IntervalType.HOUR_6: IntervalModel(
+                interval=IntervalType.HOUR_6,
                 name="6 hours",
                 order=90,
                 importance=Importance.MEDIUM,
             ),
             # 12h - HIGH
-            Interval.HOUR_12: IntervalModel(
-                interval=Interval.HOUR_12,
+            IntervalType.HOUR_12: IntervalModel(
+                interval=IntervalType.HOUR_12,
                 name="12 hours",
                 order=100,
                 importance=Importance.HIGH,
             ),
             # 1d - HIGH
-            Interval.DAY_1: IntervalModel(
-                interval=Interval.DAY_1,
+            IntervalType.DAY_1: IntervalModel(
+                interval=IntervalType.DAY_1,
                 name="1 day",
                 order=110,
                 importance=Importance.HIGH,
             ),
             # 1w - HIGH
-            Interval.WEEK_1: IntervalModel(
-                interval=Interval.WEEK_1,
+            IntervalType.WEEK_1: IntervalModel(
+                interval=IntervalType.WEEK_1,
                 name="1 week",
                 order=120,
                 importance=Importance.HIGH,
             ),
             # 1month - HIGH
-            Interval.MONTH_1: IntervalModel(
-                interval=Interval.MONTH_1,
+            IntervalType.MONTH_1: IntervalModel(
+                interval=IntervalType.MONTH_1,
                 name="1 month",
                 order=130,
                 importance=Importance.HIGH,
@@ -845,7 +847,7 @@ class IntervalHandler(BaseOnExchangeHandler):
         ]
 
     @staticmethod
-    def get_interval_vh(interval: Interval) -> IntervalModel:
+    def get_interval_vh(interval: IntervalType) -> IntervalModel:
         intervals_dict_vh = IntervalHandler.get_intervals_dict_vh()
         if not interval in intervals_dict_vh:
             raise Exception(f"Interval {interval.value} doesn't exist")
@@ -858,7 +860,7 @@ class IntervalHandler(BaseOnExchangeHandler):
             for interval_mdl in self.get_interval_models(importances)
         ]
 
-    def get_interval_model(self, interval: Interval) -> IntervalModel:
+    def get_interval_model(self, interval: IntervalType) -> IntervalModel:
         for interval_mdl in self.__interval_mdls:
             if interval_mdl.interval == interval:
                 return interval_mdl
@@ -966,7 +968,7 @@ class HistoryDataHandler(BaseOnExchangeHandler):
         self.__buffer_inst = BufferHistoryDataHandler()
 
     def get_history_data(
-        self, history_data_param: HistoryDataParam, **kwargs
+        self, history_data_param: SymbolIntervalLimitModel, **kwargs
     ) -> HistoryData:
         history_data_inst = None
 

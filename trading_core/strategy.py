@@ -2,7 +2,8 @@ import pandas as pd
 
 from .constants import Const
 from .core import logger, config, runtime_buffer, HistoryData, Signal
-from .model import model, Symbols, ParamSymbolInterval, ParamSymbolIntervalLimit
+from .model import model, Symbols
+from .common import IntervalType, SymbolIntervalLimitModel
 from .indicator import Indicator_CCI
 from .handler import buffer_runtime_handler
 from .trend import TrendCCI
@@ -85,7 +86,7 @@ class SignalFactory:
             )
 
         if not intervals:
-            intervals = model.get_intervals()
+            intervals = buffer_runtime_handler.get_interval_handler().get_intervals()
 
         sorted_strategies = model.get_sorted_strategy_codes(strategies)
 
@@ -322,7 +323,7 @@ class StrategyDirectionBasedTrend_CCI(Strategy_CCI):
 
         cci_df = self._cci.get_indicator_by_history_data(historyData)
 
-        param = ParamSymbolIntervalLimit(
+        param = SymbolIntervalLimitModel(
             symbol=symbol, interval=interval, limit=limit, consistency_check=False
         )
 
@@ -337,25 +338,25 @@ class StrategyDirectionBasedTrend_CCI(Strategy_CCI):
         )
 
         # Detect Next Interval
-        if interval == Const.TA_INTERVAL_5M:
-            next_interval = Const.TA_INTERVAL_30M
+        if interval == IntervalType.MIN_5:
+            next_interval = IntervalType.MIN_30
             limit = limit // 6 + 1
-        elif interval == Const.TA_INTERVAL_15M:
-            next_interval = Const.TA_INTERVAL_1H
+        elif interval == IntervalType.MIN_15:
+            next_interval = IntervalType.HOUR_1
             limit = limit // 4 + 1
-        elif interval == Const.TA_INTERVAL_30M:
-            next_interval = Const.TA_INTERVAL_4H
+        elif interval == IntervalType.MIN_30:
+            next_interval = IntervalType.HOUR_4
             limit = limit // 8 + 1
-        elif interval == Const.TA_INTERVAL_1H:
-            next_interval = Const.TA_INTERVAL_4H
+        elif interval == IntervalType.HOUR_1:
+            next_interval = IntervalType.HOUR_4
             limit = limit // 4 + 1
-        elif interval == Const.TA_INTERVAL_4H:
-            next_interval = Const.TA_INTERVAL_1D
+        elif interval == IntervalType.HOUR_4:
+            next_interval = IntervalType.DAY_1
             limit = limit // 6 + 1
-        elif interval == Const.TA_INTERVAL_1D:
-            next_interval = Const.TA_INTERVAL_1WK
+        elif interval == IntervalType.DAY_1:
+            next_interval = IntervalType.WEEK_1
             limit = limit // 7 + 1
-        elif interval == Const.TA_INTERVAL_1WK:
+        elif interval == IntervalType.WEEK_1:
             pass
         else:
             raise Exception("Incorrect interval for subscription")
@@ -363,11 +364,10 @@ class StrategyDirectionBasedTrend_CCI(Strategy_CCI):
         if not next_interval:
             merged_df = cci_df
         else:
-            param = ParamSymbolIntervalLimit(
+            param = SymbolIntervalLimitModel(
                 symbol=symbol,
                 interval=next_interval,
                 limit=limit,
-                consistency_check=False,
             )
 
             trend_df = TrendCCI().calculate_trends(param)
@@ -494,36 +494,35 @@ class Strategy_CCI_100_TrendUpLevel(Strategy_CCI):
         next_interval = None
 
         # Detect Next Interval
-        if interval == Const.TA_INTERVAL_5M:
-            next_interval = Const.TA_INTERVAL_30M
+        if interval == IntervalType.MIN_5:
+            next_interval = IntervalType.MIN_30
             limit = limit // 6 + 1
-        elif interval == Const.TA_INTERVAL_15M:
-            next_interval = Const.TA_INTERVAL_1H
+        elif interval == IntervalType.MIN_15:
+            next_interval = IntervalType.HOUR_1
             limit = limit // 4 + 1
-        elif interval == Const.TA_INTERVAL_30M:
-            next_interval = Const.TA_INTERVAL_4H
+        elif interval == IntervalType.MIN_30:
+            next_interval = IntervalType.HOUR_4
             limit = limit // 8 + 1
-        elif interval == Const.TA_INTERVAL_1H:
-            next_interval = Const.TA_INTERVAL_4H
+        elif interval == IntervalType.HOUR_1:
+            next_interval = IntervalType.HOUR_4
             limit = limit // 4 + 1
-        elif interval == Const.TA_INTERVAL_4H:
-            next_interval = Const.TA_INTERVAL_1D
+        elif interval == IntervalType.HOUR_4:
+            next_interval = IntervalType.DAY_1
             limit = limit // 6 + 1
-        elif interval == Const.TA_INTERVAL_1D:
-            next_interval = Const.TA_INTERVAL_1WK
+        elif interval == IntervalType.DAY_1:
+            next_interval = IntervalType.WEEK_1
             limit = limit // 7 + 1
-        elif interval == Const.TA_INTERVAL_1WK:
-            next_interval = Const.TA_INTERVAL_1WK
+        elif interval == IntervalType.WEEK_1:
+            next_interval = IntervalType.WEEK_1
         else:
             raise Exception("Incorrect interval for subscription")
 
         cci_df = self._cci.get_indicator_by_history_data(historyData)
 
-        param = ParamSymbolIntervalLimit(
+        param = SymbolIntervalLimitModel(
             symbol=symbol,
             interval=next_interval,
             limit=limit,
-            consistency_check=False,
         )
 
         trend_df = TrendCCI().calculate_trends(param)
@@ -585,16 +584,13 @@ class Strategy_CCI_100_TrendUpLevel(Strategy_CCI):
 
 class StrategyDirectionBasedTrend(Strategy_CCI):
     def get_strategy_data_by_history_data(self, historyData: HistoryData):
-        intervals = model.get_intervals_config()
         symbol = historyData.getSymbol()
         limit = historyData.getLimit()
         interval = historyData.getInterval()
 
         cci_df = self._cci.get_indicator_by_history_data(historyData)
 
-        param = ParamSymbolIntervalLimit(
-            symbol=symbol, interval=interval, limit=limit, consistency_check=False
-        )
+        param = SymbolIntervalLimitModel(symbol=symbol, interval=interval, limit=limit)
 
         trend_df = TrendCCI().calculate_trends(param)
 

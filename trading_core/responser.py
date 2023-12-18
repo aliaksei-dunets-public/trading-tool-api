@@ -15,15 +15,16 @@ from email.mime.text import MIMEText
 
 
 from .constants import Const
-from .core import config, logger, runtime_buffer, Symbol, Signal, SimulateOptions
-from .model import model, Symbols, ParamSimulationList, ParamSymbolIntervalLimit
+from .core import config, logger, runtime_buffer, Symbol, Signal
+from .model import model, Symbols
 from .strategy import StrategyFactory, SignalFactory
-from .simulation import Executor
 from .mongodb import MongoJobs, MongoAlerts, MongoOrders, MongoSimulations
 from .handler import ExchangeHandler, SymbolHandler
 from .trend import TrendCCI
 
 from trading_core.common import (
+    IntervalType,
+    SymbolIntervalLimitModel,
     BaseModel,
     UserModel,
     TraderModel,
@@ -31,7 +32,6 @@ from trading_core.common import (
     SessionType,
     BalanceModel,
     OrderModel,
-    LeverageModel,
     TransactionModel,
     SessionStatus,
     OrderOpenModel,
@@ -363,17 +363,6 @@ class ResponserBase:
         return MongoSimulations().get_simulations(
             symbols=symbols, intervals=intervals, strategies=strategies
         )
-
-    def get_simulate(self, params: ParamSimulationList) -> list:
-        simulations = []
-        executor = Executor()
-        simulators = executor.simulate_many(params=params)
-
-        for simulator in simulators:
-            simulation = simulator.get_simulation()
-            simulations.append(simulation)
-
-        return simulations
 
     def get_user(self, id: str):
         return UserHandler.get_user_by_id(id)
@@ -844,7 +833,7 @@ class ResponserWeb(ResponserBase):
         )
 
     @decorator_json
-    def get_trend(self, param: ParamSymbolIntervalLimit) -> json:
+    def get_trend(self, param: SymbolIntervalLimitModel) -> json:
         return TrendCCI().calculate_trends(param)
 
 
@@ -1123,22 +1112,22 @@ class JobScheduler:
         minute = "0"
         second = "40"
 
-        if interval == Const.TA_INTERVAL_5M:
+        if interval == IntervalType.MIN_5:
             minute = "*/5"
-        elif interval == Const.TA_INTERVAL_15M:
+        elif interval == IntervalType.MIN_15:
             minute = "*/15"
-        elif interval == Const.TA_INTERVAL_30M:
+        elif interval == IntervalType.MIN_30:
             minute = "*/30"
-        elif interval == Const.TA_INTERVAL_1H:
+        elif interval == IntervalType.HOUR_1:
             hour = "*"
             minute = "1"
-        elif interval == Const.TA_INTERVAL_4H:
+        elif interval == IntervalType.HOUR_4:
             hour = "0,4,8,12,16,20"
             minute = "1"
-        elif interval == Const.TA_INTERVAL_1D:
+        elif interval == IntervalType.DAY_1:
             hour = "8"
             minute = "1"
-        elif interval == Const.TA_INTERVAL_1WK:
+        elif interval == IntervalType.WEEK_1:
             day_of_week = "mon"
             hour = "8"
             minute = "1"

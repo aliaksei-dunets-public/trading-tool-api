@@ -767,7 +767,7 @@ class DataManagerBase:
         self, price_type: cmn.PriceType = cmn.PriceType.BID
     ) -> float:
         # Get current price from exchnage handler
-        param = cmn.HistoryDataParam(
+        param = cmn.SymbolIntervalLimitModel(
             interval=self._session_mdl.interval,
             symbol=self._session_mdl.symbol,
             limit=1,

@@ -19,9 +19,9 @@ from .common import (
     OrderReason,
     OrderSideType,
     ExchangeId,
-    Interval,
+    IntervalType,
     IntervalModel,
-    HistoryDataParam,
+    SymbolIntervalLimitModel,
     SymbolModel,
     TraderModel,
     OrderModel,
@@ -55,7 +55,7 @@ class ExchangeApiBase:
         pass
 
     def get_history_data(
-        self, history_data_param: HistoryDataParam, **kwargs
+        self, history_data_param: SymbolIntervalLimitModel, **kwargs
     ) -> HistoryData:
         pass
 
@@ -95,7 +95,7 @@ class ExchangeApiBase:
     def is_trading_available(self, interval: str, trading_timeframes: dict) -> bool:
         pass
 
-    def _map_interval(self, api_interval: str = None, interval: Interval = None):
+    def _map_interval(self, api_interval: str = None, interval: IntervalType = None):
         if api_interval:
             return interval
         elif interval:
@@ -227,7 +227,7 @@ class DzengiComApi(ExchangeApiBase):
         )
         return result["values"]
 
-    def get_intervals(self) -> list[Interval]:
+    def get_intervals(self) -> list[IntervalType]:
         return [
             self._map_interval(api_interval=self.TA_API_INTERVAL_5M),
             self._map_interval(api_interval=self.TA_API_INTERVAL_15M),
@@ -297,7 +297,7 @@ class DzengiComApi(ExchangeApiBase):
             raise Exception(response.text)
 
     def get_history_data(
-        self, history_data_param: HistoryDataParam, **kwargs
+        self, history_data_param: SymbolIntervalLimitModel, **kwargs
     ) -> HistoryData:
         # Prepare URL parameters
         url_params = {
@@ -1161,7 +1161,9 @@ class DzengiComApi(ExchangeApiBase):
     def _get_url(self, path: str) -> str:
         return self.get_api_endpoints() + path
 
-    def _map_interval(self, api_interval: str = None, interval: Interval = None) -> str:
+    def _map_interval(
+        self, api_interval: str = None, interval: IntervalType = None
+    ) -> str:
         if api_interval:
             return api_interval
         elif interval:

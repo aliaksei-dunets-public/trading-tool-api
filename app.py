@@ -7,15 +7,12 @@ from trading_core.core import logger
 from trading_core.constants import Const
 from trading_core.responser import (
     ResponserWeb,
-    ParamSimulationList,
-    ParamSymbolIntervalLimit,
-    SimulateOptions,
     UserHandler,
     job_func_initialise_runtime_data,
     JobScheduler,
 )
 from trading_core.common import (
-    BaseModel,
+    SymbolIntervalLimitModel,
     TransactionModel,
     UserModel,
     TraderModel,
@@ -24,7 +21,6 @@ from trading_core.common import (
     OrderModel,
     OrderOpenModel,
     TransactionModel,
-    TradingType,
     SessionType,
     StrategyType,
 )
@@ -527,39 +523,6 @@ def get_simulations():
     )
 
 
-@app.route("/simulate", methods=["GET"])
-def get_simulate():
-    symbols = request.args.getlist("symbol", None)
-    intervals = request.args.getlist("interval", None)
-    strategies = request.args.getlist("strategy", None)
-    init_balance = request.args.get(Const.SRV_INIT_BALANCE)
-    limit = request.args.get(Const.LIMIT)
-    stop_loss_rate = request.args.get(Const.SRV_STOP_LOSS_RATE)
-    take_profit_rate = request.args.get(Const.SRV_TAKE_PROFIT_RATE)
-    fee_rate = request.args.get(Const.SRV_FEE_RATE)
-
-    try:
-        simulate_options = SimulateOptions(
-            init_balance=init_balance,
-            limit=limit,
-            stop_loss_rate=stop_loss_rate,
-            take_profit_rate=take_profit_rate,
-            fee_rate=fee_rate,
-        )
-
-        params = ParamSimulationList(
-            symbols=symbols,
-            intervals=intervals,
-            strategies=strategies,
-            simulation_options_list=[simulate_options],
-        )
-
-    except Exception as error:
-        return jsonify({"error": error}), 500
-
-    return responser.get_simulate(params)
-
-
 @app.route("/history_simulation", methods=["GET"])
 def get_history_simulation():
     trader_id = request.args.get("trader_id", None)
@@ -636,7 +599,7 @@ def get_trend():
     limit = int(request.args.get(Const.LIMIT))
 
     try:
-        param = ParamSymbolIntervalLimit(
+        param = SymbolIntervalLimitModel(
             symbol=symbol, interval=interval, limit=limit, consistency_check=False
         )
 

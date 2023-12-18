@@ -91,13 +91,13 @@ class ConstTestCase(unittest.TestCase):
         self.assertEqual(Const.ORDER_CLOSE_REASON_SIGNAL, "SIGNAL")
 
     def test_intervals(self):
-        self.assertEqual(Const.TA_INTERVAL_5M, "5m")
-        self.assertEqual(Const.TA_INTERVAL_15M, "15m")
-        self.assertEqual(Const.TA_INTERVAL_30M, "30m")
-        self.assertEqual(Const.TA_INTERVAL_1H, "1h")
-        self.assertEqual(Const.TA_INTERVAL_4H, "4h")
-        self.assertEqual(Const.TA_INTERVAL_1D, "1d")
-        self.assertEqual(Const.TA_INTERVAL_1WK, "1w")
+        self.assertEqual(IntervalType.MIN_1, "5m")
+        self.assertEqual(IntervalType.MIN_15, "15m")
+        self.assertEqual(IntervalType.MIN_30, "30m")
+        self.assertEqual(IntervalType.HOUR_1, "1h")
+        self.assertEqual(IntervalType.HOUR_4, "4h")
+        self.assertEqual(IntervalType.DAY_1, "1d")
+        self.assertEqual(IntervalType.WEEK_1, "1w")
 
 
 class TestConfig(unittest.TestCase):
@@ -162,7 +162,7 @@ class SymbolTestCase(unittest.TestCase):
 class HistoryDataTestCase(unittest.TestCase):
     def setUp(self):
         self.symbol = "BABA"
-        self.interval = Const.TA_INTERVAL_1H
+        self.interval = IntervalType.HOUR_1
         self.limit = 50
         self.data = pd.read_json(
             f"{os.getcwd()}/static/tests/{self.symbol}_{self.interval}.json"
@@ -502,37 +502,37 @@ class TestModel(unittest.TestCase):
         trading_time = "UTC; Mon 00:01 - 23:59; Tue 00:01 - 23:59; Wed 00:01 - 23:59; Thu 00:01 - 23:59; Fri 00:01 - 23:59"
         self.assertTrue(
             handler.is_trading_open(
-                interval=Const.TA_INTERVAL_5M, trading_time=trading_time
+                interval=IntervalType.MIN_1, trading_time=trading_time
             )
         )
         self.assertTrue(
             handler.is_trading_open(
-                interval=Const.TA_INTERVAL_15M, trading_time=trading_time
+                interval=IntervalType.MIN_15, trading_time=trading_time
             )
         )
         self.assertTrue(
             handler.is_trading_open(
-                interval=Const.TA_INTERVAL_30M, trading_time=trading_time
+                interval=IntervalType.MIN_30, trading_time=trading_time
             )
         )
         self.assertTrue(
             handler.is_trading_open(
-                interval=Const.TA_INTERVAL_1H, trading_time=trading_time
+                interval=IntervalType.HOUR_1, trading_time=trading_time
             )
         )
         self.assertTrue(
             handler.is_trading_open(
-                interval=Const.TA_INTERVAL_4H, trading_time=trading_time
+                interval=IntervalType.HOUR_4, trading_time=trading_time
             )
         )
         self.assertTrue(
             handler.is_trading_open(
-                interval=Const.TA_INTERVAL_1D, trading_time=trading_time
+                interval=IntervalType.DAY_1, trading_time=trading_time
             )
         )
         self.assertTrue(
             handler.is_trading_open(
-                interval=Const.TA_INTERVAL_1WK, trading_time=trading_time
+                interval=IntervalType.WEEK_1, trading_time=trading_time
             )
         )
 
@@ -541,37 +541,37 @@ class TestModel(unittest.TestCase):
         trading_time = "UTC; Sun 03:01 - 03:02"
         self.assertFalse(
             handler.is_trading_open(
-                interval=Const.TA_INTERVAL_5M, trading_time=trading_time
+                interval=IntervalType.MIN_1, trading_time=trading_time
             )
         )
         self.assertFalse(
             handler.is_trading_open(
-                interval=Const.TA_INTERVAL_15M, trading_time=trading_time
+                interval=IntervalType.MIN_15, trading_time=trading_time
             )
         )
         self.assertFalse(
             handler.is_trading_open(
-                interval=Const.TA_INTERVAL_30M, trading_time=trading_time
+                interval=IntervalType.MIN_30, trading_time=trading_time
             )
         )
         self.assertFalse(
             handler.is_trading_open(
-                interval=Const.TA_INTERVAL_1H, trading_time=trading_time
+                interval=IntervalType.HOUR_1, trading_time=trading_time
             )
         )
         self.assertFalse(
             handler.is_trading_open(
-                interval=Const.TA_INTERVAL_4H, trading_time=trading_time
+                interval=IntervalType.HOUR_4, trading_time=trading_time
             )
         )
         self.assertFalse(
             handler.is_trading_open(
-                interval=Const.TA_INTERVAL_1D, trading_time=trading_time
+                interval=IntervalType.DAY_1, trading_time=trading_time
             )
         )
         self.assertTrue(
             handler.is_trading_open(
-                interval=Const.TA_INTERVAL_1WK, trading_time=trading_time
+                interval=IntervalType.WEEK_1, trading_time=trading_time
             )
         )
 
@@ -717,7 +717,7 @@ class MongoBaseTestCase(unittest.TestCase):
             Const.DB_ALERT_TYPE: Const.ALERT_TYPE_BOT,
             Const.DB_CHANNEL_ID: 689916629,
             Const.DB_SYMBOL: "BTC/USD",
-            Const.DB_INTERVAL: Const.TA_INTERVAL_5M,
+            Const.DB_INTERVAL: IntervalType.MIN_1,
             Const.DB_STRATEGIES: [
                 Const.TA_STRATEGY_CCI_14_TREND_100,
                 Const.TA_STRATEGY_CCI_20_TREND_100,
@@ -733,7 +733,7 @@ class MongoBaseTestCase(unittest.TestCase):
         self.assertEqual(result_get_one[Const.DB_ALERT_TYPE], Const.ALERT_TYPE_BOT)
         self.assertEqual(result_get_one[Const.DB_CHANNEL_ID], 689916629)
         self.assertEqual(result_get_one[Const.DB_SYMBOL], "BTC/USD")
-        self.assertEqual(result_get_one[Const.DB_INTERVAL], Const.TA_INTERVAL_5M)
+        self.assertEqual(result_get_one[Const.DB_INTERVAL], IntervalType.MIN_1)
         self.assertEqual(
             result_get_one[Const.DB_STRATEGIES],
             [Const.TA_STRATEGY_CCI_14_TREND_100, Const.TA_STRATEGY_CCI_20_TREND_100],
@@ -756,7 +756,7 @@ class MongoBaseTestCase(unittest.TestCase):
         self.assertEqual(result_get_one[Const.DB_SIGNALS], [])
         self.assertEqual(result_get_one[Const.DB_COMMENT], "Test comments updated")
 
-        query = {Const.DB_INTERVAL: Const.TA_INTERVAL_5M}
+        query = {Const.DB_INTERVAL: IntervalType.MIN_1}
         result = self.mongo_base.get_many(query)
         self.assertIsInstance(result, list)
         self.assertGreaterEqual(len(result), 1)
@@ -774,7 +774,7 @@ class MongoJobsTestCase(unittest.TestCase):
 
     def test_funtionality(self):
         job_type = Const.JOB_TYPE_BOT
-        interval = Const.TA_INTERVAL_1D
+        interval = IntervalType.DAY_1
         is_active = True
         self.job_id = self.mongo_jobs.create_job(job_type, interval, is_active)
         self.assertTrue(ObjectId.is_valid(self.job_id))
@@ -812,7 +812,7 @@ class MongoAlertsTestCase(unittest.TestCase):
         alert_type = Const.ALERT_TYPE_BOT
         channel_id = 689916629
         symbol = "BTC/USD"
-        interval = Const.TA_INTERVAL_5M
+        interval = IntervalType.MIN_1
         strategies = [
             Const.TA_STRATEGY_CCI_14_TREND_100,
             Const.TA_STRATEGY_CCI_20_TREND_100,
@@ -847,7 +847,7 @@ class MongoOrdersTestCase(unittest.TestCase):
         order_type = Const.LONG
         open_date_time = ""
         symbol = "BTC/USD"
-        interval = Const.TA_INTERVAL_5M
+        interval = IntervalType.MIN_1
         strategies = [
             Const.TA_STRATEGY_CCI_14_TREND_100,
             Const.TA_STRATEGY_CCI_20_TREND_100,
@@ -1559,37 +1559,37 @@ class StockExchangeHandlerTests(unittest.TestCase):
         trading_time = "UTC; Mon 00:01 - 23:59; Tue 00:01 - 23:59; Wed 00:01 - 23:59; Thu 00:01 - 23:59; Fri 00:01 - 23:59"
         self.assertTrue(
             self.handler.is_trading_open(
-                interval=Const.TA_INTERVAL_5M, trading_time=trading_time
+                interval=IntervalType.MIN_1, trading_time=trading_time
             )
         )
         self.assertTrue(
             self.handler.is_trading_open(
-                interval=Const.TA_INTERVAL_15M, trading_time=trading_time
+                interval=IntervalType.MIN_15, trading_time=trading_time
             )
         )
         self.assertTrue(
             self.handler.is_trading_open(
-                interval=Const.TA_INTERVAL_30M, trading_time=trading_time
+                interval=IntervalType.MIN_30, trading_time=trading_time
             )
         )
         self.assertTrue(
             self.handler.is_trading_open(
-                interval=Const.TA_INTERVAL_1H, trading_time=trading_time
+                interval=IntervalType.HOUR_1, trading_time=trading_time
             )
         )
         self.assertTrue(
             self.handler.is_trading_open(
-                interval=Const.TA_INTERVAL_4H, trading_time=trading_time
+                interval=IntervalType.HOUR_4, trading_time=trading_time
             )
         )
         self.assertTrue(
             self.handler.is_trading_open(
-                interval=Const.TA_INTERVAL_1D, trading_time=trading_time
+                interval=IntervalType.DAY_1, trading_time=trading_time
             )
         )
         self.assertTrue(
             self.handler.is_trading_open(
-                interval=Const.TA_INTERVAL_1WK, trading_time=trading_time
+                interval=IntervalType.WEEK_1, trading_time=trading_time
             )
         )
 
@@ -1597,37 +1597,37 @@ class StockExchangeHandlerTests(unittest.TestCase):
         trading_time = "UTC; Sun 03:01 - 03:02"
         self.assertFalse(
             self.handler.is_trading_open(
-                interval=Const.TA_INTERVAL_5M, trading_time=trading_time
+                interval=IntervalType.MIN_1, trading_time=trading_time
             )
         )
         self.assertFalse(
             self.handler.is_trading_open(
-                interval=Const.TA_INTERVAL_15M, trading_time=trading_time
+                interval=IntervalType.MIN_15, trading_time=trading_time
             )
         )
         self.assertFalse(
             self.handler.is_trading_open(
-                interval=Const.TA_INTERVAL_30M, trading_time=trading_time
+                interval=IntervalType.MIN_30, trading_time=trading_time
             )
         )
         self.assertFalse(
             self.handler.is_trading_open(
-                interval=Const.TA_INTERVAL_1H, trading_time=trading_time
+                interval=IntervalType.HOUR_1, trading_time=trading_time
             )
         )
         self.assertFalse(
             self.handler.is_trading_open(
-                interval=Const.TA_INTERVAL_4H, trading_time=trading_time
+                interval=IntervalType.HOUR_4, trading_time=trading_time
             )
         )
         self.assertFalse(
             self.handler.is_trading_open(
-                interval=Const.TA_INTERVAL_1D, trading_time=trading_time
+                interval=IntervalType.DAY_1, trading_time=trading_time
             )
         )
         self.assertTrue(
             self.handler.is_trading_open(
-                interval=Const.TA_INTERVAL_1WK, trading_time=trading_time
+                interval=IntervalType.WEEK_1, trading_time=trading_time
             )
         )
 
@@ -2003,7 +2003,7 @@ class SignalFactoryTests(unittest.TestCase):
 
     def test_get_signals(self):
         symbols = ["BTC/USD", "BAL/USD"]
-        intervals = [Const.TA_INTERVAL_1H, Const.TA_INTERVAL_4H]
+        intervals = [IntervalType.HOUR_1, IntervalType.HOUR_4]
         strategies = [
             Const.TA_STRATEGY_CCI_14_TREND_100,
             Const.TA_STRATEGY_CCI_20_TREND_100,
@@ -2012,11 +2012,11 @@ class SignalFactoryTests(unittest.TestCase):
         closed_bars = False
 
         date_time_1h = model.get_handler().getEndDatetime(
-            interval=Const.TA_INTERVAL_1H, closed_bars=closed_bars
+            interval=IntervalType.HOUR_1, closed_bars=closed_bars
         )
 
         date_time_4h = model.get_handler().getEndDatetime(
-            interval=Const.TA_INTERVAL_4H, closed_bars=closed_bars
+            interval=IntervalType.HOUR_4, closed_bars=closed_bars
         )
 
         signals_list = self.signal_factory.get_signals(
@@ -2026,9 +2026,9 @@ class SignalFactoryTests(unittest.TestCase):
         self.assertEqual(len(signals_list), 8)
 
         for signal_inst in signals_list:
-            if signal_inst.get_interval() == Const.TA_INTERVAL_1H:
+            if signal_inst.get_interval() == IntervalType.HOUR_1:
                 self.assertEqual(signal_inst.get_date_time(), date_time_1h)
-            elif signal_inst.get_interval() == Const.TA_INTERVAL_4H:
+            elif signal_inst.get_interval() == IntervalType.HOUR_4:
                 self.assertEqual(signal_inst.get_date_time(), date_time_4h)
 
 
@@ -2498,43 +2498,43 @@ class FlaskAPITestCase(unittest.TestCase):
     def test_get_intervals(self):
         expected_intervals = [
             {
-                "interval": Const.TA_INTERVAL_5M,
+                "interval": IntervalType.MIN_1,
                 "name": "5 minutes",
                 "order": 10,
                 "importance": Const.IMPORTANCE_LOW,
             },
             {
-                "interval": Const.TA_INTERVAL_15M,
+                "interval": IntervalType.MIN_15,
                 "name": "15 minutes",
                 "order": 20,
                 "importance": Const.IMPORTANCE_LOW,
             },
             {
-                "interval": Const.TA_INTERVAL_30M,
+                "interval": IntervalType.MIN_30,
                 "name": "30 minutes",
                 "order": 30,
                 "importance": Const.IMPORTANCE_MEDIUM,
             },
             {
-                "interval": Const.TA_INTERVAL_1H,
+                "interval": IntervalType.HOUR_1,
                 "name": "1 hour",
                 "order": 40,
                 "importance": Const.IMPORTANCE_MEDIUM,
             },
             {
-                "interval": Const.TA_INTERVAL_4H,
+                "interval": IntervalType.HOUR_4,
                 "name": "4 hours",
                 "order": 50,
                 "importance": Const.IMPORTANCE_HIGH,
             },
             {
-                "interval": Const.TA_INTERVAL_1D,
+                "interval": IntervalType.DAY_1,
                 "name": "1 day",
                 "order": 60,
                 "importance": Const.IMPORTANCE_HIGH,
             },
             {
-                "interval": Const.TA_INTERVAL_1WK,
+                "interval": IntervalType.WEEK_1,
                 "name": "1 week",
                 "order": 70,
                 "importance": Const.IMPORTANCE_HIGH,
@@ -2549,19 +2549,19 @@ class FlaskAPITestCase(unittest.TestCase):
 
         expected_intervals = [
             {
-                "interval": Const.TA_INTERVAL_4H,
+                "interval": IntervalType.HOUR_4,
                 "name": "4 hours",
                 "order": 50,
                 "importance": Const.IMPORTANCE_HIGH,
             },
             {
-                "interval": Const.TA_INTERVAL_1D,
+                "interval": IntervalType.DAY_1,
                 "name": "1 day",
                 "order": 60,
                 "importance": Const.IMPORTANCE_HIGH,
             },
             {
-                "interval": Const.TA_INTERVAL_1WK,
+                "interval": IntervalType.WEEK_1,
                 "name": "1 week",
                 "order": 70,
                 "importance": Const.IMPORTANCE_HIGH,
@@ -2650,8 +2650,8 @@ class FlaskAPITestCase(unittest.TestCase):
     def test_get_signals(self):
         symbol = "BTC/USD"
         strategy = "CCI_20_TREND_100"
-        interval_1h = Const.TA_INTERVAL_1H
-        interval_4h = Const.TA_INTERVAL_4H
+        interval_1h = IntervalType.HOUR_1
+        interval_4h = IntervalType.HOUR_4
         closed_bars = True
 
         # /signals?symbol=BTC/USD&interval=4h&interval=1h&strategy=CCI_20_TREND_100&signal=Debug&closed_bars=true
@@ -2686,7 +2686,7 @@ class FlaskAPITestCase(unittest.TestCase):
 
     def test_jobs_functionality(self):
         job_type = Const.JOB_TYPE_BOT
-        interval = Const.TA_INTERVAL_1D
+        interval = IntervalType.DAY_1
 
         payload = {Const.DB_JOB_TYPE: job_type, Const.DB_INTERVAL: interval}
 
@@ -2721,7 +2721,7 @@ class FlaskAPITestCase(unittest.TestCase):
         alert_type = Const.ALERT_TYPE_BOT
         channel_id = 1658698044
         symbol = "BTC/USD"
-        interval = Const.TA_INTERVAL_1D
+        interval = IntervalType.DAY_1
         strategies = [Const.TA_STRATEGY_CCI_14_TREND_100]
         signals = [Const.STRONG_BUY]
         comment = "Test comments"
@@ -2771,7 +2771,7 @@ class FlaskAPITestCase(unittest.TestCase):
     def test_orders_functionality(self):
         order_type = Const.LONG
         symbol = "BTC/USD"
-        interval = Const.TA_INTERVAL_1D
+        interval = IntervalType.DAY_1
         strategies = [Const.TA_STRATEGY_CCI_14_TREND_100]
         price = 100
         quantity = 0.5

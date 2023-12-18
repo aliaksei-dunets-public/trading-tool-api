@@ -5,13 +5,13 @@ class Const:
     STOCK_EXCH_LOCAL_CURRENCY_COM = "LOCAL_CURRENCY.COM"
 
     # Intervals
-    TA_INTERVAL_5M = "5m"
-    TA_INTERVAL_15M = "15m"
-    TA_INTERVAL_30M = "30m"
-    TA_INTERVAL_1H = "1h"
-    TA_INTERVAL_4H = "4h"
-    TA_INTERVAL_1D = "1d"
-    TA_INTERVAL_1WK = "1w"
+    # TA_INTERVAL_5M = "5m"
+    # TA_INTERVAL_15M = "15m"
+    # TA_INTERVAL_30M = "30m"
+    # TA_INTERVAL_1H = "1h"
+    # TA_INTERVAL_4H = "4h"
+    # TA_INTERVAL_1D = "1d"
+    # TA_INTERVAL_1WK = "1w"
 
     # Indicators
     TA_INDICATOR_CCI = "CCI"

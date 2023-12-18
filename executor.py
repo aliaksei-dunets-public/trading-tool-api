@@ -5,22 +5,20 @@ from trading_core.handler import (
     SymbolHandler,
     TraderHandler,
     ExchangeHandler,
-    HistoryDataParam,
+    SymbolIntervalLimitModel,
     HistoryDataHandler,
     SessionModel,
     SessionHandler,
 )
 
-from trading_core.simulation import Const, SimulateOptions, Executor
 from trading_core.core import config
 from trading_core.model import (
     model,
     Symbols,
-    ParamSimulation,
-    ParamSymbolInterval,
-    ParamSymbolIntervalList,
-    ParamSymbolIntervalLimit,
-    ParamSimulationList,
+    # ParamSimulation,
+    # ParamSymbolInterval,
+    # ParamSymbolIntervalList,
+    # ParamSymbolIntervalLimit,
 )
 from trading_core.trend import TrendCCI, Indicator_CCI
 from trading_core.handler import CurrencyComApi, LocalCurrencyComApi
@@ -182,7 +180,7 @@ except Exception as err:
 ########################### Trend ###############################################
 
 # symbol = "EPAM."
-# interval = Const.TA_INTERVAL_30M
+# interval = IntervalType.MIN_30
 # strategy = Const.TA_STRATEGY_CCI_20_TREND_100
 
 # param = HistoryDataParam(
@@ -209,15 +207,6 @@ except Exception as err:
 # param = ParamSymbolIntervalLimit(
 #     symbol=symbol, interval=interval, limit=100, consistency_check=False
 # )
-# params = [
-#     ParamSymbolInterval(symbol=symbol, interval=Const.TA_INTERVAL_5M),
-#     ParamSymbolInterval(symbol=symbol, interval=Const.TA_INTERVAL_15M),
-#     ParamSymbolInterval(symbol=symbol, interval=Const.TA_INTERVAL_30M),
-#     ParamSymbolInterval(symbol=symbol, interval=Const.TA_INTERVAL_1H),
-#     ParamSymbolInterval(symbol=symbol, interval=Const.TA_INTERVAL_4H),
-#     ParamSymbolInterval(symbol=symbol, interval=Const.TA_INTERVAL_1D),
-#     ParamSymbolInterval(symbol=symbol, interval=Const.TA_INTERVAL_1WK),
-# ]
 
 # trends = Trendm
 # trend_df = TrendCCI().calculate_trends(param)
@@ -232,7 +221,7 @@ except Exception as err:
 # api.write_symbols_to_local()
 
 # symbol = 'BTC/USD'
-# interval = Const.TA_INTERVAL_1WK
+# interval = IntervalType.WEEK_1
 # limit = 500
 
 # for interval in model.get_intervals():

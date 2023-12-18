@@ -1,7 +1,7 @@
 import copy
 
 from .constants import Const
-from .core import config, logger, Symbol, SimulateOptions
+from .core import config, logger, Symbol
 from .handler import StockExchangeHandler
 
 ########################### Legacy code ####################################
@@ -21,29 +21,29 @@ class Model:
             self.__handler = StockExchangeHandler()
         return self.__handler
 
-    def get_interval_config(self, interval: str) -> dict:
-        intervals = self.get_intervals_config()
+    # def get_interval_config(self, interval: str) -> dict:
+    #     intervals = self.get_intervals_config()
 
-        for row in intervals:
-            if row[Const.INTERVAL] == interval:
-                return row
+    #     for row in intervals:
+    #         if row[Const.INTERVAL] == interval:
+    #             return row
 
-        return None
+    #     return None
 
-    def get_intervals(self, importances: list = None) -> list:
-        return [x[Const.INTERVAL] for x in self.get_intervals_config(importances)]
+    # def get_intervals(self, importances: list = None) -> list:
+    #     return [x[Const.INTERVAL] for x in self.get_intervals_config(importances)]
 
-    def get_intervals_config(self, importances: list = None) -> list:
-        intervals = []
-        interval_details = self.get_handler().get_intervals()
+    # def get_intervals_config(self, importances: list = None) -> list:
+    #     intervals = []
+    #     interval_details = self.get_handler().get_intervals()
 
-        for item in interval_details:
-            if importances and item[Const.IMPORTANCE] not in importances:
-                continue
-            else:
-                intervals.append(item)
+    #     for item in interval_details:
+    #         if importances and item[Const.IMPORTANCE] not in importances:
+    #             continue
+    #         else:
+    #             intervals.append(item)
 
-        return intervals
+    #     return intervals
 
     def get_indicators_config(self) -> list:
         return config.get_indicators_config()
@@ -145,365 +145,314 @@ class Symbols:
         return [item.code for item in symbols]
 
 
-class ParamBase:
-    @staticmethod
-    def copy_instance(obj):
-        return copy.deepcopy(obj)
+# class ParamBase:
+#     @staticmethod
+#     def copy_instance(obj):
+#         return copy.deepcopy(obj)
 
 
-class ParamSymbol(ParamBase):
-    def __init__(self, symbol: str, consistency_check: bool = True) -> None:
-        self.__symbol = symbol
-        self.__symbol_config = None
+# class ParamSymbol(ParamBase):
+#     def __init__(self, symbol: str, consistency_check: bool = True) -> None:
+#         self.__symbol = symbol
+#         self.__symbol_config = None
 
-        # If consistency check is True -> get config and validate the symbol
-        if consistency_check:
-            self.get_symbol_config()
-
-    @property
-    def symbol(self) -> str:
-        return self.__symbol
-
-    def get_symbol_config(self) -> Symbol:
-        if not self.__symbol_config:
-            self.__symbol_config = Symbols(from_buffer=True).get_symbol(self.__symbol)
-
-            if not self.__symbol_config:
-                raise Exception(f"PARAM: Symbol: {self.__symbol} doesn't exist")
-
-        return self.__symbol_config
-
-
-class ParamInterval(ParamBase):
-    def __init__(self, interval: str, consistency_check: bool = True) -> None:
-        self.__interval = interval
-        self.__interval_config = None
-
-        # If consistency check is True -> get config and validate the symbol
-        if consistency_check:
-            self.get_interval_config()
-
-    @property
-    def interval(self) -> str:
-        return self.__interval
-
-    def get_interval_config(self) -> dict:
-        if not self.__interval_config:
-            self.__interval_config = Model().get_interval_config(self.__interval)
-
-            if not self.__interval_config:
-                raise Exception(f"PARAM: Interval: {self.__interval} doesn't exist")
-
-        return self.__interval_config
-
-
-class ParamStrategy(ParamBase):
-    def __init__(self, strategy: str, consistency_check: bool = True) -> None:
-        self.__strategy = strategy
-        self.__strategy_config = None
-
-        # If consistency check is True -> get config and validate the symbol
-        if consistency_check:
-            self.get_strategy_config()
-
-    @property
-    def strategy(self) -> str:
-        return self.__strategy
-
-    def get_strategy_config(self) -> dict:
-        if not self.__strategy_config:
-            self.__strategy_config = Model().get_strategy(self.__strategy)
-
-            if not self.__strategy_config:
-                raise Exception(f"PARAM: Strategy: {self.__strategy} doesn't exist")
-
-        return self.__strategy_config
-
-
-class ParamLimit(ParamBase):
-    def __init__(self, limit: int) -> None:
-        if limit < 0:
-            raise Exception(f"PARAM: Limit: {limit} is incorrect value")
-
-        self.__limit = limit
-
-    @property
-    def limit(self) -> int:
-        return self.__limit
-
-
-# class ParamOrder(ParamBase):
-#     def __init__(self, init_balance: float, limit: int, stop_loss_rate: float = 0, take_profit_rate: float = 0, fee_rate: float = 0):
-#         self.__init_balance: float = float(init_balance)
-#         self.__limit: int = int(limit)
-#         self.__stop_loss_rate: float = float(stop_loss_rate)
-#         self.__take_profit_rate: float = float(take_profit_rate)
-#         self.__fee_rate: float = float(fee_rate)
+#         # If consistency check is True -> get config and validate the symbol
+#         if consistency_check:
+#             self.get_symbol_config()
 
 #     @property
-#     def init_balance(self) -> float:
-#         return self.__init_balance
+#     def symbol(self) -> str:
+#         return self.__symbol
+
+#     def get_symbol_config(self) -> Symbol:
+#         if not self.__symbol_config:
+#             self.__symbol_config = Symbols(from_buffer=True).get_symbol(self.__symbol)
+
+#             if not self.__symbol_config:
+#                 raise Exception(f"PARAM: Symbol: {self.__symbol} doesn't exist")
+
+#         return self.__symbol_config
+
+
+# class ParamInterval(ParamBase):
+#     def __init__(self, interval: str, consistency_check: bool = True) -> None:
+#         self.__interval = interval
+#         self.__interval_config = None
+
+#         # If consistency check is True -> get config and validate the symbol
+#         if consistency_check:
+#             self.get_interval_config()
+
+#     @property
+#     def interval(self) -> str:
+#         return self.__interval
+
+#     def get_interval_config(self) -> dict:
+#         if not self.__interval_config:
+#             self.__interval_config = Model().get_interval_config(self.__interval)
+
+#             if not self.__interval_config:
+#                 raise Exception(f"PARAM: Interval: {self.__interval} doesn't exist")
+
+#         return self.__interval_config
+
+
+# class ParamStrategy(ParamBase):
+#     def __init__(self, strategy: str, consistency_check: bool = True) -> None:
+#         self.__strategy = strategy
+#         self.__strategy_config = None
+
+#         # If consistency check is True -> get config and validate the symbol
+#         if consistency_check:
+#             self.get_strategy_config()
+
+#     @property
+#     def strategy(self) -> str:
+#         return self.__strategy
+
+#     def get_strategy_config(self) -> dict:
+#         if not self.__strategy_config:
+#             self.__strategy_config = Model().get_strategy(self.__strategy)
+
+#             if not self.__strategy_config:
+#                 raise Exception(f"PARAM: Strategy: {self.__strategy} doesn't exist")
+
+#         return self.__strategy_config
+
+
+# class ParamLimit(ParamBase):
+#     def __init__(self, limit: int) -> None:
+#         if limit < 0:
+#             raise Exception(f"PARAM: Limit: {limit} is incorrect value")
+
+#         self.__limit = limit
 
 #     @property
 #     def limit(self) -> int:
 #         return self.__limit
 
-#     @property
-#     def stop_loss_rate(self) -> float:
-#         return self.__stop_loss_rate
+# class ParamSymbolInterval(ParamSymbol, ParamInterval):
+#     def __init__(
+#         self, symbol: str, interval: str, consistency_check: bool = True
+#     ) -> None:
+#         ParamSymbol.__init__(self, symbol, consistency_check)
+#         ParamInterval.__init__(self, interval, consistency_check)
+
+
+# class ParamSymbolIntervalLimit(ParamSymbol, ParamInterval, ParamLimit):
+#     def __init__(
+#         self, symbol: str, interval: str, limit: int, consistency_check: bool = True
+#     ) -> None:
+#         ParamSymbol.__init__(self, symbol, consistency_check)
+#         ParamInterval.__init__(self, interval, consistency_check)
+#         ParamLimit.__init__(self, limit)
+
+
+# class ParamHistoryData(ParamSymbol, ParamInterval, ParamLimit):
+#     def __init__(
+#         self,
+#         symbol: str,
+#         interval: str,
+#         limit: int,
+#         from_buffer: bool,
+#         closed_bars: bool,
+#         consistency_check: bool = True,
+#     ) -> None:
+#         ParamSymbol.__init__(self, symbol, consistency_check)
+#         ParamInterval.__init__(self, interval, consistency_check)
+#         ParamLimit.__init__(self, limit)
+
+#         self.__from_buffer = from_buffer
+#         self.__closed_bars = closed_bars
 
 #     @property
-#     def take_profit_rate(self) -> float:
-#         return self.__take_profit_rate
+#     def from_buffer(self):
+#         return self.__from_buffer
 
 #     @property
-#     def fee_rate(self) -> float:
-#         return self.__fee_rate
-
-#     def get_fee_value(self) -> float:
-#         return (self.__init_balance * self.__fee_rate) / 100
-
-#     def get_stop_loss_value(self, price: float) -> float:
-#         return (price * self.__stop_loss_rate) / 100
-
-#     def get_take_profit_value(self, price: float) -> float:
-#         return (price * self.__take_profit_rate) / 100
-
-#     def get_balance(self) -> float:
-#         return self.__init_balance - self.get_fee_value()
-
-#     def set_init_balance(self, init_balance: float) -> None:
-#         self.__init_balance = init_balance
-
-#     def get_quantity(self, price: float) -> float:
-#         if price == 0:
-#             return 0
-#         else:
-#             return self.get_balance() / price
+#     def closed_bars(self):
+#         return self.__closed_bars
 
 
-class ParamSymbolInterval(ParamSymbol, ParamInterval):
-    def __init__(
-        self, symbol: str, interval: str, consistency_check: bool = True
-    ) -> None:
-        ParamSymbol.__init__(self, symbol, consistency_check)
-        ParamInterval.__init__(self, interval, consistency_check)
+# class ParamSymbolIntervalStrategy(ParamSymbolInterval, ParamStrategy):
+#     def __init__(
+#         self, symbol: str, interval: str, strategy: str, consistency_check: bool = True
+#     ) -> None:
+#         ParamSymbolInterval.__init__(self, symbol, interval, consistency_check)
+#         ParamStrategy.__init__(self, strategy, consistency_check)
 
 
-class ParamSymbolIntervalLimit(ParamSymbol, ParamInterval, ParamLimit):
-    def __init__(
-        self, symbol: str, interval: str, limit: int, consistency_check: bool = True
-    ) -> None:
-        ParamSymbol.__init__(self, symbol, consistency_check)
-        ParamInterval.__init__(self, interval, consistency_check)
-        ParamLimit.__init__(self, limit)
+# class ParamSimulation(ParamSymbolIntervalStrategy):
+#     def __init__(
+#         self,
+#         symbol: str,
+#         interval: str,
+#         strategy: str,
+#         simulation_options: SimulateOptions,
+#         consistency_check,
+#     ) -> None:
+#         ParamSymbolIntervalStrategy.__init__(
+#             self, symbol, interval, strategy, consistency_check
+#         )
+
+#         self.__simulation_options = simulation_options
+
+#     @property
+#     def simulation_options(self):
+#         return self.__simulation_options
 
 
-class ParamHistoryData(ParamSymbol, ParamInterval, ParamLimit):
-    def __init__(
-        self,
-        symbol: str,
-        interval: str,
-        limit: int,
-        from_buffer: bool,
-        closed_bars: bool,
-        consistency_check: bool = True,
-    ) -> None:
-        ParamSymbol.__init__(self, symbol, consistency_check)
-        ParamInterval.__init__(self, interval, consistency_check)
-        ParamLimit.__init__(self, limit)
+# class ParamSymbolList(ParamBase):
+#     def __init__(self, symbols: list = None) -> None:
+#         self.__symbols = []
+#         consistency_check = True
 
-        self.__from_buffer = from_buffer
-        self.__closed_bars = closed_bars
+#         if not symbols:
+#             symbols = Symbols(from_buffer=True).get_symbol_codes()
+#             consistency_check = False
 
-    @property
-    def from_buffer(self):
-        return self.__from_buffer
+#         for symbol in symbols:
+#             try:
+#                 self.__symbols.append(ParamSymbol(symbol, consistency_check))
+#             except Exception as error:
+#                 logger.error(f"PARAM: For symbol={symbol} - {error}")
+#                 continue
 
-    @property
-    def closed_bars(self):
-        return self.__closed_bars
+#     @property
+#     def symbols(self) -> list[ParamSymbol]:
+#         return self.__symbols
 
 
-class ParamSymbolIntervalStrategy(ParamSymbolInterval, ParamStrategy):
-    def __init__(
-        self, symbol: str, interval: str, strategy: str, consistency_check: bool = True
-    ) -> None:
-        ParamSymbolInterval.__init__(self, symbol, interval, consistency_check)
-        ParamStrategy.__init__(self, strategy, consistency_check)
+# class ParamIntervalList(ParamBase):
+#     def __init__(self, intervals: list = None) -> None:
+#         self.__intervals = []
+#         consistency_check = True
+
+#         if not intervals:
+#             intervals = model.get_intervals()
+#             consistency_check = False
+
+#         for interval in intervals:
+#             try:
+#                 self.__intervals.append(ParamInterval(interval, consistency_check))
+#             except Exception as error:
+#                 logger.error(f"PARAM: For interval={interval} - {error}")
+#                 continue
+
+#     @property
+#     def intervals(self) -> list[ParamInterval]:
+#         return self.__intervals
 
 
-class ParamSimulation(ParamSymbolIntervalStrategy):
-    def __init__(
-        self,
-        symbol: str,
-        interval: str,
-        strategy: str,
-        simulation_options: SimulateOptions,
-        consistency_check,
-    ) -> None:
-        ParamSymbolIntervalStrategy.__init__(
-            self, symbol, interval, strategy, consistency_check
-        )
+# class ParamStrategyList(ParamBase):
+#     def __init__(self, strategies: list = None) -> None:
+#         self.__strategies = []
+#         consistency_check = True
 
-        self.__simulation_options = simulation_options
+#         if not strategies:
+#             strategies = model.get_sorted_strategy_codes()
+#             consistency_check = False
 
-    @property
-    def simulation_options(self):
-        return self.__simulation_options
+#         for strategy in strategies:
+#             try:
+#                 self.__strategies.append(ParamStrategy(strategy, consistency_check))
+#             except Exception as error:
+#                 logger.error(f"PARAM: For strategy={strategy} - {error}")
+#                 continue
 
-
-class ParamSymbolList(ParamBase):
-    def __init__(self, symbols: list = None) -> None:
-        self.__symbols = []
-        consistency_check = True
-
-        if not symbols:
-            symbols = Symbols(from_buffer=True).get_symbol_codes()
-            consistency_check = False
-
-        for symbol in symbols:
-            try:
-                self.__symbols.append(ParamSymbol(symbol, consistency_check))
-            except Exception as error:
-                logger.error(f"PARAM: For symbol={symbol} - {error}")
-                continue
-
-    @property
-    def symbols(self) -> list[ParamSymbol]:
-        return self.__symbols
+#     @property
+#     def strategies(self) -> list[ParamStrategy]:
+#         return self.__strategies
 
 
-class ParamIntervalList(ParamBase):
-    def __init__(self, intervals: list = None) -> None:
-        self.__intervals = []
-        consistency_check = True
+# class ParamSymbolIntervalList(ParamSymbolList, ParamIntervalList):
+#     def __init__(self, symbols: list = None, intervals: list = None) -> None:
+#         ParamSymbolList.__init__(self, symbols)
+#         ParamIntervalList.__init__(self, intervals)
 
-        if not intervals:
-            intervals = model.get_intervals()
-            consistency_check = False
+#     def get_param_symbol_interval_list(self) -> list[ParamSymbolInterval]:
+#         params = []
 
-        for interval in intervals:
-            try:
-                self.__intervals.append(ParamInterval(interval, consistency_check))
-            except Exception as error:
-                logger.error(f"PARAM: For interval={interval} - {error}")
-                continue
+#         for symbol in self.symbols:
+#             for interval in self.intervals:
+#                 params.append(
+#                     ParamSymbolInterval(
+#                         symbol=symbol.symbol,
+#                         interval=interval.interval,
+#                         consistency_check=False,
+#                     )
+#                 )
 
-    @property
-    def intervals(self) -> list[ParamInterval]:
-        return self.__intervals
-
-
-class ParamStrategyList(ParamBase):
-    def __init__(self, strategies: list = None) -> None:
-        self.__strategies = []
-        consistency_check = True
-
-        if not strategies:
-            strategies = model.get_sorted_strategy_codes()
-            consistency_check = False
-
-        for strategy in strategies:
-            try:
-                self.__strategies.append(ParamStrategy(strategy, consistency_check))
-            except Exception as error:
-                logger.error(f"PARAM: For strategy={strategy} - {error}")
-                continue
-
-    @property
-    def strategies(self) -> list[ParamStrategy]:
-        return self.__strategies
+#         return params
 
 
-class ParamSymbolIntervalList(ParamSymbolList, ParamIntervalList):
-    def __init__(self, symbols: list = None, intervals: list = None) -> None:
-        ParamSymbolList.__init__(self, symbols)
-        ParamIntervalList.__init__(self, intervals)
+# class ParamSymbolIntervalStrategyList(ParamSymbolIntervalList, ParamStrategyList):
+#     def __init__(
+#         self, symbols: list = None, intervals: list = None, strategies: list = None
+#     ) -> None:
+#         ParamSymbolIntervalList.__init__(self, symbols, intervals)
+#         ParamStrategyList.__init__(self, strategies)
 
-    def get_param_symbol_interval_list(self) -> list[ParamSymbolInterval]:
-        params = []
+#     def get_param_symbol_interval_strategy_list(
+#         self,
+#     ) -> list[ParamSymbolIntervalStrategy]:
+#         params = []
 
-        for symbol in self.symbols:
-            for interval in self.intervals:
-                params.append(
-                    ParamSymbolInterval(
-                        symbol=symbol.symbol,
-                        interval=interval.interval,
-                        consistency_check=False,
-                    )
-                )
+#         for symbol in self.symbols:
+#             for interval in self.intervals:
+#                 for strategy in self.strategies:
+#                     params.append(
+#                         ParamSymbolIntervalStrategy(
+#                             symbol=symbol.symbol,
+#                             interval=interval.interval,
+#                             strategy=strategy.strategy,
+#                             consistency_check=False,
+#                         )
+#                     )
 
-        return params
-
-
-class ParamSymbolIntervalStrategyList(ParamSymbolIntervalList, ParamStrategyList):
-    def __init__(
-        self, symbols: list = None, intervals: list = None, strategies: list = None
-    ) -> None:
-        ParamSymbolIntervalList.__init__(self, symbols, intervals)
-        ParamStrategyList.__init__(self, strategies)
-
-    def get_param_symbol_interval_strategy_list(
-        self,
-    ) -> list[ParamSymbolIntervalStrategy]:
-        params = []
-
-        for symbol in self.symbols:
-            for interval in self.intervals:
-                for strategy in self.strategies:
-                    params.append(
-                        ParamSymbolIntervalStrategy(
-                            symbol=symbol.symbol,
-                            interval=interval.interval,
-                            strategy=strategy.strategy,
-                            consistency_check=False,
-                        )
-                    )
-
-        return params
+#         return params
 
 
-class ParamSimulationList(ParamSymbolIntervalStrategyList):
-    def __init__(
-        self,
-        symbols: list = None,
-        intervals: list = None,
-        strategies: list = None,
-        simulation_options_list: list[SimulateOptions] = None,
-    ) -> None:
-        ParamSymbolIntervalStrategyList.__init__(self, symbols, intervals, strategies)
+# class ParamSimulationList(ParamSymbolIntervalStrategyList):
+#     def __init__(
+#         self,
+#         symbols: list = None,
+#         intervals: list = None,
+#         strategies: list = None,
+#         simulation_options_list: list[SimulateOptions] = None,
+#     ) -> None:
+#         ParamSymbolIntervalStrategyList.__init__(self, symbols, intervals, strategies)
 
-        if not simulation_options_list:
-            for item in self.intervals:
-                simulation_options_list = config.get_default_simulation_options(
-                    item.interval
-                )
+#         if not simulation_options_list:
+#             for item in self.intervals:
+#                 simulation_options_list = config.get_default_simulation_options(
+#                     item.interval
+#                 )
 
-        self.__simulation_options_list = simulation_options_list
+#         self.__simulation_options_list = simulation_options_list
 
-    @property
-    def simulation_options_list(self):
-        return self.__simulation_options_list
+#     @property
+#     def simulation_options_list(self):
+#         return self.__simulation_options_list
 
-    def get_param_simulation_list(self) -> list[ParamSimulation]:
-        params = []
+#     def get_param_simulation_list(self) -> list[ParamSimulation]:
+#         params = []
 
-        for symbol in self.symbols:
-            for interval in self.intervals:
-                for strategy in self.strategies:
-                    for option in self.simulation_options_list:
-                        params.append(
-                            ParamSimulation(
-                                symbol=symbol.symbol,
-                                interval=interval.interval,
-                                strategy=strategy.strategy,
-                                simulation_options=copy.deepcopy(option),
-                                consistency_check=False,
-                            )
-                        )
+#         for symbol in self.symbols:
+#             for interval in self.intervals:
+#                 for strategy in self.strategies:
+#                     for option in self.simulation_options_list:
+#                         params.append(
+#                             ParamSimulation(
+#                                 symbol=symbol.symbol,
+#                                 interval=interval.interval,
+#                                 strategy=strategy.strategy,
+#                                 simulation_options=copy.deepcopy(option),
+#                                 consistency_check=False,
+#                             )
+#                         )
 
-        return params
+#         return params
 
 
 model = Model()

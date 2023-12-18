@@ -12,12 +12,7 @@ import base64
 from .core import config
 
 
-class PriceType(str, Enum):
-    BID = "bid"
-    ASK = "ask"
-
-
-class Interval(str, Enum):
+class IntervalType(str, Enum):
     MIN_1 = "1m"  # 1
     MIN_3 = "3m"  # 3
     MIN_5 = "5m"  # 5
@@ -33,6 +28,15 @@ class Interval(str, Enum):
     MONTH_1 = "1month"
 
 
+class StrategyType(str, Enum):
+    CCI_14_TREND_100 = "CCI_14_TREND_100"
+    CCI_14_BASED_TREND_100 = "CCI_14_BASED_TREND_100"
+    CCI_20_TREND_100 = "CCI_20_TREND_100"
+    CCI_20_BASED_TREND_100 = "CCI_20_BASED_TREND_100"
+    CCI_20_100_TREND_UP_LEVEL = "CCI_20_100_TREND_UP_LEVEL"
+    CCI_50_TREND_0 = "CCI_50_TREND_0"
+
+
 class Importance(str, Enum):
     LOW = "Low"
     MEDIUM = "Medium"
@@ -42,6 +46,11 @@ class Importance(str, Enum):
 class SymbolType(str, Enum):
     leverage = "LEVERAGE"
     spot = "SPOT"
+
+
+class PriceType(str, Enum):
+    BID = "bid"
+    ASK = "ask"
 
 
 class ChannelType(str, Enum):
@@ -101,15 +110,6 @@ class SignalType(str, Enum):
     NONE = ""
 
 
-class StrategyType(str, Enum):
-    CCI_14_TREND_100 = "CCI_14_TREND_100"
-    CCI_14_BASED_TREND_100 = "CCI_14_BASED_TREND_100"
-    CCI_20_TREND_100 = "CCI_20_TREND_100"
-    CCI_20_BASED_TREND_100 = "CCI_20_BASED_TREND_100"
-    CCI_20_100_TREND_UP_LEVEL = "CCI_20_100_TREND_UP_LEVEL"
-    CCI_50_TREND_0 = "CCI_50_TREND_0"
-
-
 class SymbolStatus(str, Enum):
     open = "OPEN"
     close = "CLOSE"
@@ -142,6 +142,40 @@ class ExchangeId(str, Enum):
     dzengi_com = "DZENGI_COM"
 
 
+################## ID models #######################
+class SymbolIdModel(BaseModel):
+    symbol: str
+
+
+class IntervalIdModel(BaseModel):
+    interval: IntervalType
+
+
+class StrategyIdModel(BaseModel):
+    strategy: str
+
+
+class SymbolIntervalModel(SymbolIdModel, IntervalIdModel):
+    pass
+
+
+class SymbolIntervalStrategyModel(SymbolIntervalModel, StrategyIdModel):
+    pass
+
+
+class SymbolIntervalLimitModel(SymbolIntervalModel):
+    limit: int
+
+
+################## ID models #######################
+
+
+class IntervalModel(IntervalIdModel):
+    name: str
+    order: int
+    importance: Importance
+
+
 class CandelBarModel(BaseModel):
     date_time: datetime
     open: float
@@ -149,15 +183,6 @@ class CandelBarModel(BaseModel):
     low: float
     close: float
     volume: float
-
-
-class SignalModel(CandelBarModel):
-    strategy: StrategyType
-    signal: SignalType = ""
-
-
-class SymbolIdModel(BaseModel):
-    symbol: str
 
 
 class SymbolModel(SymbolIdModel):
@@ -177,30 +202,9 @@ class SymbolModel(SymbolIdModel):
         return descr
 
 
-class IntervalIdModel(BaseModel):
-    interval: Interval
-
-
-class IntervalModel(IntervalIdModel):
-    name: str
-    order: int
-    importance: Importance
-
-
-class StrategyIdModel(BaseModel):
-    strategy: str
-
-
-class SymbolIntervalIdModel(SymbolIdModel, IntervalIdModel):
-    pass
-
-
-class SymbolIntervalStrategyModel(SymbolIntervalIdModel, StrategyIdModel):
-    pass
-
-
-class HistoryDataParam(SymbolIntervalIdModel):
-    limit: int
+class SignalModel(CandelBarModel):
+    strategy: StrategyType
+    signal: SignalType = ""
 
 
 class IdentifierModel(BaseModel):

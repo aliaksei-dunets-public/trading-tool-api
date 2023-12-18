@@ -1,8 +1,9 @@
 import pandas as pd
 
 from .constants import Const
-from .model import model, ParamSymbolInterval, ParamSymbolIntervalLimit
+
 from .indicator import Indicator_CCI
+from .common import SymbolIntervalLimitModel
 
 GLOBAL_TREND_COUNT = 10
 # LOCAL_TREND_COUNT = 8
@@ -24,12 +25,12 @@ class TrendBase:
 
 
 class TrendCCI(TrendBase):
-    def calculate_trends(self, param: ParamSymbolIntervalLimit):
+    def calculate_trends(self, param: SymbolIntervalLimitModel):
         trends = []
 
         limit = param.limit + GLOBAL_TREND_COUNT - 1
 
-        param_new = ParamSymbolIntervalLimit(
+        param_new = SymbolIntervalLimitModel(
             symbol=param.symbol,
             interval=param.interval,
             limit=limit,
@@ -55,7 +56,7 @@ class TrendCCI(TrendBase):
 
         return df
 
-    def detect_trends(self, params: list[ParamSymbolInterval]):
+    def detect_trends(self, params: list[SymbolIntervalLimitModel]):
         trends = []
 
         for param in params:
@@ -63,11 +64,11 @@ class TrendCCI(TrendBase):
 
         return trends
 
-    def detect_trend(self, param: ParamSymbolInterval):
+    def detect_trend(self, param: SymbolIntervalLimitModel):
         length_cci_50 = 50
         limit = length_cci_50 + GLOBAL_TREND_COUNT + 1
 
-        param_with_limit = ParamSymbolIntervalLimit(
+        param_with_limit = SymbolIntervalLimitModel(
             param.symbol, interval=param.interval, limit=limit, consistency_check=False
         )
 
@@ -85,7 +86,7 @@ class TrendCCI(TrendBase):
         }
 
     def __get_cci_data(
-        self, length: int, param: ParamSymbolIntervalLimit
+        self, length: int, param: SymbolIntervalLimitModel
     ) -> pd.DataFrame:
         cci = Indicator_CCI(length)
         df_cci = cci.get_indicator(

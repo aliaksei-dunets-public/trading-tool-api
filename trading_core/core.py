@@ -51,46 +51,46 @@ class Symbol:
         }
 
 
-class CandelBar:
-    def __init__(
-        self,
-        date_time: datetime,
-        open: float,
-        high: float,
-        low: float,
-        close: float,
-        volume: float,
-    ) -> None:
-        self.date_time = date_time
-        self.open = open
-        self.high = high
-        self.low = low
-        self.close = close
-        self.volume = volume
+# class CandelBar:
+#     def __init__(
+#         self,
+#         date_time: datetime,
+#         open: float,
+#         high: float,
+#         low: float,
+#         close: float,
+#         volume: float,
+#     ) -> None:
+#         self.date_time = date_time
+#         self.open = open
+#         self.high = high
+#         self.low = low
+#         self.close = close
+#         self.volume = volume
 
 
-class CandelBarSignal(CandelBar):
-    def __init__(
-        self,
-        date_time: datetime,
-        open: float,
-        high: float,
-        low: float,
-        close: float,
-        volume: float,
-        signal: str,
-    ) -> None:
-        CandelBar.__init__(
-            self,
-            date_time=date_time,
-            open=open,
-            high=high,
-            low=low,
-            close=close,
-            volume=volume,
-        )
+# class CandelBarSignal(CandelBar):
+#     def __init__(
+#         self,
+#         date_time: datetime,
+#         open: float,
+#         high: float,
+#         low: float,
+#         close: float,
+#         volume: float,
+#         signal: str,
+#     ) -> None:
+#         CandelBar.__init__(
+#             self,
+#             date_time=date_time,
+#             open=open,
+#             high=high,
+#             low=low,
+#             close=close,
+#             volume=volume,
+#         )
 
-        self.signal = signal
+#         self.signal = signal
 
 
 class HistoryData:
@@ -117,34 +117,34 @@ class HistoryData:
         return self.__endDateTime
 
 
-class SimulateOptions:
-    def __init__(self, init_balance, limit, stop_loss_rate, take_profit_rate, fee_rate):
-        self.init_balance: float = float(init_balance)
-        self.limit: int = int(limit)
-        self.stop_loss_rate: float = float(stop_loss_rate)
-        self.take_profit_rate: float = float(take_profit_rate)
-        self.fee_rate: float = float(fee_rate)
+# class SimulateOptions:
+#     def __init__(self, init_balance, limit, stop_loss_rate, take_profit_rate, fee_rate):
+#         self.init_balance: float = float(init_balance)
+#         self.limit: int = int(limit)
+#         self.stop_loss_rate: float = float(stop_loss_rate)
+#         self.take_profit_rate: float = float(take_profit_rate)
+#         self.fee_rate: float = float(fee_rate)
 
-    def get_fee_value(self) -> float:
-        return (self.init_balance * self.fee_rate) / 100
+#     def get_fee_value(self) -> float:
+#         return (self.init_balance * self.fee_rate) / 100
 
-    def get_stop_loss_value(self, price: float) -> float:
-        return (price * self.stop_loss_rate) / 100
+#     def get_stop_loss_value(self, price: float) -> float:
+#         return (price * self.stop_loss_rate) / 100
 
-    def get_take_profit_value(self, price: float) -> float:
-        return (price * self.take_profit_rate) / 100
+#     def get_take_profit_value(self, price: float) -> float:
+#         return (price * self.take_profit_rate) / 100
 
-    def get_balance(self) -> float:
-        return self.init_balance - self.get_fee_value()
+#     def get_balance(self) -> float:
+#         return self.init_balance - self.get_fee_value()
 
-    def set_init_balance(self, init_balance: float) -> None:
-        self.init_balance = init_balance
+#     def set_init_balance(self, init_balance: float) -> None:
+#         self.init_balance = init_balance
 
-    def get_quantity(self, price: float) -> float:
-        if price == 0:
-            return 0
-        else:
-            return self.get_balance() / price
+#     def get_quantity(self, price: float) -> float:
+#         if price == 0:
+#             return 0
+#         else:
+#             return self.get_balance() / price
 
 
 class Signal:
@@ -451,62 +451,62 @@ class Config:
 
         return strategies
 
-    def get_default_simulation_options(self, interval: str) -> list[SimulateOptions]:
-        init_balance = 100
-        # Strategy ofset
-        limit = 300 + 50
-        stop_loss_rate = 0
-        take_profit_rate = 0
-        fee_rate = 3
-        rate_step_1 = 0
-        rate_step_2 = 0
+    # def get_default_simulation_options(self, interval: str) -> list[SimulateOptions]:
+    #     init_balance = 100
+    #     # Strategy ofset
+    #     limit = 300 + 50
+    #     stop_loss_rate = 0
+    #     take_profit_rate = 0
+    #     fee_rate = 3
+    #     rate_step_1 = 0
+    #     rate_step_2 = 0
 
-        if interval == Const.TA_INTERVAL_5M:
-            rate_step_1 = 0.5
-            rate_step_2 = 1.5
-        if interval == Const.TA_INTERVAL_15M:
-            rate_step_1 = 1
-            rate_step_2 = 3
-        if interval == Const.TA_INTERVAL_30M:
-            rate_step_1 = 2
-            rate_step_2 = 6
-        if interval == Const.TA_INTERVAL_1H:
-            rate_step_1 = 3
-            rate_step_2 = 9
-        if interval == Const.TA_INTERVAL_4H:
-            rate_step_1 = 5
-            rate_step_2 = 10
-        if interval == Const.TA_INTERVAL_1D:
-            rate_step_1 = 10
-            rate_step_2 = 20
-        if interval == Const.TA_INTERVAL_1WK:
-            rate_step_1 = 10
-            rate_step_2 = 20
-            limit = 100 + 50
+    #     if interval == IntervalType.MIN_1:
+    #         rate_step_1 = 0.5
+    #         rate_step_2 = 1.5
+    #     if interval == IntervalType.MIN_15:
+    #         rate_step_1 = 1
+    #         rate_step_2 = 3
+    #     if interval == IntervalType.MIN_30:
+    #         rate_step_1 = 2
+    #         rate_step_2 = 6
+    #     if interval == IntervalType.HOUR_1:
+    #         rate_step_1 = 3
+    #         rate_step_2 = 9
+    #     if interval == IntervalType.HOUR_4:
+    #         rate_step_1 = 5
+    #         rate_step_2 = 10
+    #     if interval == IntervalType.DAY_1:
+    #         rate_step_1 = 10
+    #         rate_step_2 = 20
+    #     if interval == IntervalType.WEEK_1:
+    #         rate_step_1 = 10
+    #         rate_step_2 = 20
+    #         limit = 100 + 50
 
-        return [
-            SimulateOptions(
-                init_balance=init_balance,
-                limit=limit,
-                stop_loss_rate=stop_loss_rate,
-                take_profit_rate=take_profit_rate,
-                fee_rate=fee_rate,
-            ),
-            SimulateOptions(
-                init_balance=init_balance,
-                limit=limit,
-                stop_loss_rate=stop_loss_rate + rate_step_1,
-                take_profit_rate=take_profit_rate + (rate_step_1 * 3),
-                fee_rate=fee_rate,
-            ),
-            SimulateOptions(
-                init_balance=init_balance,
-                limit=limit,
-                stop_loss_rate=stop_loss_rate + rate_step_2,
-                take_profit_rate=take_profit_rate + (rate_step_2 * 3),
-                fee_rate=fee_rate,
-            ),
-        ]
+    #     return [
+    #         SimulateOptions(
+    #             init_balance=init_balance,
+    #             limit=limit,
+    #             stop_loss_rate=stop_loss_rate,
+    #             take_profit_rate=take_profit_rate,
+    #             fee_rate=fee_rate,
+    #         ),
+    #         SimulateOptions(
+    #             init_balance=init_balance,
+    #             limit=limit,
+    #             stop_loss_rate=stop_loss_rate + rate_step_1,
+    #             take_profit_rate=take_profit_rate + (rate_step_1 * 3),
+    #             fee_rate=fee_rate,
+    #         ),
+    #         SimulateOptions(
+    #             init_balance=init_balance,
+    #             limit=limit,
+    #             stop_loss_rate=stop_loss_rate + rate_step_2,
+    #             take_profit_rate=take_profit_rate + (rate_step_2 * 3),
+    #             fee_rate=fee_rate,
+    #         ),
+    #     ]
 
 
 config = Config()
