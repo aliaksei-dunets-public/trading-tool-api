@@ -2,7 +2,7 @@ from enum import Enum
 from bson import ObjectId
 from datetime import datetime, timedelta
 from pydantic import BaseModel, EmailStr, Field, validator
-
+import pandas as pd
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
@@ -26,6 +26,10 @@ class IntervalType(str, Enum):
     DAY_1 = "1d"
     WEEK_1 = "1w"
     MONTH_1 = "1month"
+
+
+class IndicatorType(str, Enum):
+    CCI = "CCI"
 
 
 class StrategyType(str, Enum):
@@ -151,8 +155,18 @@ ExchangeId.bybit_com.__doc__ = "ByBit.com"
 
 
 ################## ID models #######################
+class TraderIdModel(BaseModel):
+    trader_id: str
+
+
 class SymbolIdModel(BaseModel):
     symbol: str
+
+    @validator("symbol")
+    def check_symbol(cls, value):
+        if not value or value == "null":
+            raise ValueError("The symbol is missed")
+        return value
 
 
 class IntervalIdModel(BaseModel):
@@ -160,7 +174,7 @@ class IntervalIdModel(BaseModel):
 
 
 class StrategyIdModel(BaseModel):
-    strategy: str
+    strategy: StrategyType
 
 
 class SymbolIntervalModel(SymbolIdModel, IntervalIdModel):
@@ -175,6 +189,53 @@ class SymbolIntervalLimitModel(SymbolIntervalModel):
     limit: int
 
 
+class SymbolIntervalStrategyLimitModel(SymbolIntervalLimitModel, StrategyIdModel):
+    pass
+
+
+class TraderSymbolIntervalLimitModel(TraderIdModel, SymbolIntervalLimitModel):
+    pass
+
+
+class TraderSymbolIntervalStrategyLimitModel(
+    TraderIdModel, SymbolIntervalStrategyLimitModel
+):
+    pass
+
+
+class HistoryDataOptionsModel(BaseModel):
+    from_buffer: bool = True
+    closed_bars: bool = False
+
+    @validator("from_buffer", pre=True, always=True)
+    def convert_from_buffer(cls, value):
+        return cls.convert_to_bool(value)
+
+    @validator("closed_bars", pre=True, always=True)
+    def convert_closed_bars(cls, value):
+        return cls.convert_to_bool(value)
+
+    def convert_to_bool(value):
+        if type(value) == bool:
+            return value
+        elif type(value) == str:
+            return bool(value.lower() == "true")
+
+
+class StrategyParamModel(
+    TraderSymbolIntervalStrategyLimitModel, HistoryDataOptionsModel
+):
+    pass
+
+
+class IndicatorParamModel(TraderSymbolIntervalLimitModel, HistoryDataOptionsModel):
+    pass
+
+
+class HistoryDataParamModel(SymbolIntervalLimitModel, HistoryDataOptionsModel):
+    pass
+
+
 ################## ID models #######################
 
 
@@ -182,6 +243,30 @@ class IntervalModel(IntervalIdModel):
     name: str
     order: int
     importance: Importance
+
+
+class StrategyConfigModel(StrategyIdModel):
+    name: str
+    length: int = 14
+    miv_value: float
+    max_value: float
+
+
+class HistoryDataModel(SymbolIntervalLimitModel):
+    data: pd.DataFrame
+    end_date_time: datetime = None
+
+    def print_model(self):
+        return {"symbol": self.symbol, "interval": self.interval, "limit": self.limit}
+
+    @validator("end_date_time", pre=True, always=True)
+    def get_end_date_time(cls, end_date_time, values):
+        end_date_time = values.get("data").index[-1]
+        return end_date_time
+
+    class Config:
+        # This is a workaround for DataFrame type
+        arbitrary_types_allowed = True
 
 
 class CandelBarModel(BaseModel):

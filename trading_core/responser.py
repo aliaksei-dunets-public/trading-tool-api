@@ -15,16 +15,17 @@ from email.mime.text import MIMEText
 
 
 from .constants import Const
-from .core import config, logger, runtime_buffer, Symbol, Signal
-from .model import model, Symbols
-from .strategy import StrategyFactory, SignalFactory
+from .core import config, logger
+from .strategy import StrategyFactory
 from .mongodb import MongoJobs, MongoAlerts, MongoOrders, MongoSimulations
-from .handler import ExchangeHandler, SymbolHandler
+from .handler import ExchangeHandler
 from .trend import TrendCCI
 
 from trading_core.common import (
     ExchangeId,
     IntervalType,
+    HistoryDataParamModel,
+    StrategyParamModel,
     SymbolIntervalLimitModel,
     BaseModel,
     UserModel,
@@ -38,6 +39,7 @@ from trading_core.common import (
     OrderOpenModel,
 )
 from trading_core.handler import (
+    StrategyHandler,
     UserHandler,
     TraderHandler,
     SessionHandler,
@@ -79,15 +81,8 @@ def job_func_initialise_runtime_data():
     if config.get_config_value(Const.CONFIG_DEBUG_LOG):
         logger.info(f"JOB: {Const.JOB_TYPE_INIT} - Refresh runtime buffer")
 
-    runtime_buffer.clearSymbolsBuffer()
-    runtime_buffer.clearTimeframeBuffer()
-    runtime_buffer.clearHistoryDataBuffer()
-    runtime_buffer.clear_signal_buffer()
-
-    model.get_handler().getSymbols(from_buffer=False)
-
     buffer_runtime_handler.clear_buffer()
-    buffer_runtime_handler.get_symbol_handler().get_symbols()
+    # buffer_runtime_handler.get_symbol_handler().get_symbols()
 
 
 def job_func_send_bot_notification(interval):
@@ -208,10 +203,7 @@ class ResponserBase:
     def get_param_bool(self, param_value):
         return bool(param_value.lower() == "true")
 
-    def get_symbol(self, code: str) -> Symbol:
-        return Symbols(from_buffer=True).get_symbol(code)
-
-    def get_symbol_list(**kwargs) -> list[Symbol]:
+    def get_symbol_list(**kwargs) -> list:
         symbol_handler = buffer_runtime_handler.get_symbol_handler()
 
         return symbol_handler.get_symbol_list(**kwargs)
@@ -223,46 +215,21 @@ class ResponserBase:
             trader_id=trader_id, user_id=user_id
         ).get_interval_models(importances)
 
-    def get_indicators(self) -> list:
-        return model.get_indicators_config()
-
     def get_strategies(self) -> list:
-        return model.get_strategies()
+        return StrategyHandler.get_strategy_config_list_vh()
 
     def get_history_data(
-        self,
-        symbol: str,
-        interval: str,
-        limit: int,
-        from_buffer: bool,
-        closed_bars: bool,
+        self, trader_id: str, param: HistoryDataParamModel
     ) -> pd.DataFrame:
-        history_data_inst = model.get_handler().getHistoryData(
-            symbol=symbol,
-            interval=interval,
-            limit=limit,
-            from_buffer=from_buffer,
-            closed_bars=closed_bars,
+        return (
+            buffer_runtime_handler.get_history_data_handler(trader_id)
+            .get_history_data(param)
+            .data
         )
-        return history_data_inst.getDataFrame()
 
-    def get_strategy_data(
-        self,
-        code: str,
-        symbol: str,
-        interval: str,
-        limit: int,
-        from_buffer: bool,
-        closed_bars: bool,
-    ) -> pd.DataFrame:
-        strategy_inst = StrategyFactory(code)
-        return strategy_inst.get_strategy_data(
-            symbol=symbol,
-            interval=interval,
-            limit=limit,
-            from_buffer=from_buffer,
-            closed_bars=closed_bars,
-        )
+    def get_strategy_data(self, param: StrategyParamModel) -> pd.DataFrame:
+        strategy_inst = StrategyFactory(param.strategy)
+        return strategy_inst.get_strategy_data(param)
 
     def get_signals(
         self,
@@ -271,14 +238,15 @@ class ResponserBase:
         strategies: list,
         signals_config: list,
         closed_bars: bool,
-    ) -> list[Signal]:
-        return SignalFactory().get_signals(
-            symbols=symbols,
-            intervals=intervals,
-            strategies=strategies,
-            signals_config=signals_config,
-            closed_bars=closed_bars,
-        )
+    ) -> list:
+        pass
+        # return SignalFactory().get_signals(
+        #     symbols=symbols,
+        #     intervals=intervals,
+        #     strategies=strategies,
+        #     signals_config=signals_config,
+        #     closed_bars=closed_bars,
+        # )
 
     def create_job(self, job_type: str, interval: str) -> str:
         return JobScheduler().create_job(job_type=job_type, interval=interval)
@@ -377,14 +345,6 @@ class ResponserBase:
 
 class ResponserWeb(ResponserBase):
     @decorator_json
-    def get_symbol(self, code: str) -> json:
-        symbol = super().get_symbol(code)
-        if symbol:
-            return symbol
-        else:
-            raise Exception(f"Symbol: {code} can't be detected")
-
-    @decorator_json
     def get_symbol_list(*args, **kwargs) -> json:
         symbol_handler = buffer_runtime_handler.get_symbol_handler(
             trader_id=kwargs.get(Const.DB_TRADER_ID)
@@ -400,48 +360,16 @@ class ResponserWeb(ResponserBase):
         )
 
     @decorator_json
-    def get_indicators(self) -> json:
-        return super().get_indicators()
-
-    @decorator_json
     def get_strategies(self) -> json:
         return super().get_strategies()
 
     @decorator_json
-    def get_history_data(
-        self,
-        symbol: str,
-        interval: str,
-        limit: int,
-        from_buffer: bool,
-        closed_bars: bool,
-    ) -> json:
-        return super().get_history_data(
-            symbol=symbol,
-            interval=interval,
-            limit=limit,
-            from_buffer=from_buffer,
-            closed_bars=closed_bars,
-        )
+    def get_history_data(self, trader_id: str, param: HistoryDataParamModel) -> json:
+        return super().get_history_data(trader_id=trader_id, param=param)
 
     @decorator_json
-    def get_strategy_data(
-        self,
-        code: str,
-        symbol: str,
-        interval: str,
-        limit: int,
-        from_buffer: bool,
-        closed_bars: bool,
-    ) -> json:
-        return super().get_strategy_data(
-            code=code,
-            symbol=symbol,
-            interval=interval,
-            limit=limit,
-            from_buffer=from_buffer,
-            closed_bars=closed_bars,
-        )
+    def get_strategy_data(self, param: StrategyParamModel) -> json:
+        return super().get_strategy_data(param)
 
     @decorator_json
     def get_signals(
@@ -586,28 +514,29 @@ class ResponserWeb(ResponserBase):
 
     @decorator_json
     def get_dashboard(self, symbol: str):
-        response = {}
+        pass
+        # response = {}
 
-        response["symbol"] = (
-            Symbols(from_buffer=True).get_symbol(code=symbol).get_symbol_json()
-        )
-        response["history_data"] = []
-        response["strategy_data"] = []
-        response["signals"] = []
-        response["trends"] = []
+        # response["symbol"] = (
+        #     Symbols(from_buffer=True).get_symbol(code=symbol).get_symbol_json()
+        # )
+        # response["history_data"] = []
+        # response["strategy_data"] = []
+        # response["signals"] = []
+        # response["trends"] = []
 
-        signals_list = super().get_signals(
-            symbols=[symbol],
-            intervals=[],
-            strategies=[],
-            signals_config=[Const.STRONG_BUY, Const.STRONG_SELL],
-            closed_bars=True,
-        )
+        # signals_list = super().get_signals(
+        #     symbols=[symbol],
+        #     intervals=[],
+        #     strategies=[],
+        #     signals_config=[Const.STRONG_BUY, Const.STRONG_SELL],
+        #     closed_bars=True,
+        # )
 
-        for signal_inst in signals_list:
-            response["signals"].append(signal_inst.get_signal_dict())
+        # for signal_inst in signals_list:
+        #     response["signals"].append(signal_inst.get_signal_dict())
 
-        return response
+        # return response
 
     @decorator_json
     def get_user(self, id: str) -> json:
@@ -1013,7 +942,7 @@ class JobScheduler:
                 Const.DATETIME: "",
             }
 
-            job = runtime_buffer.get_job_from_buffer(job_id)
+            job = buffer_runtime_handler.get_job_handler().get_buffer(key=job_id)
             if job:
                 job_details[Const.DATETIME] = job.next_run_time
 
@@ -1048,14 +977,14 @@ class JobScheduler:
 
     def deactivate_job(self, job_id: str) -> bool:
         self.__scheduler.remove_job(job_id)
-        runtime_buffer.remove_job_from_buffer(job_id)
+        buffer_runtime_handler.get_job_handler().remove_from_buffer(key=job_id)
 
         return self.__db_inst.deactivate_job(job_id)
 
     def remove_job(self, job_id: str) -> bool:
         try:
             self.__scheduler.remove_job(job_id)
-            runtime_buffer.remove_job_from_buffer(job_id)
+            buffer_runtime_handler.get_job_handler().remove_from_buffer(key=job_id)
             return self.__db_inst.delete_job(job_id)
         except JobLookupError as error:
             logger.error(f"JOB: Error during remove job: {job_id} - {error}")
@@ -1105,7 +1034,7 @@ class JobScheduler:
             raise Exception(f"Job type {job_type} can't be detected")
 
         # Add job to the runtime buffer
-        runtime_buffer.set_job_to_buffer(job)
+        buffer_runtime_handler.get_job_handler().set_buffer(key=job.id, data=job)
 
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
             logger.info(

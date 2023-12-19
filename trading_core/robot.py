@@ -391,11 +391,18 @@ class HistorySimulatorManager(TraderBase):
     def run(self, **kwargs):
         logger.info(f"{self.__class__.__name__}: History Simulation has started")
 
-        strategy_df = StrategyFactory(self.session_mdl.strategy).get_strategy_data(
+        strategy_param = cmn.StrategyParamModel(
+            trader_id=self.session_mdl.trader_id,
             symbol=self.session_mdl.symbol,
             interval=self.session_mdl.interval,
+            strategy=self.session_mdl.strategy,
             limit=kwargs.get(Const.SRV_LIMIT),
+            from_buffer=True,
             closed_bars=True,
+        )
+
+        strategy_df = StrategyFactory(self.session_mdl.strategy).get_strategy_data(
+            strategy_param
         )
 
         # Init signal instance
@@ -767,7 +774,7 @@ class DataManagerBase:
         self, price_type: cmn.PriceType = cmn.PriceType.BID
     ) -> float:
         # Get current price from exchnage handler
-        param = cmn.SymbolIntervalLimitModel(
+        param = cmn.HistoryDataParamModel(
             interval=self._session_mdl.interval,
             symbol=self._session_mdl.symbol,
             limit=1,
@@ -775,7 +782,7 @@ class DataManagerBase:
         history_data = self._exchange_handler.get_history_data(
             param, price_type=price_type
         )
-        candle_bar = history_data.getDataFrame().tail(1)
+        candle_bar = history_data.data.tail(1)
 
         price = candle_bar["Close"].values[0]
 

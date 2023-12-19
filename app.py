@@ -12,7 +12,9 @@ from trading_core.responser import (
     JobScheduler,
 )
 from trading_core.common import (
-    SymbolIntervalLimitModel,
+    HistoryDataParamModel,
+    StrategyParamModel,
+    TraderSymbolIntervalLimitModel,
     TransactionModel,
     UserModel,
     TraderModel,
@@ -336,50 +338,23 @@ def get_symbols():
     )
 
 
-@app.route("/indicators", methods=["GET"])
-def get_indicators():
-    return responser.get_indicators()
-
-
 @app.route("/strategies", methods=["GET"])
 def get_strategies():
     return responser.get_strategies()
 
 
-@app.route("/historyData", methods=["GET"])
+@app.route("/history_data", methods=["GET"])
 def get_history_data():
-    symbol = request.args.get("symbol")
-    interval = request.args.get("interval")
-    limit = int(request.args.get("limit"))
-    from_buffer = responser.get_param_bool(request.args.get("from_buffer", "false"))
-    closed_bars = responser.get_param_bool(request.args.get("closed_bars", "false"))
+    trader_id = request.args.get(Const.DB_TRADER_ID, None)
+    param = HistoryDataParamModel(**request.args)
 
-    return responser.get_history_data(
-        symbol=symbol,
-        interval=interval,
-        limit=limit,
-        from_buffer=from_buffer,
-        closed_bars=closed_bars,
-    )
+    return responser.get_history_data(trader_id=trader_id, param=param)
 
 
 @app.route("/strategyData", methods=["GET"])
 def get_strategy_data():
-    code = request.args.get("code")
-    symbol = request.args.get("symbol")
-    interval = request.args.get("interval")
-    limit = int(request.args.get("limit"))
-    from_buffer = responser.get_param_bool(request.args.get("from_buffer", "false"))
-    closed_bars = responser.get_param_bool(request.args.get("closed_bars", "false"))
-
-    return responser.get_strategy_data(
-        code=code,
-        symbol=symbol,
-        interval=interval,
-        limit=limit,
-        from_buffer=from_buffer,
-        closed_bars=closed_bars,
-    )
+    strategy_param = StrategyParamModel(**request.args)
+    return responser.get_strategy_data(strategy_param)
 
 
 @app.route("/signals", methods=["GET"])
@@ -483,40 +458,6 @@ def remove_alert(_id):
     return responser.remove_alert(_id)
 
 
-# @app.route("/orders", methods=["GET"])
-# def get_orders():
-#     symbol = request.args.get(Const.DB_SYMBOL)
-#     interval = request.args.get(Const.DB_INTERVAL)
-
-#     return responser.get_orders(symbol=symbol, interval=interval)
-
-
-# @app.route("/orders", methods=["POST"])
-# def create_order():
-#     order_type = request.json.get(Const.DB_ORDER_TYPE)
-#     open_date_time = request.json.get(Const.DB_OPEN_DATETIME)
-#     symbol = request.json.get(Const.DB_SYMBOL)
-#     interval = request.json.get(Const.DB_INTERVAL)
-#     price = request.json.get(Const.DB_PRICE)
-#     quantity = request.json.get(Const.DB_QUANTITY)
-#     strategies = request.json.get(Const.DB_STRATEGIES)
-
-#     return responser.create_order(
-#         order_type=order_type,
-#         open_date_time=open_date_time,
-#         symbol=symbol,
-#         interval=interval,
-#         price=price,
-#         quantity=quantity,
-#         strategies=strategies,
-#     )
-
-
-# @app.route("/orders/<_id>", methods=["DELETE"])
-# def remove_order(_id):
-#     return responser.remove_order(_id)
-
-
 @app.route("/simulations", methods=["GET"])
 def get_simulations():
     symbols = request.args.getlist("symbol", None)
@@ -599,18 +540,7 @@ def get_dashboard():
 
 @app.route("/trend", methods=["GET"])
 def get_trend():
-    symbol = request.args.get("symbol", None)
-    interval = request.args.get("interval", None)
-    limit = int(request.args.get(Const.LIMIT))
-
-    try:
-        param = SymbolIntervalLimitModel(
-            symbol=symbol, interval=interval, limit=limit, consistency_check=False
-        )
-
-    except Exception as error:
-        return jsonify({"error": error}), 500
-
+    param = TraderSymbolIntervalLimitModel(**request.args)
     return responser.get_trend(param)
 
 

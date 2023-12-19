@@ -1,29 +1,4 @@
 class Const:
-    # Stock Exchanges
-    STOCK_EXCH_CURRENCY_COM = "CURRENCY.COM"
-    STOCK_EXCH_DEMO_CURRENCY_COM = "DEMO_CURRENCY.COM"
-    STOCK_EXCH_LOCAL_CURRENCY_COM = "LOCAL_CURRENCY.COM"
-
-    # Intervals
-    # TA_INTERVAL_5M = "5m"
-    # TA_INTERVAL_15M = "15m"
-    # TA_INTERVAL_30M = "30m"
-    # TA_INTERVAL_1H = "1h"
-    # TA_INTERVAL_4H = "4h"
-    # TA_INTERVAL_1D = "1d"
-    # TA_INTERVAL_1WK = "1w"
-
-    # Indicators
-    TA_INDICATOR_CCI = "CCI"
-
-    # Strategies
-    TA_STRATEGY_CCI_14_TREND_100 = "CCI_14_TREND_100"
-    TA_STRATEGY_CCI_14_BASED_TREND_100 = "CCI_14_BASED_TREND_100"
-    TA_STRATEGY_CCI_20_TREND_100 = "CCI_20_TREND_100"
-    TA_STRATEGY_CCI_20_BASED_TREND_100 = "CCI_20_BASED_TREND_100"
-    TA_STRATEGY_CCI_20_100_TREND_UP_LEVEL = "CCI_20_100_TREND_UP_LEVEL"
-    TA_STRATEGY_CCI_50_TREND_0 = "CCI_50_TREND_0"
-
     # Database Name
     DATABASE_NAME = "ClusterShared"
 
@@ -90,7 +65,7 @@ class Const:
     FLD_END_DATETIME = "end_datetime"
     FLD_LIMIT = "limit"
     FLD_IS_BUFFER = "is_buffer"
-    FLD_CLOSED_BAR = "closed_bar"
+    FLD_CLOSED_BARS = "closed_bars"
     FLD_PRICE_TYPE = "price_type"
 
     # API fields

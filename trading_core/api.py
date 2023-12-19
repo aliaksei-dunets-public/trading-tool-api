@@ -11,24 +11,23 @@ import hashlib
 from enum import Enum
 
 from .common import (
-    Importance,
     SymbolStatus,
     SymbolType,
     OrderStatus,
     OrderType,
     OrderReason,
     OrderSideType,
-    ExchangeId,
     IntervalType,
     IntervalModel,
-    SymbolIntervalLimitModel,
+    HistoryDataParamModel,
     SymbolModel,
+    HistoryDataModel,
     TraderModel,
     OrderModel,
     OrderCloseModel,
     LeverageModel,
 )
-from .core import logger, config, HistoryData
+from .core import logger, config
 from .constants import Const
 
 
@@ -55,8 +54,8 @@ class ExchangeApiBase:
         pass
 
     def get_history_data(
-        self, history_data_param: SymbolIntervalLimitModel, **kwargs
-    ) -> HistoryData:
+        self, history_data_param: HistoryDataParamModel, **kwargs
+    ) -> HistoryDataModel:
         pass
 
     def get_open_leverages(
@@ -87,7 +86,157 @@ class ExchangeApiBase:
     def get_end_datetime(
         self, interval: str, original_datetime: datetime, **kwargs
     ) -> datetime:
-        pass
+        """
+        Calculates the datetime based on the specified interval, original datetime and additional parameters.
+        """
+
+        # Boolean importing parameters closed_bars in order to get only closed bar for the current moment
+        closed_bars = kwargs.get(Const.FLD_CLOSED_BARS, False)
+
+        if not original_datetime:
+            original_datetime = datetime.now()
+
+        if not isinstance(original_datetime, datetime):
+            raise ValueError("Input parameter must be a datetime object.")
+
+        if interval in [
+            IntervalType.MIN_1,
+            IntervalType.MIN_3,
+            IntervalType.MIN_5,
+            IntervalType.MIN_15,
+            IntervalType.MIN_30,
+        ]:
+            current_minute = original_datetime.minute
+
+            if interval == IntervalType.MIN_1:
+                offset_value = 1
+            if interval == IntervalType.MIN_3:
+                offset_value = 3
+            if interval == IntervalType.MIN_5:
+                offset_value = 5
+            elif interval == IntervalType.MIN_15:
+                offset_value = 15
+            elif interval == IntervalType.MIN_30:
+                offset_value = 30
+
+            delta_minutes = current_minute % offset_value
+
+            if closed_bars:
+                delta_minutes += offset_value
+
+            offset_date_time = original_datetime - timedelta(minutes=delta_minutes)
+
+            offset_date_time = offset_date_time.replace(second=0, microsecond=0)
+
+        elif interval == IntervalType.HOUR_1:
+            compared_datetime = original_datetime.replace(
+                minute=0, second=30, microsecond=0
+            )
+
+            if original_datetime > compared_datetime and closed_bars:
+                offset_date_time = original_datetime - timedelta(hours=1)
+            else:
+                offset_date_time = original_datetime
+
+            offset_date_time = offset_date_time.replace(
+                minute=0, second=0, microsecond=0
+            )
+
+        elif interval == IntervalType.HOUR_2:
+            compared_datetime = original_datetime.replace(
+                minute=0, second=30, microsecond=0
+            )
+
+            if original_datetime > compared_datetime and closed_bars:
+                offset_date_time = original_datetime - timedelta(hours=2)
+            else:
+                offset_date_time = original_datetime
+
+            offset_date_time = offset_date_time.replace(
+                minute=0, second=0, microsecond=0
+            )
+
+        elif interval == IntervalType.HOUR_4:
+            offset_value = 4
+            hours_difference = self.getTimezoneDifference()
+            current_hour = original_datetime.hour - hours_difference
+
+            delta_hours = current_hour % offset_value
+
+            if closed_bars:
+                delta_hours += offset_value
+
+            offset_date_time = original_datetime - timedelta(hours=delta_hours)
+
+            offset_date_time = offset_date_time.replace(
+                minute=0, second=0, microsecond=0
+            )
+
+        elif interval == IntervalType.HOUR_12:
+            offset_value = 12
+            hours_difference = self.getTimezoneDifference()
+            current_hour = original_datetime.hour - hours_difference
+
+            delta_hours = current_hour % offset_value
+
+            if closed_bars:
+                delta_hours += offset_value
+
+            offset_date_time = original_datetime - timedelta(hours=delta_hours)
+
+            offset_date_time = offset_date_time.replace(
+                minute=0, second=0, microsecond=0
+            )
+
+        elif interval == IntervalType.DAY_1:
+            compared_datetime = original_datetime.replace(
+                hour=0, minute=0, second=30, microsecond=0
+            )
+
+            if original_datetime > compared_datetime and closed_bars:
+                offset_date_time = original_datetime - timedelta(days=1)
+            else:
+                offset_date_time = original_datetime
+
+            offset_date_time = offset_date_time.replace(
+                hour=self.getTimezoneDifference(), minute=0, second=0, microsecond=0
+            )
+
+        elif interval == IntervalType.WEEK_1:
+            compared_datetime = original_datetime.replace(
+                hour=0, minute=0, second=30, microsecond=0
+            )
+
+            offset_value = 7
+
+            delta_days_until_monday = original_datetime.weekday() % offset_value
+
+            if closed_bars:
+                delta_days_until_monday += offset_value
+
+            offset_date_time = original_datetime - timedelta(
+                days=delta_days_until_monday
+            )
+
+            offset_date_time = offset_date_time.replace(
+                hour=self.getTimezoneDifference(), minute=0, second=0, microsecond=0
+            )
+
+        else:
+            raise Exception(
+                f"{self.__class__.__name__}: {self._trader_model.exchange_id} - In the get_end_datetime Interval: {interval} is not determined"
+            )
+
+        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+            other_attributes = ", ".join(
+                f"{key}={value}" for key, value in kwargs.items()
+            )
+
+            logger.info(
+                f"{self.__class__.__name__}: {self._trader_model.exchange_id} - get_end_datetime(interval: {interval}, {other_attributes}) -> Original: {original_datetime} | Closed: {offset_date_time}"
+            )
+
+        return offset_date_time
 
     def calculate_trading_timeframe(self, trading_time: str) -> dict:
         pass
@@ -132,6 +281,20 @@ class ExchangeApiBase:
         """
 
         return datetime.fromtimestamp(timestamp / 1000.0)
+
+    @staticmethod
+    def getTimezoneDifference() -> int:
+        """
+        Calculates the difference in hours between the local timezone and UTC.
+        Returns:
+            int: The timezone difference in hours.
+        """
+
+        local_time = datetime.now()
+        utc_time = datetime.utcnow()
+        delta = local_time - utc_time
+
+        return math.ceil(delta.total_seconds() / 3600)
 
     def is_trading_available(self, interval: str, trading_timeframes: dict) -> bool:
         pass
@@ -217,8 +380,8 @@ class ByBitComApi(ExchangeApiBase):
         return symbols_leverages
 
     def get_history_data(
-        self, history_data_param: SymbolIntervalLimitModel, **kwargs
-    ) -> HistoryData:
+        self, history_data_param: HistoryDataParamModel, **kwargs
+    ) -> HistoryDataModel:
         # Prepare URL parameters
         url_params = {
             Const.API_FLD_CATEGORY: self.CATEGORY_LINEAR,
@@ -230,14 +393,11 @@ class ByBitComApi(ExchangeApiBase):
         }
 
         # Boolean importing parameters closed_bars in order to get only closed bar for the current moment
-        closed_bar = kwargs.get(Const.FLD_CLOSED_BAR, False)
-
         # If closed_bars indicator is True -> calculated endTime for the API
-        if closed_bar:
+        if history_data_param.closed_bars:
             url_params[Const.API_FLD_END] = self.getOffseUnixTimeMsByInterval(
                 history_data_param.interval
             )
-            url_params[Const.API_FLD_LIMIT] = url_params[Const.API_FLD_LIMIT] + 1
 
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
             logger.info(
@@ -245,16 +405,17 @@ class ByBitComApi(ExchangeApiBase):
             )
 
         json_api_response = self._get_api_klines(url_params)
+        klines_data = json_api_response["result"]["list"]
 
         # Convert API response to the DataFrame with columns: 'Datetime', 'Open', 'High', 'Low', 'Close', 'Volume'
-        df = self._convertResponseToDataFrame(json_api_response)
+        df = self._convertResponseToDataFrame(klines_data)
 
-        # Create an instance of HistoryData
-        obj_history_data = HistoryData(
+        # Create an instance of HistoryDataModel
+        obj_history_data = HistoryDataModel(
             symbol=history_data_param.symbol,
             interval=history_data_param.interval,
             limit=history_data_param.limit,
-            dataFrame=df,
+            data=df,
         )
 
         return obj_history_data
@@ -269,6 +430,7 @@ class ByBitComApi(ExchangeApiBase):
         """
 
         COLUMN_DATETIME_FLOAT = "DatetimeFloat"
+        COLUMN_TURNOVER = "Turnover"
 
         df = pd.DataFrame(
             api_response,
@@ -279,17 +441,21 @@ class ByBitComApi(ExchangeApiBase):
                 Const.COLUMN_LOW,
                 Const.COLUMN_CLOSE,
                 Const.COLUMN_VOLUME,
+                COLUMN_TURNOVER,
             ],
         )
+        df.drop([COLUMN_TURNOVER], axis=1, inplace=True)
+
         df[Const.COLUMN_DATETIME] = df.apply(
             lambda x: pd.to_datetime(
-                self.getDatetimeByUnixTimeMs(x[COLUMN_DATETIME_FLOAT])
+                self.getDatetimeByUnixTimeMs(int(x[COLUMN_DATETIME_FLOAT]))
             ),
             axis=1,
         )
         df.set_index(Const.COLUMN_DATETIME, inplace=True)
         df.drop([COLUMN_DATETIME_FLOAT], axis=1, inplace=True)
         df = df.astype(float)
+        df = df.sort_index(ascending=True)
 
         return df
 
@@ -620,8 +786,8 @@ class DzengiComApi(ExchangeApiBase):
             raise Exception(response.text)
 
     def get_history_data(
-        self, history_data_param: SymbolIntervalLimitModel, **kwargs
-    ) -> HistoryData:
+        self, history_data_param: HistoryDataParamModel, **kwargs
+    ) -> HistoryDataModel:
         # Prepare URL parameters
         url_params = {
             Const.API_FLD_SYMBOL: history_data_param.symbol,
@@ -631,11 +797,8 @@ class DzengiComApi(ExchangeApiBase):
             Const.API_FLD_LIMIT: history_data_param.limit,
         }
 
-        # Boolean importing parameters closed_bars in order to get only closed bar for the current moment
-        closed_bar = kwargs.get(Const.FLD_CLOSED_BAR, False)
-
         # If closed_bars indicator is True -> calculated endTime for the API
-        if closed_bar:
+        if history_data_param.closed_bars:
             url_params[Const.API_FLD_END_TIME] = self.getOffseUnixTimeMsByInterval(
                 history_data_param.interval
             )
@@ -655,12 +818,12 @@ class DzengiComApi(ExchangeApiBase):
         # Convert API response to the DataFrame with columns: 'Datetime', 'Open', 'High', 'Low', 'Close', 'Volume'
         df = self.convertResponseToDataFrame(json_api_response)
 
-        # Create an instance of HistoryData
-        obj_history_data = HistoryData(
+        # Create an instance of HistoryDataModel
+        obj_history_data = HistoryDataModel(
             symbol=history_data_param.symbol,
             interval=history_data_param.interval,
             limit=history_data_param.limit,
-            dataFrame=df,
+            data=df,
         )
 
         return obj_history_data
@@ -725,41 +888,6 @@ class DzengiComApi(ExchangeApiBase):
         symbol.
         If the symbol is not sent, orders for all symbols will be returned in
         an array.
-
-        :param symbol: Symbol - In order to receive orders within an ‘exchange’
-        trading mode ‘symbol’ parameter value from the exchangeInfo endpoint:
-        ‘BTC%2FUSD’.
-        In order to mention the right symbolLeverage it should be checked with
-        the ‘symbol’ parameter value from the exchangeInfo endpoint. In case
-        ‘symbol’ has currencies in its name then the following format should be
-        used: ‘BTC%2FUSD_LEVERAGE’. In case ‘symbol’ has only an asset name
-        then for the leverage trading mode the following format is correct:
-         ‘Oil%20-%20Brent.’
-        :param recv_window: The value cannot be greater than 60000.
-        :return: dict object
-
-        Response:
-        [
-          {
-            "symbol": "LTC/BTC",
-            "orderId": "1",
-            "orderListId": -1,
-            "clientOrderId": "myOrder1",
-            "price": "0.1",
-            "origQty": "1.0",
-            "executedQty": "0.0",
-            "cummulativeQuoteQty": "0.0",
-            "status": "NEW",
-            "timeInForce": "GTC",
-            "type": "LIMIT",
-            "side": "BUY",
-            "stopPrice": "0.0",
-            "time": 1499827319559,
-            "updateTime": 1499827319559,
-            "isWorking": true,
-            "origQuoteOrderQty": "0.000000"
-          }
-        ]
         """
 
         self._validate_recv_window(recv_window)
@@ -953,130 +1081,6 @@ class DzengiComApi(ExchangeApiBase):
             takeProfit=take_profit,
         )
 
-    def get_end_datetime(
-        self, interval: str, original_datetime: datetime, **kwargs
-    ) -> datetime:
-        """
-        Calculates the datetime based on the specified interval, original datetime and additional parameters.
-        Args:
-            interval (str): The interval for calculating the end datetime.
-            original_datetime (datetime): The original datetime.
-            closed_bars (bool): Indicator for generation of endTime with offset to get the only already closed bars
-        Returns:
-            datetime: The end datetime.
-        Raises:
-            ValueError: If the original_datetime parameter is not a datetime object.
-        """
-
-        # Boolean importing parameters closed_bars in order to get only closed bar for the current moment
-        closed_bar = kwargs.get(Const.FLD_CLOSED_BAR, False)
-
-        if not original_datetime:
-            original_datetime = datetime.now()
-
-        if not isinstance(original_datetime, datetime):
-            raise ValueError("Input parameter must be a datetime object.")
-
-        interval = self._map_interval(interval=interval)
-
-        if interval in [
-            self.TA_API_INTERVAL_5M,
-            self.TA_API_INTERVAL_15M,
-            self.TA_API_INTERVAL_30M,
-        ]:
-            current_minute = original_datetime.minute
-
-            if interval == self.TA_API_INTERVAL_5M:
-                offset_value = 5
-            elif interval == self.TA_API_INTERVAL_15M:
-                offset_value = 15
-            elif interval == self.TA_API_INTERVAL_30M:
-                offset_value = 30
-
-            delta_minutes = current_minute % offset_value
-
-            if closed_bar:
-                delta_minutes += offset_value
-
-            offset_date_time = original_datetime - timedelta(minutes=delta_minutes)
-
-            offset_date_time = offset_date_time.replace(second=0, microsecond=0)
-
-        elif interval == self.TA_API_INTERVAL_1H:
-            compared_datetime = original_datetime.replace(
-                minute=0, second=30, microsecond=0
-            )
-
-            if original_datetime > compared_datetime and closed_bar:
-                offset_date_time = original_datetime - timedelta(hours=1)
-            else:
-                offset_date_time = original_datetime
-
-            offset_date_time = offset_date_time.replace(
-                minute=0, second=0, microsecond=0
-            )
-
-        elif interval == self.TA_API_INTERVAL_4H:
-            offset_value = 4
-            hours_difference = self.getTimezoneDifference()
-            current_hour = original_datetime.hour - hours_difference
-
-            delta_hours = current_hour % offset_value
-
-            if closed_bar:
-                delta_hours += offset_value
-
-            offset_date_time = original_datetime - timedelta(hours=delta_hours)
-
-            offset_date_time = offset_date_time.replace(
-                minute=0, second=0, microsecond=0
-            )
-
-        elif interval == self.TA_API_INTERVAL_1D:
-            compared_datetime = original_datetime.replace(
-                hour=0, minute=0, second=30, microsecond=0
-            )
-
-            if original_datetime > compared_datetime and closed_bar:
-                offset_date_time = original_datetime - timedelta(days=1)
-            else:
-                offset_date_time = original_datetime
-
-            offset_date_time = offset_date_time.replace(
-                hour=self.getTimezoneDifference(), minute=0, second=0, microsecond=0
-            )
-
-        elif interval == self.TA_API_INTERVAL_1WK:
-            compared_datetime = original_datetime.replace(
-                hour=0, minute=0, second=30, microsecond=0
-            )
-
-            offset_value = 7
-
-            delta_days_until_monday = original_datetime.weekday() % offset_value
-
-            if closed_bar:
-                delta_days_until_monday += offset_value
-
-            offset_date_time = original_datetime - timedelta(
-                days=delta_days_until_monday
-            )
-
-            offset_date_time = offset_date_time.replace(
-                hour=self.getTimezoneDifference(), minute=0, second=0, microsecond=0
-            )
-
-        # if config.get_config_value(Const.CONFIG_DEBUG_LOG):
-        #     other_attributes = ", ".join(
-        #         f"{key}={value}" for key, value in kwargs.items()
-        #     )
-
-        #     logger.info(
-        #         f"ExchangeApiBase: {self._trader_model.exchange_id} - getEndDatetime(interval: {interval}, {other_attributes}) -> Original: {original_datetime} | Closed: {offset_date_time}"
-        #     )
-
-        return offset_date_time
-
     def convertResponseToDataFrame(self, api_response: list) -> pd.DataFrame:
         """
         Converts the API response into a DataFrame containing historical data.
@@ -1172,20 +1176,6 @@ class DzengiComApi(ExchangeApiBase):
                         return True
 
         return False
-
-    @staticmethod
-    def getTimezoneDifference() -> int:
-        """
-        Calculates the difference in hours between the local timezone and UTC.
-        Returns:
-            int: The timezone difference in hours.
-        """
-
-        local_time = datetime.now()
-        utc_time = datetime.utcnow()
-        delta = local_time - utc_time
-
-        return math.ceil(delta.total_seconds() / 3600)
 
     def _create_position(
         self,
