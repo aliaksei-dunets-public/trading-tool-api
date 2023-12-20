@@ -286,9 +286,10 @@ class TraderBase:
 
         # Open position exists -> check if required it to close
         if self.data_mng.has_open_position():
-            self._recalculate_position(signal_mdl)
             if self.data_mng.is_required_to_close_position(signal_mdl):
                 self._decide_to_close_position(signal_mdl)
+            # Recalculate Position should be done after decision about close the position because the robot are working with closed bars
+            self._recalculate_position(signal_mdl)
 
         # Open position doesn't exist -> check if required to open a new position
         if not self.data_mng.has_open_position():
@@ -308,7 +309,8 @@ class TraderBase:
         self.data_mng.close_position_by_signal(signal_mdl)
 
     def _recalculate_position(self, signal_mdl: cmn.SignalModel):
-        self.data_mng.recalculate_position(signal_mdl)
+        if self.data_mng.has_open_position():
+            self.data_mng.recalculate_position(signal_mdl)
 
 
 class TraderManager(TraderBase):

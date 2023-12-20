@@ -280,8 +280,8 @@ class Strategy_CCI_Trend_Base(Strategy_CCI):
         next_interval = None
         # Detect Next Interval
         if interval == IntervalType.MIN_5:
-            next_interval = IntervalType.MIN_30
-            limit = limit // 6 + 1
+            next_interval = IntervalType.MIN_15
+            limit = limit // 3 + 1
         elif interval == IntervalType.MIN_15:
             next_interval = IntervalType.HOUR_1
             limit = limit // 4 + 1

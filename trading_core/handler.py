@@ -473,10 +473,14 @@ class SessionHandler:
 
     @staticmethod
     def get_sessions_by_email(user_email: str):
+        user_id = None
         user_mdl = buffer_runtime_handler.get_user_handler().get_user_by_email(
             email=user_email
         )
-        return SessionHandler.get_sessions(user_id=user_mdl.id)
+        if not user_mdl.technical_user:
+            user_id = user_mdl.id
+
+        return SessionHandler.get_sessions(user_id=user_id)
 
     @staticmethod
     def get_sessions(
