@@ -225,13 +225,18 @@ class TraderBase:
             f"{self.__class__.__name__}: {self.session_mdl.id} - The Trader Run has started"
         )
 
+        strategy_param = cmn.StrategyParamModel(
+            trader_id=self.session_mdl.trader_id,
+            symbol=self.session_mdl.symbol,
+            interval=self.session_mdl.interval,
+            strategy=self.session_mdl.strategy,
+            from_buffer=True,
+            closed_bars=True,
+        )
+
         strategy_df = (
             StrategyFactory(self.session_mdl.strategy)
-            .get_strategy_data(
-                symbol=self.session_mdl.symbol,
-                interval=self.session_mdl.interval,
-                closed_bars=True,
-            )
+            .get_strategy_data(strategy_param)
             .tail(1)
         )
 

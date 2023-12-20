@@ -186,7 +186,7 @@ class SymbolIntervalStrategyModel(SymbolIntervalModel, StrategyIdModel):
 
 
 class SymbolIntervalLimitModel(SymbolIntervalModel):
-    limit: int
+    limit: int = 0
 
 
 class SymbolIntervalStrategyLimitModel(SymbolIntervalLimitModel, StrategyIdModel):
