@@ -19,109 +19,109 @@ from .handler import buffer_runtime_handler, StrategyHandler
 from .trend import TrendCCI
 
 
-# class SignalFactory:
-#     def get_signal(
-#         self,
-#         symbol: str,
-#         interval: str,
-#         strategy: str,
-#         signals_config: list,
-#         closed_bars: bool,
-#     ) -> Signal:
-#         # Check if trading is not available for symbol -> skip processing
-#         if not buffer_runtime_handler.get_symbol_handler().is_trading_available(
-#             interval=interval, symbol=symbol
-#         ):
-#             return None
+class SignalFactory:
+    def get_signal(
+        self,
+        symbol: str,
+        interval: str,
+        strategy: str,
+        signals_config: list,
+        closed_bars: bool,
+    ) -> Signal:
+        # Check if trading is not available for symbol -> skip processing
+        if not buffer_runtime_handler.get_symbol_handler().is_trading_available(
+            interval=interval, symbol=symbol
+        ):
+            return None
 
-#         # Get DateTime of the Strategy
-#         end_date_time = model.get_handler().getEndDatetime(
-#             interval=interval, closed_bars=closed_bars
-#         )
+        # Get DateTime of the Strategy
+        end_date_time = model.get_handler().getEndDatetime(
+            interval=interval, closed_bars=closed_bars
+        )
 
-#         # Get signal from the buffer
-#         signal_inst = runtime_buffer.get_signal_from_buffer(
-#             symbol=symbol, interval=interval, strategy=strategy, date_time=end_date_time
-#         )
+        # Get signal from the buffer
+        signal_inst = runtime_buffer.get_signal_from_buffer(
+            symbol=symbol, interval=interval, strategy=strategy, date_time=end_date_time
+        )
 
-#         # Check if buffer contains corresponding signal
-#         if not signal_inst:
-#             # Calculate signal from the API
-#             # Get the latest bar from the Strategy Factory
-#             strategy_df = (
-#                 StrategyFactory(strategy)
-#                 .get_strategy_data(
-#                     symbol=symbol, interval=interval, closed_bars=closed_bars
-#                 )
-#                 .tail(1)
-#             )
+        # Check if buffer contains corresponding signal
+        if not signal_inst:
+            # Calculate signal from the API
+            # Get the latest bar from the Strategy Factory
+            strategy_df = (
+                StrategyFactory(strategy)
+                .get_strategy_data(
+                    symbol=symbol, interval=interval, closed_bars=closed_bars
+                )
+                .tail(1)
+            )
 
-#             # Init signal instance
-#             for index, strategy_row in strategy_df.iterrows():
-#                 signal_inst = Signal(
-#                     date_time=index,
-#                     symbol=symbol,
-#                     interval=interval,
-#                     strategy=strategy,
-#                     signal=strategy_row[Const.PARAM_SIGNAL],
-#                 )
+            # Init signal instance
+            for index, strategy_row in strategy_df.iterrows():
+                signal_inst = Signal(
+                    date_time=index,
+                    symbol=symbol,
+                    interval=interval,
+                    strategy=strategy,
+                    signal=strategy_row[Const.PARAM_SIGNAL],
+                )
 
-#             # Add signal to the buffer
-#             runtime_buffer.set_signal_to_buffer(signal_inst)
+            # Add signal to the buffer
+            runtime_buffer.set_signal_to_buffer(signal_inst)
 
-#             if config.get_config_value(Const.CONFIG_DEBUG_LOG):
-#                 logger.info(
-#                     f"SIGNAL: get_signal(symbol={symbol}, interval={interval}, strategy={strategy}, signals_config={signals_config}, closed_bars={closed_bars})"
-#                 )
+            if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+                logger.info(
+                    f"SIGNAL: get_signal(symbol={symbol}, interval={interval}, strategy={strategy}, signals_config={signals_config}, closed_bars={closed_bars})"
+                )
 
-#         # Return signal data if signal is compatible with signal config, else return None
-#         if signal_inst.is_compatible(signals_config):
-#             return signal_inst
-#         else:
-#             return None
+        # Return signal data if signal is compatible with signal config, else return None
+        if signal_inst.is_compatible(signals_config):
+            return signal_inst
+        else:
+            return None
 
-#     def get_signals(
-#         self,
-#         symbols: list,
-#         intervals: list = None,
-#         strategies: list = None,
-#         signals_config: list = None,
-#         closed_bars: bool = True,
-#     ) -> list[Signal]:
-#         signals = []
+    def get_signals(
+        self,
+        symbols: list,
+        intervals: list = None,
+        strategies: list = None,
+        signals_config: list = None,
+        closed_bars: bool = True,
+    ) -> list[Signal]:
+        signals = []
 
-#         if not symbols:
-#             symbols = Symbols(from_buffer=False).get_symbol_codes(
-#                 status=Const.STATUS_OPEN
-#             )
+        if not symbols:
+            symbols = Symbols(from_buffer=False).get_symbol_codes(
+                status=Const.STATUS_OPEN
+            )
 
-#         if not intervals:
-#             intervals = buffer_runtime_handler.get_interval_handler().get_intervals()
+        if not intervals:
+            intervals = buffer_runtime_handler.get_interval_handler().get_intervals()
 
-#         sorted_strategies = model.get_sorted_strategy_codes(strategies)
+        sorted_strategies = model.get_sorted_strategy_codes(strategies)
 
-#         for symbol in symbols:
-#             for interval in intervals:
-#                 for strategy in sorted_strategies:
-#                     try:
-#                         signal = self.get_signal(
-#                             symbol=symbol,
-#                             interval=interval,
-#                             strategy=strategy,
-#                             signals_config=signals_config,
-#                             closed_bars=closed_bars,
-#                         )
-#                         if signal:
-#                             signals.append(signal)
-#                         else:
-#                             continue
-#                     except Exception as error:
-#                         logger.error(
-#                             f"SIGNAL: For symbol={symbol}, interval={interval}, strategy={strategy} - {error}"
-#                         )
-#                         continue
+        for symbol in symbols:
+            for interval in intervals:
+                for strategy in sorted_strategies:
+                    try:
+                        signal = self.get_signal(
+                            symbol=symbol,
+                            interval=interval,
+                            strategy=strategy,
+                            signals_config=signals_config,
+                            closed_bars=closed_bars,
+                        )
+                        if signal:
+                            signals.append(signal)
+                        else:
+                            continue
+                    except Exception as error:
+                        logger.error(
+                            f"SIGNAL: For symbol={symbol}, interval={interval}, strategy={strategy} - {error}"
+                        )
+                        continue
 
-#         return signals
+        return signals
 
 
 class StrategyFactory:
@@ -513,42 +513,3 @@ class Strategy_CCI_100_TrendUpLevel(Strategy_CCI_Trend_Base):
             signals.append(decision)
 
         return signals
-
-
-# class StrategyDirectionBasedTrend(Strategy_CCI):
-#     def get_strategy_data_by_history_data(self, history_data_mdl: HistoryDataModel):
-#         symbol = history_data_mdl.symbol
-#         limit = history_data_mdl.limit
-#         interval = history_data_mdl.interval
-
-#         cci_df = self._cci.get_indicator_by_history_data(history_data_mdl)
-
-#         param = HistoryDataParamModel(
-#             symbol=symbol,
-#             interval=interval,
-#             limit=limit,
-#             from_buffer=True,
-#             closed_bars=False,
-#         )
-
-#         trend_df = TrendCCI().calculate_trends(param)
-
-#         cci_df = pd.merge(
-#             cci_df,
-#             trend_df[[Const.PARAM_TREND]],
-#             how="left",
-#             left_on=Const.COLUMN_DATETIME,
-#             right_on=Const.COLUMN_DATETIME,
-#         )
-
-#         cci_df = pd.merge(
-#             cci_df,
-#             trend_df[[Const.PARAM_SIGNAL]],
-#             how="left",
-#             left_on=Const.COLUMN_DATETIME,
-#             right_on=Const.COLUMN_DATETIME,
-#         )
-
-#         cci_df[Const.PARAM_SIGNAL] = cci_df[Const.PARAM_SIGNAL].fillna("")
-
-#         return cci_df

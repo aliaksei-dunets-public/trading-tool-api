@@ -3,6 +3,7 @@
 # pipenv requirements > requirements.txt
 
 # heroku logs --app=trading-tool-api -n 1500
+# heroku logs --app=trading-tool-api -t
 
 from app import app
 

@@ -135,100 +135,10 @@ class MongoJobs(MongoBase):
         return self.update_one(id=job_id, query={Const.DB_IS_ACTIVE: False})
 
 
-class MongoAlerts(MongoBase):
+class MongoAlert(MongoBase):
     def __init__(self):
         MongoBase.__init__(self)
         self._collection = self.get_collection(Const.DB_COLLECTION_ALERTS)
-
-    def get_alerts(
-        self, alert_type: str = None, symbol: str = None, interval: str = None
-    ) -> list:
-        query = {}
-        # query = self.add_param_to_query(
-        #     query=query, param=Const.DB_ALERT_TYPE, value=alert_type
-        # )
-        query = self.add_param_to_query(
-            query=query, param=Const.DB_SYMBOL, value=symbol
-        )
-        query = self.add_param_to_query(
-            query=query, param=Const.DB_INTERVAL, value=interval
-        )
-
-        return self.get_many(query)
-
-    def create_alert(
-        self,
-        alert_type: str,
-        channel_id: str,
-        symbol: str,
-        interval: str,
-        strategies: list,
-        signals: list,
-        comment: str,
-    ) -> str:
-        query = {
-            Const.DB_ALERT_TYPE: alert_type,
-            Const.DB_CHANNEL_ID: channel_id,
-            Const.DB_SYMBOL: symbol,
-            Const.DB_INTERVAL: interval,
-            Const.DB_STRATEGIES: strategies,
-            Const.DB_SIGNALS: signals,
-            Const.DB_COMMENT: comment,
-        }
-        return self.insert_one(query)
-
-    def update_alert(
-        self, id: str, interval: str, strategies: list, signals: list, comment: str
-    ) -> bool:
-        query = {
-            Const.DB_INTERVAL: interval,
-            Const.DB_STRATEGIES: strategies,
-            Const.DB_SIGNALS: signals,
-            Const.DB_COMMENT: comment,
-        }
-        return self.update_one(id=id, query=query)
-
-
-class MongoOrders(MongoBase):
-    def __init__(self):
-        MongoBase.__init__(self)
-        self._collection = self.get_collection(Const.DB_COLLECTION_ORDERS)
-
-    def get_orders(self, symbol: str = None, interval: str = None) -> list:
-        query = {}
-        query = self.add_param_to_query(
-            query=query, param=Const.DB_SYMBOL, value=symbol
-        )
-        query = self.add_param_to_query(
-            query=query, param=Const.DB_INTERVAL, value=interval
-        )
-
-        return self.get_many(query)
-
-    def create_order(
-        self,
-        order_type: str,
-        open_date_time: str,
-        symbol: str,
-        interval: str,
-        price: float,
-        quantity: float,
-        strategies: list,
-    ) -> str:
-        open_date_time = (
-            datetime.fromisoformat(open_date_time) if open_date_time else datetime.now()
-        )
-
-        query = {
-            Const.DB_ORDER_TYPE: order_type,
-            Const.DB_OPEN_DATETIME: open_date_time,
-            Const.DB_SYMBOL: symbol,
-            Const.DB_INTERVAL: interval,
-            Const.DB_PRICE: price,
-            Const.DB_QUANTITY: quantity,
-            Const.DB_STRATEGIES: strategies,
-        }
-        return self.insert_one(query)
 
 
 class MongoSimulations(MongoBase):

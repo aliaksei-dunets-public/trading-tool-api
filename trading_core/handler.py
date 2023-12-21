@@ -21,18 +21,24 @@ from .api import (
 )
 from .common import (
     Importance,
+    ChannelType,
+    AlertType,
     IntervalType,
     StrategyType,
     IntervalModel,
     StrategyConfigModel,
     HistoryDataParamModel,
+    StrategyParamModel,
     TraderStatus,
     OrderStatus,
     SessionStatus,
     ExchangeId,
     SymbolModel,
     HistoryDataModel,
+    SignalModel,
     UserModel,
+    ChannelModel,
+    AlertModel,
     TraderModel,
     SessionModel,
     SessionType,
@@ -44,6 +50,7 @@ from .common import (
 from .mongodb import (
     MongoUser,
     MongoChannel,
+    MongoAlert,
     MongoTrader,
     MongoSession,
     MongoBalance,
@@ -51,6 +58,7 @@ from .mongodb import (
     MongoLeverage,
     MongoTransaction,
 )
+from .strategy import StrategyFactory
 
 
 class BufferBaseHandler:
@@ -439,6 +447,127 @@ class TraderHandler:
 
         entries_db = MongoTrader().get_many(query)
         result = [TraderModel(**entry) for entry in entries_db]
+        return result
+
+
+class ChannelHandler:
+    @staticmethod
+    def create_channel(channel: ChannelModel):
+        id = MongoChannel().insert_one(channel.to_mongodb_doc())
+        return ChannelHandler.get_channel(id)
+
+    @staticmethod
+    def update_channel(id: str, query: dict):
+        return MongoChannel().update_one(id=id, query=query)
+
+    @staticmethod
+    def delete_channel(id: str):
+        return MongoChannel().delete_one(id=id)
+
+    @staticmethod
+    def get_channel(id: str) -> ChannelModel:
+        entry = MongoChannel().get_one(id)
+        if not entry:
+            raise Exception(f"Channel {id} doesn't exists")
+        return ChannelModel(**entry)
+
+    @staticmethod
+    def get_channels_by_email(user_email: str):
+        user_id = None
+        user_mdl = buffer_runtime_handler.get_user_handler().get_user_by_email(
+            email=user_email
+        )
+        if not user_mdl.technical_user:
+            user_id = user_mdl.id
+
+        return ChannelHandler.get_channels(user_id=user_id)
+
+    @staticmethod
+    def get_channels(
+        user_id: str = None,
+        name: str = None,
+        type: ChannelType = None,
+        channel: str = None,
+    ):
+        query = {}
+
+        if user_id:
+            query[Const.DB_USER_ID] = user_id
+        if name:
+            query[Const.DB_NAME] = name
+        if type:
+            query[Const.DB_TYPE] = type
+        if channel:
+            query[Const.DB_CHANNEL] = channel
+
+        entries_db = MongoChannel().get_many(query)
+        result = [ChannelModel(**entry) for entry in entries_db]
+
+        return result
+
+
+class AlertHandler:
+    @staticmethod
+    def create_alert(alert: AlertModel):
+        id = MongoAlert().insert_one(alert.to_mongodb_doc())
+        return AlertHandler.get_alert(id)
+
+    @staticmethod
+    def update_alert(id: str, query: dict):
+        return MongoAlert().update_one(id=id, query=query)
+
+    @staticmethod
+    def delete_alert(id: str):
+        return MongoAlert().delete_one(id=id)
+
+    @staticmethod
+    def get_alert(id: str) -> AlertModel:
+        entry = MongoAlert().get_one(id)
+        if not entry:
+            raise Exception(f"Alert {id} doesn't exists")
+        return AlertModel(**entry)
+
+    @staticmethod
+    def get_alerts_by_email(user_email: str):
+        user_id = None
+        user_mdl = buffer_runtime_handler.get_user_handler().get_user_by_email(
+            email=user_email
+        )
+        if not user_mdl.technical_user:
+            user_id = user_mdl.id
+
+        return AlertHandler.get_alerts(user_id=user_id)
+
+    @staticmethod
+    def get_alerts(
+        user_id: str = None,
+        trader_id: str = None,
+        channel_id: str = None,
+        type: AlertType = None,
+        symbol: str = None,
+        interval: str = None,
+        strategy: str = None,
+    ):
+        query = {}
+
+        if user_id:
+            query[Const.DB_USER_ID] = user_id
+        if trader_id:
+            query[Const.DB_TRADER_ID] = trader_id
+        if channel_id:
+            query[Const.DB_NAME] = channel_id
+        if type:
+            query[Const.DB_TYPE] = type
+        if symbol:
+            query[Const.DB_SYMBOL] = symbol
+        if interval:
+            query[Const.DB_INTERVAL] = interval
+        if strategy:
+            query[Const.DB_STRATEGY] = strategy
+
+        entries_db = MongoAlert().get_many(query)
+        result = [AlertModel(**entry) for entry in entries_db]
+
         return result
 
 
@@ -1098,6 +1227,69 @@ class HistoryDataHandler(BaseOnExchangeHandler):
         return history_data_mdl
 
 
+class SignalHandler(BaseOnExchangeHandler):
+    def __init__(self, exchange_handler: ExchangeHandler = None):
+        super().__init__(exchange_handler)
+        self.__buffer_inst = BufferSingleDictionary()
+
+    def get_signal(self, param: StrategyParamModel) -> SignalModel:
+        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+            logger.info(f"{self.__class__.__name__}: get_signal({param.model_dump()})")
+
+        signal_mdl: SignalModel = None
+
+        # Take signal from buffer
+        buffer_key = self._get_buffer_key(**param.model_dump())
+        if self.__buffer_inst.is_data_in_buffer(key=buffer_key):
+            signal_mdl = self.__buffer_inst.get_buffer(key=buffer_key)
+
+            end_date_time = self._exchange_handler.get_end_datetime(
+                interval=param.interval, closed_bars=param.closed_bars
+            )
+
+            if end_date_time == signal_mdl.date_time:
+                return signal_mdl
+
+        # Calculate Signal
+        strategy_df = StrategyFactory(param.strategy).get_strategy_data(param).tail(1)
+
+        # Init signal model
+        for index, strategy_row in strategy_df.iterrows():
+            signal_mdl = SignalModel(
+                date_time=index,
+                open=strategy_row["Open"],
+                high=strategy_row["High"],
+                low=strategy_row["Low"],
+                close=strategy_row["Close"],
+                volume=strategy_row["Volume"],
+                strategy=param.strategy,
+                signal=strategy_row[Const.PARAM_SIGNAL],
+            )
+            break
+
+        if signal_mdl:
+            self.__buffer_inst.set_buffer(key=buffer_key, data=signal_mdl)
+            return signal_mdl
+        else:
+            logger.error(
+                f"{self.__class__.__name__}: Erro during get_signal({param.model_dump()})"
+            )
+            raise Exception(
+                f"{self.__class__.__name__}: Erro during get_signal({param.model_dump()})"
+            )
+
+    def get_signals(self) -> list[SignalModel]:
+        pass
+
+    def _get_buffer_key(self, symbol: str, interval: str, strategy: str) -> tuple:
+        if not symbol or not interval or not strategy:
+            Exception(
+                f"{self.__class__.__name__} Buffer key is invalid: symbol: {symbol}, interval: {interval}, strategy: {strategy}"
+            )
+        buffer_key = (symbol, interval, strategy)
+        return buffer_key
+
+
 class BufferRuntimeHandlers:
     _instance = None
 
@@ -1106,6 +1298,7 @@ class BufferRuntimeHandlers:
             class_._instance = object.__new__(class_, *args, **kwargs)
             class_.__symbol_handler = {}
             class_.__history_data_handler = {}
+            class_.__signal_handler = {}
             class_.__interval_handler = {}
             class_.__user_handler = UserHandler()
             class_.__job_handler = BufferSingleDictionary()
@@ -1137,6 +1330,19 @@ class BufferRuntimeHandlers:
 
         return self.__history_data_handler[trader_id]
 
+    def get_signal_handler(
+        self, trader_id: str = None, user_id: str = None
+    ) -> SignalHandler:
+        exchange_handler = ExchangeHandler.get_handler(
+            trader_id=trader_id, user_id=user_id
+        )
+        trader_id = exchange_handler.get_trader_id()
+        if not trader_id in self.__signal_handler:
+            signal_handler = SignalHandler(exchange_handler=exchange_handler)
+            self.__signal_handler[trader_id] = signal_handler
+
+        return self.__signal_handler[trader_id]
+
     def get_user_handler(self):
         return self.__user_handler
 
@@ -1159,1502 +1365,9 @@ class BufferRuntimeHandlers:
     def clear_buffer(self):
         self.__symbol_handler = {}
         self.__history_data_handler = {}
+        self.__signal_handler = {}
         self.__interval_handler = {}
         self.__user_handler.get_buffer().clear_buffer()
 
 
 buffer_runtime_handler = BufferRuntimeHandlers()
-
-########################### Legacy code ####################################
-
-
-# class OrderStatus(Enum):
-#     NEW = "NEW"
-#     FILLED = "FILLED"
-#     CANCELED = "CANCELED"
-#     REJECTED = "REJECTED"
-
-
-# class OrderType(Enum):
-#     LIMIT = "LIMIT"
-#     MARKET = "MARKET"
-#     STOP = "STOP"
-
-
-# class OrderSide(Enum):
-#     BUY = "BUY"
-#     SELL = "SELL"
-
-
-# class TimeInForce(Enum):
-#     GTC = "GTC"
-
-
-# class NewOrderResponseType(Enum):
-#     ACK = "ACK"
-#     RESULT = "RESULT"
-#     FULL = "FULL"
-
-
-# class StockExchangeHandler:
-#     def __init__(self):
-#         self.__buffer_inst = RuntimeBufferStore()
-#         self.__api_inst = None
-
-#         stock_exchange_id = config.get_stock_exchange_id()
-
-#         if not stock_exchange_id:
-#             raise Exception(f"STOCK_EXCHANGE: Id is not configured")
-
-#         if stock_exchange_id == Const.STOCK_EXCH_CURRENCY_COM:
-#             self.__api_inst = CurrencyComApi()
-#         elif stock_exchange_id == Const.STOCK_EXCH_LOCAL_CURRENCY_COM:
-#             self.__api_inst = LocalCurrencyComApi()
-#         else:
-#             raise Exception(
-#                 f"STOCK_EXCHANGE: {stock_exchange_id} implementation is missed"
-#             )
-
-#     def getStockExchangeName(self) -> str:
-#         return self.__api_inst.getStockExchangeName()
-
-#     def getHistoryData(
-#         self,
-#         symbol: str,
-#         interval: str,
-#         limit: int,
-#         from_buffer: bool = True,
-#         closed_bars: bool = False,
-#         **kwargs,
-#     ) -> HistoryData:
-#         history_data_inst = None
-
-#         # Get endDatetime for History Data
-#         endDatetime = self.getEndDatetime(interval=interval, closed_bars=closed_bars)
-
-#         # If it reruires to read from the buffer and buffer data is valid -> get hidtory data from the buffer
-#         if from_buffer and self.__buffer_inst.validateHistoryDataInBuffer(
-#             symbol=symbol, interval=interval, limit=limit, endDatetime=endDatetime
-#         ):
-#             # Get history data from the buffer for the parameters
-#             history_data_inst = self.__buffer_inst.getHistoryDataFromBuffer(
-#                 symbol=symbol, interval=interval, limit=limit, endDatetime=endDatetime
-#             )
-
-#         # If history data from the buffer doesn't exist
-#         if not history_data_inst:
-#             # Send a request to an API to get history data
-#             history_data_inst = self.__api_inst.getHistoryData(
-#                 symbol=symbol,
-#                 interval=interval,
-#                 limit=limit,
-#                 closed_bars=closed_bars,
-#                 **kwargs,
-#             )
-#             # Set fetched history data to the buffer
-#             self.__buffer_inst.setHistoryDataToBuffer(history_data_inst)
-
-#         return history_data_inst
-
-#     def getSymbols(self, from_buffer: bool) -> dict[Symbol]:
-#         symbols = {}
-
-#         # If it reruires to read data from the buffer and buffer data is existing -> get symbols from the buffer
-#         if from_buffer and self.__buffer_inst.checkSymbolsInBuffer():
-#             #  Get symbols from the buffer
-#             symbols = self.__buffer_inst.getSymbolsFromBuffer()
-#         else:
-#             # Send a request to an API to get symbols
-#             symbols = self.__api_inst.getSymbols()
-#             # Set fetched symbols to the buffer
-#             self.__buffer_inst.setSymbolsToBuffer(symbols)
-
-#         return symbols
-
-#     def get_intervals(self) -> list:
-#         return self.__api_inst.get_intervals()
-
-#     def getEndDatetime(self, interval: str, **kwargs) -> datetime:
-#         original_datetime = datetime.now()
-#         return self.__api_inst.getEndDatetime(
-#             interval=interval, original_datetime=original_datetime, **kwargs
-#         )
-
-#     def is_trading_open(self, interval: str, trading_time: str) -> bool:
-#         if self.__buffer_inst.checkTimeframeInBuffer(trading_time):
-#             timeframes = self.__buffer_inst.getTimeFrameFromBuffer(trading_time)
-#         else:
-#             timeframes = self.__api_inst.get_trading_timeframes(trading_time)
-#             self.__buffer_inst.setTimeFrameToBuffer(trading_time, timeframes)
-
-#         return self.__api_inst.is_trading_open(
-#             interval=interval, trading_timeframes=timeframes
-#         )
-
-# class StockExchangeApiBase:
-#     def getStockExchangeName(self) -> str:
-#         """
-#         Returns the name of the stock exchange.
-#         """
-#         pass
-
-#     def getApiEndpoint(self) -> str:
-#         """
-#         Returns the API endpoint.
-#         """
-#         pass
-
-#     def getHistoryData(
-#         self, symbol: str, interval: str, limit: int, **kwargs
-#     ) -> HistoryData:
-#         """
-#         Retrieves historical data for a given symbol and interval from the stock exchange API.
-#         Args:
-#             symbol (str): The symbol of the asset to retrieve historical data for.
-#             interval (str): The interval of the historical data (e.g., "5m", "1h", etc.).
-#             limit (int): The number of data points to retrieve.
-#             **kwargs: Additional keyword arguments.
-#         Returns:
-#             HistoryData: An instance of the HistoryData class containing the retrieved historical data.
-#         Raises:
-#             Exception: If there is an error in retrieving the historical data.
-#         """
-#         pass
-
-#     def getSymbols(self) -> dict[Symbol]:
-#         """
-#         Retrieves a list of symbols available on the stock exchange.
-#         Returns:
-#             dict[Symbol]: A dictionary of Symbol objects representing the available symbols. The format is {"<symbol_code>": <Symbol obhject>}
-#         """
-#         pass
-
-#     def get_intervals(self) -> list:
-#         """
-#         Returns a list of intervals available for retrieving historical data.
-#         Each interval is represented as a dictionary with keys: 'interval', 'name', 'order', and 'importance'.
-#         """
-#         pass
-
-#     def mapInterval(self, interval: str) -> str:
-#         """
-#         Map Trading Tool interval to API interval
-#         Args:
-#             interval (str): The Trading Tool interval.
-#         Returns:
-#             api_interval: The API interval
-#         """
-#         return interval
-
-#     def getEndDatetime(
-#         self, interval: str, original_datetime: datetime, **kwargs
-#     ) -> datetime:
-#         """
-#         Calculates the datetime based on the specified interval, original datetime and additional parameters.
-#         Args:
-#             interval (str): The interval for calculating the end datetime.
-#             original_datetime (datetime): The original datetime.
-#              **kwargs: Additional keyword arguments.
-#         Returns:
-#             datetime: The end datetime.
-#         Raises:
-#             ValueError: If the original_datetime parameter is not a datetime object.
-#         """
-#         pass
-
-#     def get_trading_timeframes(self, trading_time: str) -> dict:
-#         pass
-
-#     def is_trading_open(self, interval: str, trading_timeframes: dict) -> bool:
-#         pass
-
-
-# class CurrencyComApi(StockExchangeApiBase):
-#     """
-#     A class representing the Currency.com API for retrieving historical data from the stock exchange.
-#     It inherits from the StockExchangeApiBase class.
-#     """
-
-#     HEADER_API_KEY_NAME = "X-MBX-APIKEY"
-
-#     AGG_TRADES_MAX_LIMIT = 1000
-#     KLINES_MAX_LIMIT = 1000
-#     RECV_WINDOW_MAX_LIMIT = 60000
-
-#     # Public API Endpoints
-#     SERVER_TIME_ENDPOINT = "time"
-#     EXCHANGE_INFORMATION_ENDPOINT = "exchangeInfo"
-
-#     # Market data Endpoints
-#     ORDER_BOOK_ENDPOINT = "depth"
-#     AGGREGATE_TRADE_LIST_ENDPOINT = "aggTrades"
-#     KLINES_DATA_ENDPOINT = "klines"
-#     PRICE_CHANGE_24H_ENDPOINT = "ticker/24hr"
-
-#     # Account Endpoints
-#     ACCOUNT_INFORMATION_ENDPOINT = "account"
-#     ACCOUNT_TRADE_LIST_ENDPOINT = "myTrades"
-
-#     # Order Endpoints
-#     ORDER_ENDPOINT = "order"
-#     CURRENT_OPEN_ORDERS_ENDPOINT = "openOrders"
-
-#     # Leverage Endpoints
-#     CLOSE_TRADING_POSITION_ENDPOINT = "closeTradingPosition"
-#     TRADING_POSITIONS_ENDPOINT = "tradingPositions"
-#     LEVERAGE_SETTINGS_ENDPOINT = "leverageSettings"
-#     UPDATE_TRADING_ORDERS_ENDPOINT = "updateTradingOrder"
-#     UPDATE_TRADING_POSITION_ENDPOINT = "updateTradingPosition"
-
-#     TA_API_INTERVAL_5M = "5m"
-#     TA_API_INTERVAL_15M = "15m"
-#     TA_API_INTERVAL_30M = "30m"
-#     TA_API_INTERVAL_1H = "1h"
-#     TA_API_INTERVAL_4H = "4h"
-#     TA_API_INTERVAL_1D = "1d"
-#     TA_API_INTERVAL_1WK = "1w"
-
-#     def getStockExchangeName(self) -> str:
-#         """
-#         Returns the name of the stock exchange.
-#         """
-
-#         return Const.STOCK_EXCH_CURRENCY_COM
-
-#     def getApiEndpoint(self) -> str:
-#         """
-#         Returns the API endpoint.
-#         """
-
-#         return "https://api-adapter.backend.currency.com/api/v2/"
-
-#     def getHistoryData(
-#         self, symbol: str, interval: str, limit: int, **kwargs
-#     ) -> HistoryData:
-#         """
-#         Retrieves historical data for a given symbol and interval from the stock exchange API.
-#         Args:
-#             symbol (str): The symbol of the asset to retrieve historical data for.
-#             interval (str): The interval of the historical data (e.g., "5m", "1h", etc.).
-#             limit (int): The number of data points to retrieve.
-#             closed_bars (bool): Indicator for generation of endTime for API
-#             **kwargs: Additional keyword arguments.
-#         Returns:
-#             HistoryData: An instance of the HistoryData class containing the retrieved historical data.
-#         Raises:
-#             Exception: If there is an error in retrieving the historical data.
-#         """
-
-#         # Boolean importing parameters closed_bars in order to get only closed bar for the current moment
-#         if Const.CLOSED_BARS in kwargs:
-#             closed_bars = kwargs[Const.CLOSED_BARS]
-#         else:
-#             closed_bars = False
-
-#         interval_api = self.mapInterval(interval)
-
-#         # Prepare URL parameters
-#         url_params = {
-#             Const.PARAM_SYMBOL: symbol,
-#             Const.INTERVAL: interval_api,
-#             Const.LIMIT: limit,
-#         }
-
-#         # If closed_bars indicator is True -> calculated endTime for the API
-#         if closed_bars:
-#             url_params[Const.API_FLD_END_TIME] = self.getOffseUnixTimeMsByInterval(
-#                 interval_api
-#             )
-#             url_params[Const.LIMIT] = url_params[Const.LIMIT] + 1
-
-#         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
-#             logger.info(
-#                 f"STOCK_EXCHANGE: {self.getStockExchangeName()} - getHistoryData({url_params})"
-#             )
-
-#         json_api_response = self.get_api_klines(url_params)
-
-#         # Convert API response to the DataFrame with columns: 'Datetime', 'Open', 'High', 'Low', 'Close', 'Volume'
-#         df = self.convertResponseToDataFrame(json_api_response)
-
-#         # Create an instance of HistoryData
-#         obj_history_data = HistoryData(
-#             symbol=symbol, interval=interval, limit=limit, dataFrame=df
-#         )
-
-#         return obj_history_data
-
-#     def get_api_klines(self, url_params: dict) -> dict:
-#         response = requests.get(f"{self.getApiEndpoint()}/klines", params=url_params)
-
-#         if response.status_code == 200:
-#             # Get data from API
-#             return json.loads(response.text)
-
-#         else:
-#             logger.error(
-#                 f"STOCK_EXCHANGE: {self.getStockExchangeName()} - get_api_klines -> {response.text}"
-#             )
-#             raise Exception(response.text)
-
-#     def getSymbols(self) -> dict[Symbol]:
-#         """
-#         Retrieves a list of symbols available on the stock exchange.
-#         Returns:
-#             dict[Symbol]: A dictionary of Symbol objects representing the available symbols. The format is {"<symbol_code>": <Symbol obhject>}
-#         """
-
-#         symbols = {}
-
-#         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
-#             logger.info(f"STOCK_EXCHANGE: {self.getStockExchangeName()} - getSymbols()")
-
-#         # Get API data
-#         response = requests.get(f"{self.getApiEndpoint()}/exchangeInfo")
-
-#         if response.status_code == 200:
-#             json_api_response = json.loads(response.text)
-
-#             # Create an instance of Symbol and add to the list
-#             for row in json_api_response["symbols"]:
-#                 if (
-#                     row["quoteAssetId"] == "USD"
-#                     and row["assetType"] in ["CRYPTOCURRENCY", "EQUITY", "COMMODITY"]
-#                     and "REGULAR" in row["marketModes"]
-#                 ):
-#                     status_converted = (
-#                         Const.STATUS_OPEN
-#                         if row[Const.STATUS] == "TRADING"
-#                         else Const.STATUS_CLOSE
-#                     )
-
-#                     symbol_inst = Symbol(
-#                         code=row[Const.PARAM_SYMBOL],
-#                         name=row[Const.NAME],
-#                         status=status_converted,
-#                         tradingTime=row["tradingHours"],
-#                         type=row["assetType"],
-#                     )
-#                     symbols[symbol_inst.code] = symbol_inst
-#                 else:
-#                     continue
-
-#             return symbols
-
-#         else:
-#             logger.error(
-#                 f"STOCK_EXCHANGE: {self.getStockExchangeName()} - getSymbols -> {response.text}"
-#             )
-#             raise Exception(response.text)
-
-#     def get_intervals(self) -> list:
-#         """
-#         Returns a list of intervals available for retrieving historical data.
-#         Each interval is represented as a dictionary with keys: 'interval', 'name', 'order', and 'importance'.
-#         """
-
-#         intervals = [
-#             {
-#                 "interval": self.TA_API_INTERVAL_5M,
-#                 "name": "5 minutes",
-#                 "order": 10,
-#                 "importance": Const.IMPORTANCE_LOW,
-#             },
-#             {
-#                 "interval": self.TA_API_INTERVAL_15M,
-#                 "name": "15 minutes",
-#                 "order": 20,
-#                 "importance": Const.IMPORTANCE_LOW,
-#             },
-#             {
-#                 "interval": self.TA_API_INTERVAL_30M,
-#                 "name": "30 minutes",
-#                 "order": 30,
-#                 "importance": Const.IMPORTANCE_MEDIUM,
-#             },
-#             {
-#                 "interval": self.TA_API_INTERVAL_1H,
-#                 "name": "1 hour",
-#                 "order": 40,
-#                 "importance": Const.IMPORTANCE_MEDIUM,
-#             },
-#             {
-#                 "interval": self.TA_API_INTERVAL_4H,
-#                 "name": "4 hours",
-#                 "order": 50,
-#                 "importance": Const.IMPORTANCE_HIGH,
-#             },
-#             {
-#                 "interval": self.TA_API_INTERVAL_1D,
-#                 "name": "1 day",
-#                 "order": 60,
-#                 "importance": Const.IMPORTANCE_HIGH,
-#             },
-#             {
-#                 "interval": self.TA_API_INTERVAL_1WK,
-#                 "name": "1 week",
-#                 "order": 70,
-#                 "importance": Const.IMPORTANCE_HIGH,
-#             },
-#         ]
-
-#         return intervals
-
-#         # def get_accounts(self) -> dict:
-#         #     if config.get_config_value(Const.CONFIG_DEBUG_LOG):
-#         #         logger.info(
-#         #             f"STOCK_EXCHANGE: {self.getStockExchangeName()} - get_accounts()"
-#         #         )
-
-#         #     query_params = self.__sign_query_params(
-#         #         {
-#         #             "recvWindow": 5000,
-#         #             "timestamp": int(time.time() * 1000),
-#         #         }
-#         #     )
-
-#         #     # Get API data
-#         #     response = requests.get(
-#         #         f"{self.getApiEndpoint()}/account",
-#         #         params=query_params,
-#         #         headers=self.__get_header_api_key(),
-#         #     )
-
-#         #     if config.get_config_value(Const.CONFIG_DEBUG_LOG):
-#         #         logger.info(
-#         #             f"STOCK_EXCHANGE: {self.getStockExchangeName()} - {response.url}"
-#         #         )
-
-#         #     # Check the response status code
-#         #     if response.status_code == 200:
-#         #         data = response.json()
-#         #         return data
-#         #     else:
-#         #         raise Exception(
-#         #             f"STOCK_EXCHANGE: {self.getStockExchangeName()} - Failed to retrieve account information: {response.status_code} - {response.text}"
-#         #         )
-
-#         # def get_open_orders(self, symbol: str = None) -> dict:
-#         #     if config.get_config_value(Const.CONFIG_DEBUG_LOG):
-#         #         logger.info(
-#         #             f"STOCK_EXCHANGE: {self.getStockExchangeName()} - get_open_orders()"
-#         #         )
-
-#         #     query_params = {
-#         #         "recvWindow": 10000,
-#         #         "timestamp": int(time.time() * 1000),
-#         #     }
-
-#         #     if symbol:
-#         #         query_params[Const.API_FLD_SYMBOL] = symbol
-
-#         #     query_params = self.__sign_query_params(query_params)
-
-#         #     # Get API data
-#         #     response = requests.get(
-#         #         f"{self.getApiEndpoint()}/openOrders",
-#         #         params=query_params,
-#         #         headers=self.__get_header_api_key(),
-#         #     )
-
-#         #     if config.get_config_value(Const.CONFIG_DEBUG_LOG):
-#         #         logger.info(
-#         #             f"STOCK_EXCHANGE: {self.getStockExchangeName()} - {response.url}"
-#         #         )
-
-#         #     # Check the response status code
-#         #     if response.status_code == 200:
-#         #         data = response.json()
-#         #         return data
-#         #     else:
-#         #         raise Exception(
-#         #             f"STOCK_EXCHANGE: {self.getStockExchangeName()} - Failed to retrieve open orders: {response.status_code} - {response.text}"
-#         #         )
-
-#         # def get_my_trades(self, symbol: str) -> dict:
-#         #     if config.get_config_value(Const.CONFIG_DEBUG_LOG):
-#         #         logger.info(
-#         #             f"STOCK_EXCHANGE: {self.getStockExchangeName()} - get_my_trades()"
-#         #         )
-
-#         #     query_params = {
-#         #         "recvWindow": 10000,
-#         #         "symbol": symbol,
-#         #         "timestamp": int(time.time() * 1000),
-#         #     }
-
-#         #     query_params = self.__sign_query_params(query_params)
-
-#         #     # Get API data
-#         #     response = requests.get(
-#         #         f"{self.getApiEndpoint()}/myTrades",
-#         #         params=query_params,
-#         #         headers=self.__get_header_api_key(),
-#         #     )
-
-#         #     if config.get_config_value(Const.CONFIG_DEBUG_LOG):
-#         #         logger.info(
-#         #             f"STOCK_EXCHANGE: {self.getStockExchangeName()} - {response.url}"
-#         #         )
-
-#         #     # Check the response status code
-#         #     if response.status_code == 200:
-#         #         data = response.json()
-#         #         return data
-#         #     else:
-#         #         raise Exception(
-#         #             f"STOCK_EXCHANGE: {self.getStockExchangeName()} - Failed to retrieve my trades: {response.status_code} - {response.text}"
-#         #         )
-
-#         # def get_trading_positions(self) -> list:
-#         #     if config.get_config_value(Const.CONFIG_DEBUG_LOG):
-#         #         logger.info(
-#         #             f"STOCK_EXCHANGE: {self.getStockExchangeName()} - get_trading_positions()"
-#         #         )
-
-#         #     query_params = self.__sign_query_params(
-#         #         {
-#         #             "recvWindow": 5000,
-#         #             "timestamp": int(time.time() * 1000),
-#         #         }
-#         #     )
-
-#         #     # Get API data
-#         #     response = requests.get(
-#         #         f"{self.getApiEndpoint()}/tradingPositions",
-#         #         params=query_params,
-#         #         headers=self.__get_header_api_key(),
-#         #     )
-
-#         #     if config.get_config_value(Const.CONFIG_DEBUG_LOG):
-#         #         logger.info(
-#         #             f"STOCK_EXCHANGE: {self.getStockExchangeName()} - {response.url}"
-#         #         )
-
-#         #     # Check the response status code
-#         #     if response.status_code == 200:
-#         #         data = response.json()
-#         #         return data
-#         #     else:
-#         #         raise Exception(
-#         #             f"STOCK_EXCHANGE: {self.getStockExchangeName()} - Failed to retrieve trading positions: {response.status_code} - {response.text}"
-#         #         )
-
-#     def create_order(self) -> dict:
-#         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
-#             logger.info(
-#                 f"STOCK_EXCHANGE: {self.getStockExchangeName()} - create_order()"
-#             )
-
-#         query_params = self.__sign_query_params(
-#             {
-#                 # "recvWindow": 5000,
-#                 "timestamp": int(datetime.now().timestamp() * 1000),
-#                 "accountId": "167893441795404062",
-#                 # "expireTimestamp": int(time.time() * 1000),
-#                 "guaranteedStopLoss": False,
-#                 # "leverage": 2,
-#                 "newOrderRespType": "FULL",
-#                 # price=price,
-#                 "quantity": 2,
-#                 "side": "BUY",
-#                 # "stopLoss": 65.0,
-#                 "symbol": "LTC/USD_LEVERAGE",
-#                 # "takeProfit": 68.3,
-#                 "type": "MARKET",
-#             }
-#         )
-
-#         # Get API data
-#         response = requests.post(
-#             f"{self.getApiEndpoint()}/order",
-#             params=query_params,
-#             headers=self.__get_header_api_key(),
-#         )
-
-#         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
-#             logger.info(
-#                 f"STOCK_EXCHANGE: {self.getStockExchangeName()} - {response.url}"
-#             )
-
-#         # Check the response status code
-#         if response.status_code == 200:
-#             data = response.json()
-#             return data
-#         else:
-#             raise Exception(
-#                 f"STOCK_EXCHANGE: {self.getStockExchangeName()} - Failed to create an order: {response.status_code} - {response.text}"
-#             )
-
-#     @staticmethod
-#     def get_24h_price_change(symbol=None):
-#         """
-#         24-hour rolling window price change statistics. Careful when accessing
-#         this with no symbol.
-#         If the symbol is not sent, tickers for all symbols will be returned in
-#         an array.
-#         :param symbol:
-#         :return: dict object
-
-#         Response:
-#         {
-#           "symbol": "LTC/USD",
-#           "priceChange": "0.88",
-#           "priceChangePercent": "1.49",
-#           "weightedAvgPrice": "59.29",
-#           "prevClosePrice": "58.37",
-#           "lastPrice": "59.25",
-#           "lastQty": "220.0",
-#           "bidPrice": "59.25",
-#           "askPrice": "59.32",
-#           "openPrice": "58.37",
-#           "highPrice": "61.39",
-#           "lowPrice": "58.37",
-#           "volume": "22632",
-#           "quoteVolume": "440.0",
-#           "openTime": 1580169600000,
-#           "closeTime": 1580205307222,
-#           "firstId": 0,
-#           "lastId": 0,
-#           "count": 0
-#         }
-
-#         OR
-
-#         {
-#           "symbol": "LTC/USD",
-#           "priceChange": null,
-#           "priceChangePercent": null,
-#           "weightedAvgPrice": "59.29",
-#           "prevClosePrice": null,
-#           "lastPrice": "59.23",
-#           "lastQty": "220.0",
-#           "bidPrice": "59.23",
-#           "askPrice": "59.35",
-#           "openPrice": null,
-#           "highPrice": null,
-#           "lowPrice": null,
-#           "volume": null,
-#           "quoteVolume": "432.18",
-#           "openTime": 0,
-#           "closeTime": 0,
-#           "firstId": 0,
-#           "lastId": 0,
-#           "count": 0
-#         }
-#         """
-#         return requests.get(
-#             CurrencyComApi.PRICE_CHANGE_24H_ENDPOINT,
-#             params={"symbol": symbol} if symbol else {},
-#         )
-
-#     @staticmethod
-#     def get_server_time():
-#         """
-#         Test connectivity to the API and get the current server time.
-
-#         :return: dict object
-#         Response:
-#         {
-#           "serverTime": 1499827319559
-#         }
-#         """
-#         return requests.get(CurrencyComApi.SERVER_TIME_ENDPOINT)
-
-#     def get_accounts(self, show_zero_balance: bool = False, recv_window: int = None):
-#         """
-#         Get current account information
-#         """
-#         self._validate_recv_window(recv_window)
-#         return self._get(
-#             CurrencyComApi.ACCOUNT_INFORMATION_ENDPOINT,
-#             showZeroBalance=show_zero_balance,
-#             recvWindow=recv_window,
-#         )
-
-#     def get_account_trade_list(
-#         self,
-#         symbol,
-#         start_time: datetime = None,
-#         end_time: datetime = None,
-#         limit=500,
-#         recv_window=None,
-#     ):
-#         """
-#         Get trades for a specific account and symbol.
-#         """
-#         self._validate_limit(limit)
-#         self._validate_recv_window(recv_window)
-
-#         params = {"symbol": symbol, "limit": limit, "recvWindow": recv_window}
-
-#         if start_time:
-#             params["startTime"] = self.getUnixTimeMsByDatetime(start_time)
-
-#         if end_time:
-#             params["endTime"] = self.getUnixTimeMsByDatetime(end_time)
-
-#         return self._get(CurrencyComApi.ACCOUNT_TRADE_LIST_ENDPOINT, **params)
-
-#     # Orders
-#     def get_open_orders(self, symbol=None, recv_window=None):
-#         """
-#         Get all open orders on a symbol. Careful when accessing this with no
-#         symbol.
-#         If the symbol is not sent, orders for all symbols will be returned in
-#         an array.
-
-#         :param symbol: Symbol - In order to receive orders within an ‘exchange’
-#         trading mode ‘symbol’ parameter value from the exchangeInfo endpoint:
-#         ‘BTC%2FUSD’.
-#         In order to mention the right symbolLeverage it should be checked with
-#         the ‘symbol’ parameter value from the exchangeInfo endpoint. In case
-#         ‘symbol’ has currencies in its name then the following format should be
-#         used: ‘BTC%2FUSD_LEVERAGE’. In case ‘symbol’ has only an asset name
-#         then for the leverage trading mode the following format is correct:
-#          ‘Oil%20-%20Brent.’
-#         :param recv_window: The value cannot be greater than 60000.
-#         :return: dict object
-
-#         Response:
-#         [
-#           {
-#             "symbol": "LTC/BTC",
-#             "orderId": "1",
-#             "orderListId": -1,
-#             "clientOrderId": "myOrder1",
-#             "price": "0.1",
-#             "origQty": "1.0",
-#             "executedQty": "0.0",
-#             "cummulativeQuoteQty": "0.0",
-#             "status": "NEW",
-#             "timeInForce": "GTC",
-#             "type": "LIMIT",
-#             "side": "BUY",
-#             "stopPrice": "0.0",
-#             "time": 1499827319559,
-#             "updateTime": 1499827319559,
-#             "isWorking": true,
-#             "origQuoteOrderQty": "0.000000"
-#           }
-#         ]
-#         """
-
-#         self._validate_recv_window(recv_window)
-
-#         return self._get(
-#             CurrencyComApi.CURRENT_OPEN_ORDERS_ENDPOINT,
-#             symbol=symbol,
-#             recvWindow=recv_window,
-#         )
-
-#     def new_order(
-#         self,
-#         symbol,
-#         side: OrderSide,
-#         order_type: OrderType,
-#         quantity: float,
-#         account_id: str = None,
-#         expire_timestamp: datetime = None,
-#         guaranteed_stop_loss: bool = False,
-#         stop_loss: float = None,
-#         take_profit: float = None,
-#         leverage: int = None,
-#         price: float = None,
-#         new_order_resp_type: NewOrderResponseType = NewOrderResponseType.FULL,
-#         recv_window=None,
-#     ):
-#         """
-#         To create a market or limit order in the exchange trading mode, and
-#         market, limit or stop order in the leverage trading mode.
-#         Please note that to open an order within the ‘leverage’ trading mode
-#         symbolLeverage should be used and additional accountId parameter should
-#         be mentioned in the request.
-#         :param symbol: In order to mention the right symbolLeverage it should
-#         be checked with the ‘symbol’ parameter value from the exchangeInfo
-#         endpoint. In case ‘symbol’ has currencies in its name then the
-#         following format should be used: ‘BTC%2FUSD_LEVERAGE’. In case
-#         ‘symbol’ has only an asset name then for the leverage trading mode the
-#         following format is correct: ‘Oil%20-%20Brent’.
-#         :param side:
-#         :param order_type:
-#         :param quantity:
-#         :param account_id:
-#         :param expire_timestamp:
-#         :param guaranteed_stop_loss:
-#         :param stop_loss:
-#         :param take_profit:
-#         :param leverage:
-#         :param price: Required for LIMIT orders
-#         :param new_order_resp_type: newOrderRespType in the exchange trading
-#         mode for MARKET order RESULT or FULL can be mentioned. MARKET order
-#         type default to FULL. LIMIT order type can be only RESULT. For the
-#         leverage trading mode only RESULT is available.
-#         :param recv_window: The value cannot be greater than 60000.
-#         :return: dict object
-
-#         Response RESULT:
-#         {
-#            "clientOrderId" : "00000000-0000-0000-0000-00000002cac8",
-#            "status" : "FILLED",
-#            "cummulativeQuoteQty" : null,
-#            "executedQty" : "0.001",
-#            "type" : "MARKET",
-#            "transactTime" : 1577446511069,
-#            "origQty" : "0.001",
-#            "symbol" : "BTC/USD",
-#            "timeInForce" : "FOK",
-#            "side" : "BUY",
-#            "price" : "7173.6186",
-#            "orderId" : "00000000-0000-0000-0000-00000002cac8"
-#         }
-#         Response FULL:
-#         {
-#           "orderId" : "00000000-0000-0000-0000-00000002ca43",
-#           "price" : "7183.3881",
-#           "clientOrderId" : "00000000-0000-0000-0000-00000002ca43",
-#           "side" : "BUY",
-#           "cummulativeQuoteQty" : null,
-#           "origQty" : "0.001",
-#           "transactTime" : 1577445603997,
-#           "type" : "MARKET",
-#           "executedQty" : "0.001",
-#           "status" : "FILLED",
-#           "fills" : [
-#            {
-#              "price" : "7169.05",
-#              "qty" : "0.001",
-#              "commissionAsset" : "dUSD",
-#              "commission" : "0"
-#            }
-#           ],
-#           "timeInForce" : "FOK",
-#           "symbol" : "BTC/USD"
-#         }
-#         """
-#         self._validate_recv_window(recv_window)
-#         self._validate_new_order_resp_type(new_order_resp_type, order_type)
-
-#         if order_type == OrderType.LIMIT:
-#             if not price:
-#                 raise ValueError(
-#                     "For LIMIT orders price is required or "
-#                     f"should be greater than 0. Got {price}"
-#                 )
-
-#         expire_timestamp_epoch = self.getUnixTimeMsByDatetime(expire_timestamp)
-
-#         return self._post(
-#             CurrencyComApi.ORDER_ENDPOINT,
-#             accountId=account_id,
-#             expireTimestamp=expire_timestamp_epoch,
-#             guaranteedStopLoss=guaranteed_stop_loss,
-#             leverage=leverage,
-#             newOrderRespType=new_order_resp_type.value,
-#             price=price,
-#             quantity=quantity,
-#             recvWindow=recv_window,
-#             side=side.value,
-#             stopLoss=stop_loss,
-#             symbol=symbol,
-#             takeProfit=take_profit,
-#             type=order_type.value,
-#         )
-
-#     def cancel_order(self, symbol, order_id, recv_window=None):
-#         """
-#         Cancel an active order within exchange and leverage trading modes.
-
-#         :param symbol:
-#         :param order_id:
-#         :param recv_window: The value cannot be greater than 60000.
-#         :return: dict object
-
-#         Response:
-#         {
-#           "symbol": "LTC/BTC",
-#           "origClientOrderId": "myOrder1",
-#           "orderId": "4",
-#           "orderListId": -1,
-#           "clientOrderId": "cancelMyOrder1",
-#           "price": "2.00000000",
-#           "origQty": "1.00000000",
-#           "executedQty": "0.00000000",
-#           "cummulativeQuoteQty": "0.00000000",
-#           "status": "CANCELED",
-#           "timeInForce": "GTC",
-#           "type": "LIMIT",
-#           "side": "BUY"
-#         }
-#         """
-
-#         self._validate_recv_window(recv_window)
-#         return self._delete(
-#             CurrencyComApi.ORDER_ENDPOINT,
-#             symbol=symbol,
-#             orderId=order_id,
-#             recvWindow=recv_window,
-#         )
-
-#     # Leverage
-#     def get_trading_positions(self, recv_window=None):
-#         self._validate_recv_window(recv_window)
-#         return self._get(
-#             CurrencyComApi.TRADING_POSITIONS_ENDPOINT, recvWindow=recv_window
-#         )
-
-#     def update_trading_position(
-#         self,
-#         position_id,
-#         stop_loss: float = None,
-#         take_profit: float = None,
-#         guaranteed_stop_loss=False,
-#         recv_window=None,
-#     ):
-#         """
-#         To edit current leverage trade by changing stop loss and take profit
-#         levels.
-
-#         :return: dict object
-#         Example:
-#         {
-#             "requestId": 242040,
-#             "state": “PROCESSED”
-#         }
-#         """
-#         self._validate_recv_window(recv_window)
-#         return self._post(
-#             CurrencyComApi.UPDATE_TRADING_POSITION_ENDPOINT,
-#             positionId=position_id,
-#             guaranteedStopLoss=guaranteed_stop_loss,
-#             stopLoss=stop_loss,
-#             takeProfit=take_profit,
-#         )
-
-#     def close_trading_position(self, position_id, recv_window=None):
-#         """
-#         Close an active leverage trade.
-
-#         :param position_id:
-#         :param recv_window: The value cannot be greater than 60000.
-#         :return: dict object
-
-#         Response example:
-#         Example:
-#         {
-#             "request": [
-#                 {
-#                 "id": 242057,
-#                 "accountId": 2376109060084932,
-#                 "instrumentId": "45076691096786116",
-#                 "rqType": "ORDER_NEW",
-#                 "state": "PROCESSED",
-#                 "createdTimestamp": 1587031306969
-#                 }
-#             ]
-#         }
-#         """
-#         self._validate_recv_window(recv_window)
-
-#         return self._post(
-#             CurrencyComApi.CLOSE_TRADING_POSITION_ENDPOINT,
-#             positionId=position_id,
-#             recvWindow=recv_window,
-#         )
-
-#     def getEndDatetime(
-#         self, interval: str, original_datetime: datetime, **kwargs
-#     ) -> datetime:
-#         """
-#         Calculates the datetime based on the specified interval, original datetime and additional parameters.
-#         Args:
-#             interval (str): The interval for calculating the end datetime.
-#             original_datetime (datetime): The original datetime.
-#             closed_bars (bool): Indicator for generation of endTime with offset to get the only already closed bars
-#         Returns:
-#             datetime: The end datetime.
-#         Raises:
-#             ValueError: If the original_datetime parameter is not a datetime object.
-#         """
-
-#         # Boolean importing parameters closed_bars in order to get only closed bar for the current moment
-#         if Const.CLOSED_BARS in kwargs:
-#             closed_bars = kwargs[Const.CLOSED_BARS]
-#         else:
-#             closed_bars = False
-
-#         if not original_datetime:
-#             original_datetime = datetime.now()
-
-#         if not isinstance(original_datetime, datetime):
-#             raise ValueError("Input parameter must be a datetime object.")
-
-#         if interval in [
-#             self.TA_API_INTERVAL_5M,
-#             self.TA_API_INTERVAL_15M,
-#             self.TA_API_INTERVAL_30M,
-#         ]:
-#             current_minute = original_datetime.minute
-
-#             if interval == self.TA_API_INTERVAL_5M:
-#                 offset_value = 5
-#             elif interval == self.TA_API_INTERVAL_15M:
-#                 offset_value = 15
-#             elif interval == self.TA_API_INTERVAL_30M:
-#                 offset_value = 30
-
-#             delta_minutes = current_minute % offset_value
-
-#             if closed_bars:
-#                 delta_minutes += offset_value
-
-#             offset_date_time = original_datetime - timedelta(minutes=delta_minutes)
-
-#             offset_date_time = offset_date_time.replace(second=0, microsecond=0)
-
-#         elif interval == self.TA_API_INTERVAL_1H:
-#             compared_datetime = original_datetime.replace(
-#                 minute=0, second=30, microsecond=0
-#             )
-
-#             if original_datetime > compared_datetime and closed_bars:
-#                 offset_date_time = original_datetime - timedelta(hours=1)
-#             else:
-#                 offset_date_time = original_datetime
-
-#             offset_date_time = offset_date_time.replace(
-#                 minute=0, second=0, microsecond=0
-#             )
-
-#         elif interval == self.TA_API_INTERVAL_4H:
-#             offset_value = 4
-#             hours_difference = self.getTimezoneDifference()
-#             current_hour = original_datetime.hour - hours_difference
-
-#             delta_hours = current_hour % offset_value
-
-#             if closed_bars:
-#                 delta_hours += offset_value
-
-#             offset_date_time = original_datetime - timedelta(hours=delta_hours)
-
-#             offset_date_time = offset_date_time.replace(
-#                 minute=0, second=0, microsecond=0
-#             )
-
-#         elif interval == self.TA_API_INTERVAL_1D:
-#             compared_datetime = original_datetime.replace(
-#                 hour=0, minute=0, second=30, microsecond=0
-#             )
-
-#             if original_datetime > compared_datetime and closed_bars:
-#                 offset_date_time = original_datetime - timedelta(days=1)
-#             else:
-#                 offset_date_time = original_datetime
-
-#             offset_date_time = offset_date_time.replace(
-#                 hour=self.getTimezoneDifference(), minute=0, second=0, microsecond=0
-#             )
-
-#         elif interval == self.TA_API_INTERVAL_1WK:
-#             compared_datetime = original_datetime.replace(
-#                 hour=0, minute=0, second=30, microsecond=0
-#             )
-
-#             offset_value = 7
-
-#             delta_days_until_monday = original_datetime.weekday() % offset_value
-
-#             if closed_bars:
-#                 delta_days_until_monday += offset_value
-
-#             offset_date_time = original_datetime - timedelta(
-#                 days=delta_days_until_monday
-#             )
-
-#             offset_date_time = offset_date_time.replace(
-#                 hour=self.getTimezoneDifference(), minute=0, second=0, microsecond=0
-#             )
-
-#         # if config.get_config_value(Const.CONFIG_DEBUG_LOG):
-#         #     other_attributes = ", ".join(
-#         #         f"{key}={value}" for key, value in kwargs.items()
-#         #     )
-
-#         #     logger.info(
-#         #         f"STOCK_EXCHANGE: {self.getStockExchangeName()} - getEndDatetime(interval: {interval}, {other_attributes}) -> Original: {original_datetime} | Closed: {offset_date_time}"
-#         #     )
-
-#         return offset_date_time
-
-#     ########################### Private methods - refactor ###################
-
-#     def convertResponseToDataFrame(self, api_response: list) -> pd.DataFrame:
-#         """
-#         Converts the API response into a DataFrame containing historical data.
-#         Args:
-#             api_response (list): The API response as a list.
-#         Returns:
-#             DataFrame: DataFrame with columns: 'Datetime', 'Open', 'High', 'Low', 'Close', 'Volume'
-#         """
-
-#         COLUMN_DATETIME_FLOAT = "DatetimeFloat"
-
-#         df = pd.DataFrame(
-#             api_response,
-#             columns=[
-#                 COLUMN_DATETIME_FLOAT,
-#                 Const.COLUMN_OPEN,
-#                 Const.COLUMN_HIGH,
-#                 Const.COLUMN_LOW,
-#                 Const.COLUMN_CLOSE,
-#                 Const.COLUMN_VOLUME,
-#             ],
-#         )
-#         df[Const.COLUMN_DATETIME] = df.apply(
-#             lambda x: pd.to_datetime(
-#                 self.getDatetimeByUnixTimeMs(x[COLUMN_DATETIME_FLOAT])
-#             ),
-#             axis=1,
-#         )
-#         df.set_index(Const.COLUMN_DATETIME, inplace=True)
-#         df.drop([COLUMN_DATETIME_FLOAT], axis=1, inplace=True)
-#         df = df.astype(float)
-
-#         return df
-
-#     def getOffseUnixTimeMsByInterval(self, interval: str) -> int:
-#         """
-#         Calculates the Unix timestamp in milliseconds for the offset datetime based on the specified interval.
-#         Args:
-#             interval (str): The interval for calculating the Unix timestamp.
-#         Returns:
-#             int: The Unix timestamp in milliseconds.
-#         """
-
-#         local_datetime = datetime.now()
-#         offset_datetime = self.getEndDatetime(
-#             interval=interval, original_datetime=local_datetime, closed_bars=True
-#         )
-#         return self.getUnixTimeMsByDatetime(offset_datetime)
-
-#     @staticmethod
-#     def getUnixTimeMsByDatetime(original_datetime: datetime) -> int:
-#         """
-#         Calculates the Unix timestamp in milliseconds for the datetime.
-#         Args:
-#             original_datetime (datetime): The datetime object.
-#         Returns:
-#             int: The Unix timestamp in milliseconds.
-#         """
-#         if original_datetime:
-#             return int(original_datetime.timestamp() * 1000)
-#         else:
-#             return None
-
-#     @staticmethod
-#     def getTimezoneDifference() -> int:
-#         """
-#         Calculates the difference in hours between the local timezone and UTC.
-#         Returns:
-#             int: The timezone difference in hours.
-#         """
-
-#         local_time = datetime.now()
-#         utc_time = datetime.utcnow()
-#         delta = local_time - utc_time
-
-#         return math.ceil(delta.total_seconds() / 3600)
-
-#     @staticmethod
-#     def getDatetimeByUnixTimeMs(timestamp: int) -> datetime:
-#         """
-#         Converts a Unix timestamp in milliseconds to a datetime object.
-#         Args:
-#             timestamp (int): The Unix timestamp in milliseconds.
-#         Returns:
-#             datetime: The datetime object.
-#         """
-
-#         return datetime.fromtimestamp(timestamp / 1000.0)
-
-#     def get_trading_timeframes(self, trading_time: str) -> dict:
-#         timeframes = {}
-
-#         # Split the Trading Time string into individual entries
-#         time_entries = trading_time.split("; ")
-
-#         # Loop through each time entry and check if the current time aligns
-#         for entry in time_entries[1:]:
-#             day_time_frames = []
-
-#             # Split the time entry into day and time ranges
-#             day, time_ranges = entry.split(" ", 1)
-
-#             # Split the time ranges into time period
-#             time_periods = time_ranges.split(",")
-
-#             for time_period in time_periods:
-#                 # Split the time period into start and end times
-#                 start_time, end_time = time_period.split("-")
-#                 start_time = "00:00" if start_time == "" else start_time
-#                 start_time = datetime.strptime(start_time.strip(), "%H:%M")
-
-#                 end_time = end_time.strip()
-#                 end_time = "23:59" if end_time in ["", "00:00"] else end_time
-#                 end_time = datetime.strptime(end_time, "%H:%M")
-
-#                 day_time_frames.append(
-#                     {Const.START_TIME: start_time, Const.API_FLD_END_TIME: end_time}
-#                 )
-
-#             timeframes[day.lower()] = day_time_frames
-
-#         return timeframes
-
-#     def is_trading_open(self, interval: str, trading_timeframes: dict) -> bool:
-#         # Skip trading time check
-#         if interval == self.TA_API_INTERVAL_1WK:
-#             return True
-
-#         # Get current time in UTC
-#         current_datetime_utc = datetime.utcnow()
-#         # Get name of a day in lower case
-#         current_day = current_datetime_utc.strftime("%a").lower()
-#         current_time = current_datetime_utc.time()
-
-#         # Check if today matches the day in the timeframes
-#         if current_day in trading_timeframes:
-#             # Check only day for 1 day interval and skip trading time check
-#             if interval == self.TA_API_INTERVAL_1D:
-#                 return True
-#             else:
-#                 # Run trading time check- for rest of the intervals
-#                 time_frames = trading_timeframes[current_day]
-#                 for time_frame in time_frames:
-#                     if (
-#                         time_frame[Const.START_TIME].time() <= current_time
-#                         and current_time <= time_frame[Const.API_FLD_END_TIME].time()
-#                     ):
-#                         return True
-
-#         return False
-
-#     def _validate_recv_window(self, recv_window):
-#         max_value = CurrencyComApi.RECV_WINDOW_MAX_LIMIT
-#         if recv_window and recv_window > max_value:
-#             raise ValueError(
-#                 "recvValue cannot be greater than {}. Got {}.".format(
-#                     max_value, recv_window
-#                 )
-#             )
-
-#     @staticmethod
-#     def _validate_new_order_resp_type(
-#         new_order_resp_type: NewOrderResponseType, order_type: OrderType
-#     ):
-#         if new_order_resp_type == NewOrderResponseType.ACK:
-#             raise ValueError("ACK mode no more available")
-
-#         if order_type == OrderType.MARKET:
-#             if new_order_resp_type not in [
-#                 NewOrderResponseType.RESULT,
-#                 NewOrderResponseType.FULL,
-#             ]:
-#                 raise ValueError(
-#                     "new_order_resp_type for MARKET order can be only RESULT"
-#                     f"or FULL. Got {new_order_resp_type.value}"
-#                 )
-#         elif order_type == OrderType.LIMIT:
-#             if new_order_resp_type != NewOrderResponseType.RESULT:
-#                 raise ValueError(
-#                     "new_order_resp_type for LIMIT order can be only RESULT."
-#                     f" Got {new_order_resp_type.value}"
-#                 )
-
-#     def _get_params_with_signature(self, **kwargs):
-#         api_secret = config.get_env_value("CURRENCY_COM_API_SECRET")
-#         if not api_secret:
-#             raise Exception(
-#                 f"STOCK_EXCHANGE: {self.getStockExchangeName()} - API secret is not maintained"
-#             )
-
-#         t = self.getUnixTimeMsByDatetime(datetime.now())
-#         kwargs["timestamp"] = t
-#         # pylint: disable=no-member
-#         body = RequestEncodingMixin._encode_params(kwargs)
-#         sign = hmac.new(
-#             bytes(api_secret, "utf-8"), bytes(body, "utf-8"), hashlib.sha256
-#         ).hexdigest()
-
-#         return {"signature": sign, **kwargs}
-
-#     def _get_header(self, **kwargs):
-#         api_key = config.get_env_value("CURRENCY_COM_API_KEY")
-#         if not api_key:
-#             raise Exception(
-#                 f"STOCK_EXCHANGE: {self.getStockExchangeName()} - API key is not maintained"
-#             )
-
-#         return {**kwargs, CurrencyComApi.HEADER_API_KEY_NAME: api_key}
-
-#     def _get(self, path, **kwargs):
-#         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
-#             logger.info(f"STOCK_EXCHANGE: {self.getStockExchangeName()} - GET /{path}")
-
-#         url = self._get_url(path)
-
-#         response = requests.get(
-#             url,
-#             params=self._get_params_with_signature(**kwargs),
-#             headers=self._get_header(),
-#         )
-
-#         if response.status_code == 200:
-#             return response.json()
-#         else:
-#             raise Exception(
-#                 f"STOCK_EXCHANGE: {self.getStockExchangeName()} - GET /{path} -> {response.status_code}: {response.text}"
-#             )
-
-#     def _post(self, path, **kwargs):
-#         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
-#             logger.info(f"STOCK_EXCHANGE: {self.getStockExchangeName()} - POST /{path}")
-
-#         url = self._get_url(path)
-
-#         response = requests.post(
-#             url,
-#             params=self._get_params_with_signature(**kwargs),
-#             headers=self._get_header(),
-#         )
-
-#         if response.status_code == 200:
-#             return response.json()
-#         else:
-#             raise Exception(
-#                 f"STOCK_EXCHANGE: {self.getStockExchangeName()} - POST /{path} -> {response.status_code}: {response.text}"
-#             )
-
-#     def _delete(self, path, **kwargs):
-#         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
-#             logger.info(
-#                 f"STOCK_EXCHANGE: {self.getStockExchangeName()} - DELETE /{path}"
-#             )
-
-#         url = self._get_url(path)
-
-#         response = requests.delete(
-#             url,
-#             params=self._get_params_with_signature(**kwargs),
-#             headers=self._get_header(),
-#         )
-
-#         if response.status_code == 200:
-#             return response.json()
-#         else:
-#             raise Exception(
-#                 f"STOCK_EXCHANGE: {self.getStockExchangeName()} - DELETE /{path} -> {response.status_code}: {response.text}"
-#             )
-
-#     def _get_url(self, path: str) -> str:
-#         return self.getApiEndpoint() + path
-
-
-# class DemoCurrencyComApi(CurrencyComApi):
-#     def getStockExchangeName(self) -> str:
-#         return Const.STOCK_EXCH_DEMO_CURRENCY_COM
-
-#     def getApiEndpoint(self) -> str:
-#         return "https://demo-api-adapter.backend.currency.com/api/v2/"
-
-
-# class LocalCurrencyComApi(CurrencyComApi):
-#     def write_symbols_to_local(self):
-#         api = CurrencyComApi()
-
-#         response = requests.get(f"{api.getApiEndpoint()}/exchangeInfo")
-
-#         file_path = self.__get_file_path("symbols")
-
-#         with open(file_path, "w") as writer:
-#             writer.write(response.text)
-
-#     def write_history_data_to_local(
-#         self, symbol: str, interval: str, limit: int
-#     ) -> bool:
-#         api = CurrencyComApi()
-
-#         url_params = {
-#             Const.PARAM_SYMBOL: symbol,
-#             Const.INTERVAL: interval,
-#             Const.LIMIT: limit,
-#         }
-
-#         response = api.get_api_klines(url_params)
-
-#         file_name = self.__get_file_name(symbol=symbol, interval=interval)
-#         file_path = self.__get_file_path(file_name)
-
-#         with open(file_path, "w") as writer:
-#             writer.write(json.dumps(response))
-
-#     def get_api_klines(self, url_params: dict) -> dict:
-#         file_name = self.__get_file_name(
-#             symbol=url_params[Const.PARAM_SYMBOL], interval=url_params[Const.INTERVAL]
-#         )
-#         file_path = self.__get_file_path(file_name)
-
-#         with open(file_path, "r") as reader:
-#             local_data = json.load(reader)
-
-#         index = -1 * int(url_params[Const.LIMIT])
-
-#         return local_data[index:]
-
-#     def getSymbols(self) -> dict[Symbol]:
-#         symbols = {}
-
-#         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
-#             logger.info(f"STOCK_EXCHANGE: {self.getStockExchangeName()} - getSymbols()")
-
-#         file_path = self.__get_file_path("symbols")
-
-#         # Get API data from local
-#         with open(file_path, "r") as reader:
-#             json_api_response = json.load(reader)
-
-#         # json_api_response = json.loads(response)
-
-#         # Create an instance of Symbol and add to the list
-#         for row in json_api_response["symbols"]:
-#             if (
-#                 row["quoteAssetId"] == "USD"
-#                 and row["assetType"] in ["CRYPTOCURRENCY", "EQUITY", "COMMODITY"]
-#                 and "REGULAR" in row["marketModes"]
-#             ):
-#                 status_converted = (
-#                     Const.STATUS_OPEN
-#                     if row[Const.STATUS] == "TRADING"
-#                     else Const.STATUS_CLOSE
-#                 )
-
-#                 symbol_inst = Symbol(
-#                     code=row[Const.PARAM_SYMBOL],
-#                     name=row[Const.NAME],
-#                     status=status_converted,
-#                     tradingTime=row["tradingHours"],
-#                     type=row["assetType"],
-#                 )
-#                 symbols[symbol_inst.code] = symbol_inst
-#             else:
-#                 continue
-
-#         return symbols
-
-#     def __get_file_name(self, symbol: str, interval: str) -> str:
-#         symbol = symbol.replace("/", "_")
-#         return f"history_data_{symbol}_{interval}"
-
-#     def __get_file_path(self, file_name: str) -> str:
-#         return r"{}\static\local\{}.json".format(os.getcwd(), file_name)

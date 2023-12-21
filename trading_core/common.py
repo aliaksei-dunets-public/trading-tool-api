@@ -58,8 +58,14 @@ class PriceType(str, Enum):
 
 
 class ChannelType(str, Enum):
-    email = "EMAIL"
-    telegram_bot = "TELEGRAM_BOT"
+    EMAIL = "Email"
+    TELEGRAM_BOT = "Telegram"
+
+
+class AlertType(str, Enum):
+    SIGNAL = "Signal"
+    TRADING = "Trading"
+    ERROR = "Error"
 
 
 class TradingType(str, Enum):
@@ -110,7 +116,6 @@ class SignalType(str, Enum):
     STRONG_SELL = "Strong Sell"
     SELL = "Sell"
     DEBUG_SIGNAL = "Debug"
-    TREND_CHANGED = "Trend Changed"
     NONE = ""
 
 
@@ -177,6 +182,10 @@ class StrategyIdModel(BaseModel):
     strategy: StrategyType
 
 
+################## ID models #######################
+
+
+################## Parameter models ################
 class SymbolIntervalModel(SymbolIdModel, IntervalIdModel):
     pass
 
@@ -236,7 +245,7 @@ class HistoryDataParamModel(SymbolIntervalLimitModel, HistoryDataOptionsModel):
     pass
 
 
-################## ID models #######################
+################## Parameter models ################
 
 
 class IntervalModel(IntervalIdModel):
@@ -297,7 +306,7 @@ class SymbolModel(SymbolIdModel):
 
 class SignalModel(CandelBarModel):
     strategy: StrategyType
-    signal: SignalType = ""
+    signal: SignalType = SignalType.NONE
 
 
 class IdentifierModel(BaseModel):
@@ -334,14 +343,37 @@ class ChannelModel(IdentifierModel, AdminModel):
     user_id: str
     name: str
     type: ChannelType
-    value: str
+    channel: str
 
     def to_mongodb_doc(self):
         return {
             "user_id": self.user_id,
             "name": self.name,
             "type": self.type,
-            "value": self.value,
+            "channel": self.channel,
+        }
+
+
+class AlertModel(IdentifierModel, AdminModel):
+    user_id: str
+    trader_id: str
+    channel_id: str
+    type: AlertType
+    symbols: list = []
+    intervals: list[IntervalType] = []
+    strategies: list[StrategyType] = []
+    signals: list[SignalType] = []
+
+    def to_mongodb_doc(self):
+        return {
+            "user_id": self.user_id,
+            "trader_id": self.trader_id,
+            "channel_id": self.channel_id,
+            "type": self.type,
+            "symbols": self.symbols,
+            "intervals": self.intervals,
+            "strategies": self.strategies,
+            "signals": self.signals,
         }
 
 

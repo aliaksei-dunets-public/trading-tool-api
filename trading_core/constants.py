@@ -57,6 +57,7 @@ class Const:
     DB_CHANGED_AT = "changed_at"
     DB_CHANGED_BY = "changed_by"
     DB_TRANSACTION_DATA = "data"
+    DB_CHANNEL = "channel"
 
     # Fields
     FLD_SYMBOL = DB_SYMBOL
@@ -144,7 +145,6 @@ class Const:
     STRONG_SELL = "Strong Sell"
     SELL = "Sell"
     DEBUG_SIGNAL = "Debug"
-    TREND_CHANGED = "Trend Changed"
 
     # Direction Values
     LONG = "LONG"

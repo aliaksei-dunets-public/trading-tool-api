@@ -17,7 +17,7 @@ from email.mime.text import MIMEText
 from .constants import Const
 from .core import config, logger
 from .strategy import StrategyFactory
-from .mongodb import MongoJobs, MongoAlerts, MongoOrders, MongoSimulations
+from .mongodb import MongoJobs, MongoSimulations
 from .handler import ExchangeHandler
 from .trend import TrendCCI
 
@@ -29,6 +29,8 @@ from trading_core.common import (
     SymbolIntervalLimitModel,
     BaseModel,
     UserModel,
+    ChannelModel,
+    AlertModel,
     TraderModel,
     SessionModel,
     SessionType,
@@ -41,6 +43,8 @@ from trading_core.common import (
 from trading_core.handler import (
     StrategyHandler,
     UserHandler,
+    ChannelHandler,
+    AlertHandler,
     TraderHandler,
     SessionHandler,
     BalanceHandler,
@@ -92,9 +96,10 @@ def job_func_send_bot_notification(interval):
     responser = ResponserBot()
     notificator = NotificationBot()
 
-    alerts_db = MongoAlerts().get_alerts(
-        alert_type=Const.ALERT_TYPE_BOT, interval=interval
-    )
+    # alerts_db = MongoAlerts().get_alerts(
+    #     alert_type=Const.ALERT_TYPE_BOT, interval=interval
+    # )
+    alerts_db = []
 
     alert_messages = responser.get_signals_for_alerts(alerts_db)
     notificator.send(alert_messages)
@@ -263,71 +268,6 @@ class ResponserBase:
     def deactivate_job(self, job_id) -> bool:
         return JobScheduler().deactivate_job(job_id)
 
-    def create_alert(
-        self,
-        alert_type: str,
-        channel_id: str,
-        symbol: str,
-        interval: str,
-        strategies: list,
-        signals: list,
-        comment: str,
-    ) -> str:
-        return MongoAlerts().create_alert(
-            alert_type=alert_type,
-            channel_id=channel_id,
-            symbol=symbol,
-            interval=interval,
-            strategies=strategies,
-            signals=signals,
-            comment=comment,
-        )
-
-    def update_alert(
-        self, id: str, interval: str, strategies: list, signals: list, comment: str
-    ) -> bool:
-        return MongoAlerts().update_alert(
-            id=id,
-            interval=interval,
-            strategies=strategies,
-            signals=signals,
-            comment=comment,
-        )
-
-    def remove_alert(self, id: str) -> bool:
-        return MongoAlerts().delete_one(id)
-
-    def get_alerts(self, alert_type: str, symbol: str, interval: str) -> list:
-        return MongoAlerts().get_alerts(
-            alert_type=alert_type, symbol=symbol, interval=interval
-        )
-
-    def create_order(
-        self,
-        order_type: str,
-        open_date_time: str,
-        symbol: str,
-        interval: str,
-        price: float,
-        quantity: float,
-        strategies: list,
-    ) -> str:
-        return MongoOrders().create_order(
-            order_type=order_type,
-            open_date_time=open_date_time,
-            symbol=symbol,
-            interval=interval,
-            price=price,
-            quantity=quantity,
-            strategies=strategies,
-        )
-
-    def remove_order(self, id: str) -> bool:
-        return MongoOrders().delete_one(id)
-
-    def get_orders(self, symbol: str, interval: str) -> list:
-        return MongoOrders().get_orders(symbol=symbol, interval=interval)
-
     def get_simulations(self, symbols: list, intervals: list, strategies: list) -> list:
         return MongoSimulations().get_simulations(
             symbols=symbols, intervals=intervals, strategies=strategies
@@ -428,91 +368,6 @@ class ResponserWeb(ResponserBase):
         return job_state
 
     @decorator_json
-    def create_alert(
-        self,
-        alert_type: str,
-        channel_id: str,
-        symbol: str,
-        interval: str,
-        strategies: list,
-        signals: list,
-        comment: str,
-    ):
-        alert_id = super().create_alert(
-            alert_type=alert_type,
-            channel_id=channel_id,
-            symbol=symbol,
-            interval=interval,
-            strategies=strategies,
-            signals=signals,
-            comment=comment,
-        )
-
-        return {Const.DB_ID: alert_id}
-
-    @decorator_json
-    def update_alert(
-        self, id: str, interval: str, strategies: list, signals: list, comment: str
-    ):
-        if super().update_alert(
-            id=id,
-            interval=interval,
-            strategies=strategies,
-            signals=signals,
-            comment=comment,
-        ):
-            return {"message": f"Alert {id} has been updated"}
-        else:
-            raise Exception(f"Error during update of the alert: {id}")
-
-    @decorator_json
-    def remove_alert(self, id: str):
-        if super().remove_alert(id):
-            return {"message": f"Alert {id} has been deleted"}
-        else:
-            raise Exception(f"Error during deletion of the alert: {id}")
-
-    @decorator_json
-    def get_alerts(self, alert_type: str, symbol: str, interval: str):
-        return super().get_alerts(
-            alert_type=alert_type, symbol=symbol, interval=interval
-        )
-
-    @decorator_json
-    def create_order(
-        self,
-        order_type: str,
-        open_date_time: str,
-        symbol: str,
-        interval: str,
-        price: float,
-        quantity: float,
-        strategies: list,
-    ) -> json:
-        order_id = super().create_order(
-            order_type=order_type,
-            open_date_time=open_date_time,
-            symbol=symbol,
-            interval=interval,
-            price=price,
-            quantity=quantity,
-            strategies=strategies,
-        )
-
-        return {Const.DB_ID: order_id}
-
-    @decorator_json
-    def remove_order(self, id: str) -> json:
-        if super().remove_order(id):
-            return {"message": f"Order {id} has been deleted"}
-        else:
-            raise Exception(f"Error during deletion of the order: {id}")
-
-    @decorator_json
-    def get_orders(self, symbol: str, interval: str) -> json:
-        return super().get_orders(symbol=symbol, interval=interval)
-
-    @decorator_json
     def get_dashboard(self, symbol: str):
         pass
         # response = {}
@@ -561,6 +416,44 @@ class ResponserWeb(ResponserBase):
     @decorator_json
     def delete_user(self, id: str) -> json:
         return UserHandler.delete_user(id)
+
+    @decorator_json
+    def get_channels(self, user_email: str) -> json:
+        return ChannelHandler.get_channels_by_email(user_email)
+
+    @decorator_json
+    def create_channel(self, channel_mdl: ChannelModel) -> json:
+        return ChannelHandler.create_channel(channel_mdl)
+
+    @decorator_json
+    def update_channel(self, channel_id: str, query: dict) -> json:
+        return ChannelHandler.update_channel(id=channel_id, query=query)
+
+    @decorator_json
+    def delete_channel(self, channel_id: str) -> json:
+        if ChannelHandler.delete_channel(id=channel_id):
+            return {"message": f"Channel {channel_id} has been deleted"}
+        else:
+            raise Exception(f"Error during deletion of the channel id: {channel_id}")
+
+    @decorator_json
+    def get_alerts(self, user_email: str) -> json:
+        return AlertHandler.get_alerts_by_email(user_email)
+
+    @decorator_json
+    def create_alert(self, alert_mdl: AlertModel) -> json:
+        return AlertHandler.create_alert(alert_mdl)
+
+    @decorator_json
+    def update_alert(self, alert_id: str, query: dict) -> json:
+        return AlertHandler.update_alert(id=alert_id, query=query)
+
+    @decorator_json
+    def delete_alert(self, alert_id: str) -> json:
+        if AlertHandler.delete_alert(id=alert_id):
+            return {"message": f"Alert {alert_id} has been deleted"}
+        else:
+            raise Exception(f"Error during deletion of the alert id: {alert_id}")
 
     @decorator_json
     def get_exchanges(self) -> json:

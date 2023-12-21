@@ -17,6 +17,8 @@ from trading_core.common import (
     TraderSymbolIntervalLimitModel,
     TransactionModel,
     UserModel,
+    ChannelModel,
+    AlertModel,
     TraderModel,
     SessionModel,
     BalanceModel,
@@ -73,6 +75,56 @@ def update_user(user_id):
 @app.route("/user/<user_id>", methods=["DELETE"])
 def delete_user(user_id):
     return responser.delete_user(id=user_id)
+
+
+######################### Channel ###########################
+@app.route("/channels", methods=["GET"])
+def get_channels():
+    user_email = request.headers.get("User-Email")
+    return responser.get_channels(user_email)
+
+
+@app.route("/channel", methods=["POST"])
+def create_channel():
+    channel_data = request.get_json()
+    channel_model = ChannelModel(**channel_data)
+    return responser.create_channel(channel_model)
+
+
+@app.route("/channel/<channel_id>", methods=["PATCH"])
+def update_channel(channel_id):
+    channel_data = request.get_json()
+    return responser.update_channel(id=channel_id, query=channel_data)
+
+
+@app.route("/channel/<channel_id>", methods=["DELETE"])
+def delete_channel(channel_id):
+    return responser.delete_channel(channel_id)
+
+
+######################### Alert ###########################
+@app.route("/alerts", methods=["GET"])
+def get_alerts():
+    user_email = request.headers.get("User-Email")
+    return responser.get_alerts(user_email)
+
+
+@app.route("/alert", methods=["POST"])
+def create_alert():
+    alert_data = request.get_json()
+    alert_model = AlertModel(**alert_data)
+    return responser.create_alert(alert_model)
+
+
+@app.route("/alert/<alert_id>", methods=["PATCH"])
+def update_alert(alert_id):
+    alert_data = request.get_json()
+    return responser.update_alert(alert_id=alert_id, query=alert_data)
+
+
+@app.route("/alert/<alert_id>", methods=["DELETE"])
+def delete_alert(alert_id):
+    return responser.delete_alert(alert_id)
 
 
 ######################### Trader ###########################
@@ -405,57 +457,6 @@ def deactivate_job(job_id):
 @app.route("/jobs/<job_id>", methods=["DELETE"])
 def remove_jobs(job_id):
     return responser.remove_job(job_id)
-
-
-@app.route("/alerts", methods=["GET"])
-def get_alerts():
-    alert_type = request.args.get(Const.DB_ALERT_TYPE)
-    symbol = request.args.get(Const.DB_SYMBOL)
-    interval = request.args.get(Const.DB_INTERVAL)
-
-    return responser.get_alerts(alert_type=alert_type, symbol=symbol, interval=interval)
-
-
-@app.route("/alerts", methods=["POST"])
-def create_alert():
-    alert_type = request.json.get(Const.DB_ALERT_TYPE)
-    channel_id = request.json.get(Const.DB_CHANNEL_ID)
-    symbol = request.json.get(Const.DB_SYMBOL)
-    interval = request.json.get(Const.DB_INTERVAL)
-    strategies = request.json.get(Const.DB_STRATEGIES)
-    signals = request.json.get(Const.DB_SIGNALS)
-    comment = request.json.get(Const.DB_COMMENT)
-
-    return responser.create_alert(
-        alert_type=alert_type,
-        channel_id=channel_id,
-        symbol=symbol,
-        interval=interval,
-        strategies=strategies,
-        signals=signals,
-        comment=comment,
-    )
-
-
-@app.route("/alerts/<_id>", methods=["PUT"])
-def update_alert(_id):
-    interval = request.json.get(Const.DB_INTERVAL)
-    strategies = request.json.get(Const.DB_STRATEGIES)
-    signals = request.json.get(Const.DB_SIGNALS)
-    comment = request.json.get(Const.DB_COMMENT)
-
-    return responser.update_alert(
-        id=_id,
-        interval=interval,
-        strategies=strategies,
-        signals=signals,
-        comment=comment,
-    )
-
-
-@app.route("/alerts/<_id>", methods=["DELETE"])
-def remove_alert(_id):
-    return responser.remove_alert(_id)
 
 
 @app.route("/simulations", methods=["GET"])
