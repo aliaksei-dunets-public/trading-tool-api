@@ -16,7 +16,6 @@ from email.mime.text import MIMEText
 
 from .constants import Const
 from .core import config, logger
-from .strategy import StrategyFactory
 from .mongodb import MongoJobs, MongoSimulations
 from .handler import ExchangeHandler
 from .trend import TrendCCI
@@ -40,8 +39,8 @@ from trading_core.common import (
     SessionStatus,
     OrderOpenModel,
 )
+from trading_core.strategy import StrategyFactory
 from trading_core.handler import (
-    StrategyHandler,
     UserHandler,
     ChannelHandler,
     AlertHandler,
@@ -221,7 +220,7 @@ class ResponserBase:
         ).get_interval_models(importances)
 
     def get_strategies(self) -> list:
-        return StrategyHandler.get_strategy_config_list_vh()
+        return StrategyFactory.get_strategy_config_list_vh()
 
     def get_history_data(
         self, trader_id: str, param: HistoryDataParamModel
@@ -233,8 +232,7 @@ class ResponserBase:
         )
 
     def get_strategy_data(self, param: StrategyParamModel) -> pd.DataFrame:
-        strategy_inst = StrategyFactory(param.strategy)
-        return strategy_inst.get_strategy_data(param)
+        return StrategyFactory.get_strategy_data(param)
 
     def get_signals(
         self,
@@ -1051,21 +1049,6 @@ class NotificationBot(NotificationBase):
                 logger.error(
                     f"NOTIFICATION: BOT - Failed to send message to chat bot: {channel_id} - {response.text}"
                 )
-
-
-# @decorator_json
-# def getSimulate(symbols: list, intervals: list, strategyCodes: list):
-#     return Simulator().simulateTrading(symbols, intervals, strategyCodes)
-
-
-# @decorator_json
-# def getSimulations(symbols: list, intervals: list, strategyCodes: list):
-#     return Simulator().getSimulations(symbols, intervals, strategyCodes)
-
-
-# @decorator_json
-# def getSignalsBySimulation(symbols: list, intervals: list, strategyCodes: list):
-#     return Simulator().getSignalsBySimulation(symbols, intervals, strategyCodes)
 
 
 # def getLogs(start_date, end_date):

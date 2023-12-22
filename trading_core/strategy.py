@@ -8,155 +8,184 @@ from .common import (
     IntervalType,
     StrategyType,
     StrategyConfigModel,
+    SignalModel,
     HistoryDataParamModel,
     IndicatorParamModel,
     StrategyParamModel,
     TraderSymbolIntervalLimitModel,
-    HistoryDataModel,
 )
+from .handler import buffer_runtime_handler, ExchangeHandler
 from .indicator import Indicator_CCI
-from .handler import buffer_runtime_handler, StrategyHandler
 from .trend import TrendCCI
 
 
 class SignalFactory:
-    def get_signal(
-        self,
-        symbol: str,
-        interval: str,
-        strategy: str,
-        signals_config: list,
-        closed_bars: bool,
-    ) -> Signal:
-        # Check if trading is not available for symbol -> skip processing
-        if not buffer_runtime_handler.get_symbol_handler().is_trading_available(
-            interval=interval, symbol=symbol
-        ):
-            return None
+    def __init__(self) -> None:
+        self.__buffer_inst = buffer_runtime_handler.get_signal_handler()
 
-        # Get DateTime of the Strategy
-        end_date_time = model.get_handler().getEndDatetime(
-            interval=interval, closed_bars=closed_bars
-        )
+    def get_signal(self, param: StrategyParamModel) -> SignalModel:
+        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+            logger.info(f"{self.__class__.__name__}: get_signal({param.model_dump()})")
 
-        # Get signal from the buffer
-        signal_inst = runtime_buffer.get_signal_from_buffer(
-            symbol=symbol, interval=interval, strategy=strategy, date_time=end_date_time
-        )
+        signal_mdl: SignalModel = None
 
-        # Check if buffer contains corresponding signal
-        if not signal_inst:
-            # Calculate signal from the API
-            # Get the latest bar from the Strategy Factory
-            strategy_df = (
-                StrategyFactory(strategy)
-                .get_strategy_data(
-                    symbol=symbol, interval=interval, closed_bars=closed_bars
-                )
-                .tail(1)
+        # Take signal from buffer
+        buffer_key = self._get_buffer_key(**param.model_dump())
+        if self.__buffer_inst.is_data_in_buffer(key=buffer_key):
+            signal_mdl = self.__buffer_inst.get_buffer(key=buffer_key)
+
+            end_date_time = ExchangeHandler.get_handler(
+                trader_id=param.trader_id
+            ).get_end_datetime(interval=param.interval, closed_bars=param.closed_bars)
+
+            if end_date_time == signal_mdl.date_time:
+                return signal_mdl
+
+        # Calculate Signal
+        strategy_df = StrategyFactory.get_strategy_data(param).tail(1)
+
+        # Init signal model
+        for index, strategy_row in strategy_df.iterrows():
+            signal_mdl = SignalModel(
+                trader_id=param.trader_id,
+                symbol=param.symbol,
+                interval=param.interval,
+                strategy=param.strategy,
+                limit=param.limit,
+                from_buffer=param.from_buffer,
+                closed_bars=param.closed_bars,
+                date_time=index,
+                open=strategy_row["Open"],
+                high=strategy_row["High"],
+                low=strategy_row["Low"],
+                close=strategy_row["Close"],
+                volume=strategy_row["Volume"],
+                signal=strategy_row[Const.PARAM_SIGNAL],
             )
+            break
 
-            # Init signal instance
-            for index, strategy_row in strategy_df.iterrows():
-                signal_inst = Signal(
-                    date_time=index,
-                    symbol=symbol,
-                    interval=interval,
-                    strategy=strategy,
-                    signal=strategy_row[Const.PARAM_SIGNAL],
-                )
-
-            # Add signal to the buffer
-            runtime_buffer.set_signal_to_buffer(signal_inst)
-
-            if config.get_config_value(Const.CONFIG_DEBUG_LOG):
-                logger.info(
-                    f"SIGNAL: get_signal(symbol={symbol}, interval={interval}, strategy={strategy}, signals_config={signals_config}, closed_bars={closed_bars})"
-                )
-
-        # Return signal data if signal is compatible with signal config, else return None
-        if signal_inst.is_compatible(signals_config):
-            return signal_inst
+        if signal_mdl:
+            self.__buffer_inst.set_buffer(key=buffer_key, data=signal_mdl)
+            return signal_mdl
         else:
-            return None
-
-    def get_signals(
-        self,
-        symbols: list,
-        intervals: list = None,
-        strategies: list = None,
-        signals_config: list = None,
-        closed_bars: bool = True,
-    ) -> list[Signal]:
-        signals = []
-
-        if not symbols:
-            symbols = Symbols(from_buffer=False).get_symbol_codes(
-                status=Const.STATUS_OPEN
+            logger.error(
+                f"{self.__class__.__name__}: Erro during get_signal({param.model_dump()})"
+            )
+            raise Exception(
+                f"{self.__class__.__name__}: Erro during get_signal({param.model_dump()})"
             )
 
-        if not intervals:
-            intervals = buffer_runtime_handler.get_interval_handler().get_intervals()
+    def get_signals(self, params: list[StrategyParamModel]) -> list[SignalModel]:
+        signal_mdls = []
 
-        sorted_strategies = model.get_sorted_strategy_codes(strategies)
+        for strategy_param in params:
+            signal_mdl = self.get_signal(param=strategy_param)
 
-        for symbol in symbols:
-            for interval in intervals:
-                for strategy in sorted_strategies:
-                    try:
-                        signal = self.get_signal(
-                            symbol=symbol,
-                            interval=interval,
-                            strategy=strategy,
-                            signals_config=signals_config,
-                            closed_bars=closed_bars,
-                        )
-                        if signal:
-                            signals.append(signal)
-                        else:
-                            continue
-                    except Exception as error:
-                        logger.error(
-                            f"SIGNAL: For symbol={symbol}, interval={interval}, strategy={strategy} - {error}"
-                        )
-                        continue
+            signal_mdls.append(signal_mdl)
 
-        return signals
+        return signal_mdls
+
+    def _get_buffer_key(self, symbol: str, interval: str, strategy: str) -> tuple:
+        if not symbol or not interval or not strategy:
+            Exception(
+                f"{self.__class__.__name__} Buffer key is invalid: symbol: {symbol}, interval: {interval}, strategy: {strategy}"
+            )
+        buffer_key = (symbol, interval, strategy)
+        return buffer_key
 
 
 class StrategyFactory:
-    def __init__(self, strategy):
-        self.__instance = None
+    @staticmethod
+    def get_strategy_data(param: StrategyParamModel):
+        strategy = param.strategy
+        strategy_instance = None
 
-        strategy_config_mdl = StrategyHandler.get_strategy_config(strategy)
+        strategy_config_mdl = StrategyFactory.get_strategy_config(strategy)
 
         if strategy in [
             StrategyType.CCI_50_TREND_0,
             StrategyType.CCI_14_TREND_100,
             StrategyType.CCI_20_TREND_100,
         ]:
-            self.__instance = Strategy_CCI(strategy_config_mdl)
+            strategy_instance = Strategy_CCI(strategy_config_mdl)
         elif strategy in [
             StrategyType.CCI_14_BASED_TREND_100,
             StrategyType.CCI_20_BASED_TREND_100,
         ]:
-            self.__instance = StrategyDirectionBasedTrend_CCI(strategy_config_mdl)
+            strategy_instance = StrategyDirectionBasedTrend_CCI(strategy_config_mdl)
         elif strategy == StrategyType.CCI_20_100_TREND_UP_LEVEL:
-            self.__instance = Strategy_CCI_100_TrendUpLevel(strategy_config_mdl)
+            strategy_instance = Strategy_CCI_100_TrendUpLevel(strategy_config_mdl)
         else:
-            raise Exception(f"STRATEGY: Strategy {strategy} isn't implemented")
+            raise Exception(
+                f"{StrategyFactory.__name__}: Strategy {strategy} isn't implemented"
+            )
 
-    def get_strategy_data(self, param: StrategyParamModel):
-        strategy_data = self.__instance.get_strategy_data(param)
-
+        strategy_data = strategy_instance.get_strategy_data(param)
         return strategy_data
 
-    def get_strategy_data_by_history_data(self, historyt_data_mdl: HistoryDataModel):
-        strategy_data = self.__instance.get_strategy_data_by_history_data(
-            historyt_data_mdl
-        )
+    @staticmethod
+    def get_strategy_config_dict_vh() -> dict:
+        return {
+            StrategyType.CCI_14_TREND_100: StrategyConfigModel(
+                strategy=StrategyType.CCI_14_TREND_100,
+                name="CCI(14) cross +/- 100",
+                length=14,
+                miv_value=-100,
+                max_value=100,
+            ),
+            StrategyType.CCI_14_BASED_TREND_100: StrategyConfigModel(
+                strategy=StrategyType.CCI_14_BASED_TREND_100,
+                name="Check Trends and CCI(14) cross +/- 100",
+                length=14,
+                miv_value=-100,
+                max_value=100,
+            ),
+            StrategyType.CCI_20_100_TREND_UP_LEVEL: StrategyConfigModel(
+                strategy=StrategyType.CCI_20_100_TREND_UP_LEVEL,
+                name="Check Trend Up Level and CCI(20) +/- 100",
+                length=14,
+                miv_value=-100,
+                max_value=100,
+            ),
+        }
 
-        return strategy_data
+    @staticmethod
+    def get_strategy_config_list_vh() -> list[StrategyConfigModel]:
+        return [
+            strategy_mdl
+            for strategy_mdl in StrategyFactory.get_strategy_config_dict_vh().values()
+        ]
+
+    @staticmethod
+    def get_strategy_config(strategy: StrategyType) -> StrategyConfigModel:
+        strategy_configs = StrategyFactory.get_strategy_config_dict_vh()
+        if not strategy in strategy_configs:
+            raise Exception(f"Strategy {strategy} doesn't exist")
+
+        return strategy_configs[strategy]
+
+    @staticmethod
+    def get_strategies():
+        return [item for item in StrategyFactory.get_strategy_config_dict_vh().keys()]
+
+    @staticmethod
+    def get_sorted_strategies(
+        strategies: list = None, sort_by_desc: bool = True
+    ) -> list[StrategyConfigModel]:
+        strategy_configs = []
+
+        if not strategies:
+            strategy_configs = StrategyFactory.get_strategy_config_list_vh()
+        else:
+            for strategy in strategies:
+                strategy_configs.append(StrategyFactory.get_strategy_config(strategy))
+
+        if sort_by_desc:
+            sorted_strategies = sorted(strategy_configs, key=lambda x: -x.length)
+        else:
+            sorted_strategies = sorted(strategy_configs, key=lambda x: x.length)
+
+        return [item.strategy for item in sorted_strategies]
 
 
 class StrategyBase:
@@ -172,14 +201,6 @@ class StrategyBase:
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
             logger.info(
                 f"{self.__class__.__name__}: get_strategy_data({param.model_dump()})"
-            )
-
-    def get_strategy_data_by_history_data(
-        self, historyt_data_mdl: HistoryDataModel
-    ) -> pd.DataFrame:
-        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
-            logger.info(
-                f"{self.__class__.__name__}: get_strategy_data_by_history_data(symbol={historyt_data_mdl.print_model()})"
             )
 
 
@@ -200,10 +221,6 @@ class Strategy_CCI(StrategyBase):
             trader_id=param.trader_id
         ).get_history_data(history_data_param)
 
-        return self.get_strategy_data_by_history_data(history_data_mdl)
-
-    def get_strategy_data_by_history_data(self, history_data_mdl: HistoryDataModel):
-        super().get_strategy_data_by_history_data(history_data_mdl)
         cci_df = self._cci.get_indicator_by_history_data(history_data_mdl)
         cci_df.insert(
             cci_df.shape[1], Const.PARAM_SIGNAL, self._determineSignal(cci_df)
@@ -263,14 +280,6 @@ class Strategy_CCI_Trend_Base(Strategy_CCI):
             logger.info(
                 f"{self.__class__.__name__}: get_strategy_data({param.model_dump()})"
             )
-
-    def get_strategy_data_by_history_data(self, history_data_mdl: HistoryDataModel):
-        logger.error(
-            f"{self.__class__.__name__}: get_strategy_data_by_history_data - Can't be used for this strategy)"
-        )
-        raise Exception(
-            f"{self.__class__.__name__}: get_strategy_data_by_history_data - Can't be used for this strategy)"
-        )
 
     def _get_up_trend_param(
         self, param: StrategyParamModel

@@ -16,6 +16,7 @@ from bson import ObjectId
 
 from .core import Const
 import trading_core.common as cmn
+from .strategy import StrategyFactory, SignalFactory
 from .handler import (
     SessionHandler,
     BalanceHandler,
@@ -25,7 +26,6 @@ from .handler import (
     ExchangeHandler,
     buffer_runtime_handler,
 )
-from .strategy import StrategyFactory
 
 import logging
 
@@ -225,7 +225,7 @@ class TraderBase:
             f"{self.__class__.__name__}: {self.session_mdl.id} - The Trader Run has started"
         )
 
-        strategy_param = cmn.StrategyParamModel(
+        signal_param = cmn.StrategyParamModel(
             trader_id=self.session_mdl.trader_id,
             symbol=self.session_mdl.symbol,
             interval=self.session_mdl.interval,
@@ -234,26 +234,8 @@ class TraderBase:
             closed_bars=True,
         )
 
-        strategy_df = (
-            StrategyFactory(self.session_mdl.strategy)
-            .get_strategy_data(strategy_param)
-            .tail(1)
-        )
+        signal_mdl = SignalFactory().get_signal(param=signal_param)
 
-        # Init signal instance
-        for index, strategy_row in strategy_df.iterrows():
-            signal_data = {
-                "date_time": index,
-                "open": strategy_row["Open"],
-                "high": strategy_row["High"],
-                "low": strategy_row["Low"],
-                "close": strategy_row["Close"],
-                "volume": strategy_row["Volume"],
-                "strategy": self.session_mdl.strategy,
-                "signal": strategy_row[Const.PARAM_SIGNAL],
-            }
-
-        signal_mdl = cmn.SignalModel(**signal_data)
         self._process_signal(signal_mdl)
         self.save()
 
@@ -324,7 +306,9 @@ class TraderManager(TraderBase):
         self.api_mng: DataManagerBase = DataManagerBase.get_api_manager(trader_mng=self)
         self.data_mng: DataManagerBase = DataManagerBase.get_db_manager(trader_mng=self)
 
-        self.data_mng.synchronize(manager=self.api_mng)
+        # Make synchronize just for ACTIVE sessions
+        if self.session_mdl.status == cmn.SessionStatus.active:
+            self.data_mng.synchronize(manager=self.api_mng)
 
     def open_position(self, open_mdl: cmn.OrderOpenModel) -> cmn.OrderOpenModel:
         logger.info(f"{self.__class__.__name__}: The Trader is openning a position")
@@ -408,9 +392,7 @@ class HistorySimulatorManager(TraderBase):
             closed_bars=True,
         )
 
-        strategy_df = StrategyFactory(self.session_mdl.strategy).get_strategy_data(
-            strategy_param
-        )
+        strategy_df = StrategyFactory.get_strategy_data(strategy_param)
 
         # Init signal instance
         for index, strategy_row in strategy_df.iterrows():

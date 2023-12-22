@@ -304,8 +304,7 @@ class SymbolModel(SymbolIdModel):
         return descr
 
 
-class SignalModel(CandelBarModel):
-    strategy: StrategyType
+class SignalModel(CandelBarModel, StrategyParamModel):
     signal: SignalType = SignalType.NONE
 
 

@@ -58,7 +58,11 @@ from .mongodb import (
     MongoLeverage,
     MongoTransaction,
 )
-from .strategy import StrategyFactory
+from .strategy import (
+    Strategy_CCI,
+    Strategy_CCI_100_TrendUpLevel,
+    StrategyDirectionBasedTrend_CCI,
+)
 
 
 class BufferBaseHandler:
@@ -180,72 +184,6 @@ class BufferTimeFrame(BufferBaseHandler):
 
     def set_buffer(self, trading_time: str, timeframe: dict):
         self._buffer[trading_time] = timeframe
-
-
-class StrategyHandler:
-    @staticmethod
-    def get_strategy_config_dict_vh() -> dict:
-        return {
-            StrategyType.CCI_14_TREND_100: StrategyConfigModel(
-                strategy=StrategyType.CCI_14_TREND_100,
-                name="CCI(14) cross +/- 100",
-                length=14,
-                miv_value=-100,
-                max_value=100,
-            ),
-            StrategyType.CCI_14_BASED_TREND_100: StrategyConfigModel(
-                strategy=StrategyType.CCI_14_BASED_TREND_100,
-                name="Check Trends and CCI(14) cross +/- 100",
-                length=14,
-                miv_value=-100,
-                max_value=100,
-            ),
-            StrategyType.CCI_20_100_TREND_UP_LEVEL: StrategyConfigModel(
-                strategy=StrategyType.CCI_20_100_TREND_UP_LEVEL,
-                name="Check Trend Up Level and CCI(20) +/- 100",
-                length=14,
-                miv_value=-100,
-                max_value=100,
-            ),
-        }
-
-    @staticmethod
-    def get_strategy_config_list_vh() -> list[StrategyConfigModel]:
-        return [
-            strategy_mdl
-            for strategy_mdl in StrategyHandler.get_strategy_config_dict_vh().values()
-        ]
-
-    @staticmethod
-    def get_strategy_config(strategy: StrategyType) -> StrategyConfigModel:
-        strategy_configs = StrategyHandler.get_strategy_config_dict_vh()
-        if not strategy in strategy_configs:
-            raise Exception(f"Strategy {strategy} doesn't exist")
-
-        return strategy_configs[strategy]
-
-    @staticmethod
-    def get_strategies():
-        return [item for item in StrategyHandler.get_strategy_config_dict_vh().keys()]
-
-    @staticmethod
-    def get_sorted_strategies(
-        strategies: list = None, sort_by_desc: bool = True
-    ) -> list[StrategyConfigModel]:
-        strategy_configs = []
-
-        if not strategies:
-            strategy_configs = StrategyHandler.get_strategy_config_list_vh()
-        else:
-            for strategy in strategies:
-                strategy_configs.append(StrategyHandler.get_strategy_config(strategy))
-
-        if sort_by_desc:
-            sorted_strategies = sorted(strategy_configs, key=lambda x: -x.length)
-        else:
-            sorted_strategies = sorted(strategy_configs, key=lambda x: x.length)
-
-        return [item.strategy for item in sorted_strategies]
 
 
 class UserHandler:
@@ -1227,69 +1165,6 @@ class HistoryDataHandler(BaseOnExchangeHandler):
         return history_data_mdl
 
 
-class SignalHandler(BaseOnExchangeHandler):
-    def __init__(self, exchange_handler: ExchangeHandler = None):
-        super().__init__(exchange_handler)
-        self.__buffer_inst = BufferSingleDictionary()
-
-    def get_signal(self, param: StrategyParamModel) -> SignalModel:
-        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
-            logger.info(f"{self.__class__.__name__}: get_signal({param.model_dump()})")
-
-        signal_mdl: SignalModel = None
-
-        # Take signal from buffer
-        buffer_key = self._get_buffer_key(**param.model_dump())
-        if self.__buffer_inst.is_data_in_buffer(key=buffer_key):
-            signal_mdl = self.__buffer_inst.get_buffer(key=buffer_key)
-
-            end_date_time = self._exchange_handler.get_end_datetime(
-                interval=param.interval, closed_bars=param.closed_bars
-            )
-
-            if end_date_time == signal_mdl.date_time:
-                return signal_mdl
-
-        # Calculate Signal
-        strategy_df = StrategyFactory(param.strategy).get_strategy_data(param).tail(1)
-
-        # Init signal model
-        for index, strategy_row in strategy_df.iterrows():
-            signal_mdl = SignalModel(
-                date_time=index,
-                open=strategy_row["Open"],
-                high=strategy_row["High"],
-                low=strategy_row["Low"],
-                close=strategy_row["Close"],
-                volume=strategy_row["Volume"],
-                strategy=param.strategy,
-                signal=strategy_row[Const.PARAM_SIGNAL],
-            )
-            break
-
-        if signal_mdl:
-            self.__buffer_inst.set_buffer(key=buffer_key, data=signal_mdl)
-            return signal_mdl
-        else:
-            logger.error(
-                f"{self.__class__.__name__}: Erro during get_signal({param.model_dump()})"
-            )
-            raise Exception(
-                f"{self.__class__.__name__}: Erro during get_signal({param.model_dump()})"
-            )
-
-    def get_signals(self) -> list[SignalModel]:
-        pass
-
-    def _get_buffer_key(self, symbol: str, interval: str, strategy: str) -> tuple:
-        if not symbol or not interval or not strategy:
-            Exception(
-                f"{self.__class__.__name__} Buffer key is invalid: symbol: {symbol}, interval: {interval}, strategy: {strategy}"
-            )
-        buffer_key = (symbol, interval, strategy)
-        return buffer_key
-
-
 class BufferRuntimeHandlers:
     _instance = None
 
@@ -1298,7 +1173,7 @@ class BufferRuntimeHandlers:
             class_._instance = object.__new__(class_, *args, **kwargs)
             class_.__symbol_handler = {}
             class_.__history_data_handler = {}
-            class_.__signal_handler = {}
+            class_.__signal_handler = BufferSingleDictionary()
             class_.__interval_handler = {}
             class_.__user_handler = UserHandler()
             class_.__job_handler = BufferSingleDictionary()
@@ -1330,18 +1205,8 @@ class BufferRuntimeHandlers:
 
         return self.__history_data_handler[trader_id]
 
-    def get_signal_handler(
-        self, trader_id: str = None, user_id: str = None
-    ) -> SignalHandler:
-        exchange_handler = ExchangeHandler.get_handler(
-            trader_id=trader_id, user_id=user_id
-        )
-        trader_id = exchange_handler.get_trader_id()
-        if not trader_id in self.__signal_handler:
-            signal_handler = SignalHandler(exchange_handler=exchange_handler)
-            self.__signal_handler[trader_id] = signal_handler
-
-        return self.__signal_handler[trader_id]
+    def get_signal_handler(self) -> BufferSingleDictionary:
+        return self.__signal_handler
 
     def get_user_handler(self):
         return self.__user_handler
@@ -1365,7 +1230,7 @@ class BufferRuntimeHandlers:
     def clear_buffer(self):
         self.__symbol_handler = {}
         self.__history_data_handler = {}
-        self.__signal_handler = {}
+        self.__signal_handler.clear_buffer()
         self.__interval_handler = {}
         self.__user_handler.get_buffer().clear_buffer()
 
