@@ -237,6 +237,10 @@ class StrategyParamModel(
     pass
 
 
+class SignalParamModel(StrategyParamModel):
+    types: list[SignalType] = []
+
+
 class IndicatorParamModel(TraderSymbolIntervalLimitModel, HistoryDataOptionsModel):
     pass
 
@@ -306,6 +310,18 @@ class SymbolModel(SymbolIdModel):
 
 class SignalModel(CandelBarModel, StrategyParamModel):
     signal: SignalType = SignalType.NONE
+
+    def is_compatible(self, signal_types: list = []) -> bool:
+        if signal_types:
+            if SignalType.DEBUG_SIGNAL in signal_types or (
+                self.signal and self.signal in signal_types
+            ):
+                return True
+        else:
+            if self.signal != SignalType.NONE:
+                return True
+
+        return False
 
 
 class IdentifierModel(BaseModel):

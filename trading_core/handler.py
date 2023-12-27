@@ -24,18 +24,14 @@ from .common import (
     ChannelType,
     AlertType,
     IntervalType,
-    StrategyType,
     IntervalModel,
-    StrategyConfigModel,
     HistoryDataParamModel,
-    StrategyParamModel,
     TraderStatus,
     OrderStatus,
     SessionStatus,
     ExchangeId,
     SymbolModel,
     HistoryDataModel,
-    SignalModel,
     UserModel,
     ChannelModel,
     AlertModel,
@@ -57,11 +53,6 @@ from .mongodb import (
     MongoOrder,
     MongoLeverage,
     MongoTransaction,
-)
-from .strategy import (
-    Strategy_CCI,
-    Strategy_CCI_100_TrendUpLevel,
-    StrategyDirectionBasedTrend_CCI,
 )
 
 
@@ -480,7 +471,7 @@ class AlertHandler:
     def get_alerts(
         user_id: str = None,
         trader_id: str = None,
-        channel_id: str = None,
+        channel_ids: list = None,
         type: AlertType = None,
         symbol: str = None,
         interval: str = None,
@@ -492,16 +483,16 @@ class AlertHandler:
             query[Const.DB_USER_ID] = user_id
         if trader_id:
             query[Const.DB_TRADER_ID] = trader_id
-        if channel_id:
-            query[Const.DB_NAME] = channel_id
+        if channel_ids:
+            query[Const.DB_CHANNEL_ID] = {"$in": channel_ids}
         if type:
             query[Const.DB_TYPE] = type
         if symbol:
-            query[Const.DB_SYMBOL] = symbol
+            query["symbols"] = symbol
         if interval:
-            query[Const.DB_INTERVAL] = interval
+            query["intervals"] = interval
         if strategy:
-            query[Const.DB_STRATEGY] = strategy
+            query["strategies"] = strategy
 
         entries_db = MongoAlert().get_many(query)
         result = [AlertModel(**entry) for entry in entries_db]

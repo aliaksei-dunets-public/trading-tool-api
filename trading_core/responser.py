@@ -17,12 +17,13 @@ from email.mime.text import MIMEText
 from .constants import Const
 from .core import config, logger
 from .mongodb import MongoJobs, MongoSimulations
-from .handler import ExchangeHandler
+from .handler import ExchangeHandler, AlertHandler
 from .trend import TrendCCI
 
 from trading_core.common import (
     ExchangeId,
     IntervalType,
+    ChannelType,
     HistoryDataParamModel,
     StrategyParamModel,
     SymbolIntervalLimitModel,
@@ -39,7 +40,7 @@ from trading_core.common import (
     SessionStatus,
     OrderOpenModel,
 )
-from trading_core.strategy import StrategyFactory
+from trading_core.strategy import StrategyFactory, SignalFactory
 from trading_core.handler import (
     UserHandler,
     ChannelHandler,
@@ -95,12 +96,12 @@ def job_func_send_bot_notification(interval):
     responser = ResponserBot()
     notificator = NotificationBot()
 
-    # alerts_db = MongoAlerts().get_alerts(
-    #     alert_type=Const.ALERT_TYPE_BOT, interval=interval
-    # )
-    alerts_db = []
+    channels = ChannelHandler.get_channels(type=ChannelType.TELEGRAM_BOT)
+    channel_ids = [channel_mdl.id for channel_mdl in channels]
 
-    alert_messages = responser.get_signals_for_alerts(alerts_db)
+    alerts = AlertHandler.get_alerts(interval=interval, channel_ids=channel_ids)
+
+    alert_messages = responser.get_signals_for_alerts(alerts)
     notificator.send(alert_messages)
 
 
@@ -236,20 +237,21 @@ class ResponserBase:
 
     def get_signals(
         self,
+        trader_id: str,
         symbols: list,
         intervals: list,
         strategies: list,
-        signals_config: list,
+        signal_types: list,
         closed_bars: bool,
     ) -> list:
-        pass
-        # return SignalFactory().get_signals(
-        #     symbols=symbols,
-        #     intervals=intervals,
-        #     strategies=strategies,
-        #     signals_config=signals_config,
-        #     closed_bars=closed_bars,
-        # )
+        return SignalFactory().get_signals_by_list(
+            trader_id=trader_id,
+            symbols=symbols,
+            intervals=intervals,
+            strategies=strategies,
+            signal_types=signal_types,
+            closed_bars=closed_bars,
+        )
 
     def create_job(self, job_type: str, interval: str) -> str:
         return JobScheduler().create_job(job_type=job_type, interval=interval)
@@ -713,89 +715,37 @@ class ResponserEmail(ResponserBase):
 
 
 class ResponserBot(ResponserBase):
-    def get_signals_for_alerts(self, alerts_db: dict) -> Messages:
+    def get_signals_for_alerts(self, alert_mdls: list[AlertModel]) -> Messages:
         messages_inst = Messages()
 
-        for alert_db in alerts_db:
-            channel_id = alert_db[Const.DB_CHANNEL_ID]
-            symbol = alert_db[Const.DB_SYMBOL]
-            interval = alert_db[Const.DB_INTERVAL]
-            strategies = alert_db[Const.DB_STRATEGIES]
-            signals_config = alert_db[Const.DB_SIGNALS]
-            comment = alert_db[Const.DB_COMMENT]
+        for alert_mdl in alert_mdls:
+            trader_id = alert_mdl.trader_id
+            channel_id = alert_mdl.channel_id
+            symbols = alert_mdl.symbols
+            intervals = alert_mdl.intervals
+            strategies = alert_mdl.strategies
+            signal_types = alert_mdl.signals
 
-            comments_text = f" | {comment}" if comment else ""
-
-            signals_list = super().get_signals(
-                symbols=[symbol],
-                intervals=[interval],
+            signals_mdls = super().get_signals(
+                trader_id=trader_id,
+                symbols=symbols,
+                intervals=intervals,
                 strategies=strategies,
-                signals_config=signals_config,
+                signal_types=signal_types,
                 closed_bars=True,
             )
 
-            for signal_inst in signals_list:
-                signal_text = f"<b>{signal_inst.get_signal()}</b>"
-                message_text = f"{signal_inst.get_date_time().isoformat()} - <b>{signal_inst.get_symbol()} - {signal_inst.get_interval()}</b>: ({signal_inst.get_strategy()}) - {signal_text}{comments_text}\n\n"
+            for signal_mdl in signals_mdls:
+                signal_text = f"<b>{signal_mdl.signal.value}</b>"
+                message_text = f"{signal_mdl.date_time.isoformat()} - <b>{signal_mdl.symbol} - {signal_mdl.interval.value}</b>: ({signal_mdl.strategy.value}) - {signal_text}\n\n"
 
                 # Add header of the message before the first content
                 if not messages_inst.check_message(channel_id):
-                    message_text = (
-                        f"<b>Local: Alert signals for {interval}: \n</b>{message_text}"
-                    )
+                    message_text = f"<b>Alert signals for {signal_mdl.interval.value}: \n</b>{message_text}"
 
                 messages_inst.add_message_text(channel_id=channel_id, text=message_text)
 
         return messages_inst
-
-    def get_signals_for_orders(self, orders_db: dict) -> Messages:
-        messages_inst = Messages()
-
-        for order_db in orders_db:
-            channel_id = "1658698044"
-            order_type = order_db[Const.DB_ORDER_TYPE]
-            symbol = order_db[Const.DB_SYMBOL]
-            interval = order_db[Const.DB_INTERVAL]
-            strategies = order_db[Const.DB_STRATEGIES]
-
-            signals_list = super().get_signals(
-                symbols=[symbol],
-                intervals=[interval],
-                strategies=strategies,
-                signals_config=[],
-                closed_bars=True,
-            )
-
-            for signal_inst in signals_list:
-                signal_value = signal_inst.get_signal()
-                signal_text = f"<b>{signal_value}</b>"
-                comment_text = self.get_comment_of_order(order_type, signal_value)
-
-                message_text = f"{signal_inst.get_date_time().isoformat()} - <b>{signal_inst.get_symbol()} - {signal_inst.get_interval()}</b>: ({signal_inst.get_strategy()}) - {signal_text}{comment_text}\n"
-
-                # Add header of the message before the first content
-                if not messages_inst.check_message(channel_id):
-                    message_text = (
-                        f"<b>Local: Order signals for {interval}: \n</b>{message_text}"
-                    )
-
-                messages_inst.add_message_text(channel_id=channel_id, text=message_text)
-
-        return messages_inst
-
-    def get_comment_of_order(self, order_type: str, signal_value: str) -> str:
-        if order_type == Const.LONG:
-            if signal_value in (Const.BUY, Const.STRONG_BUY):
-                return f" | <b>You can open more LONG positions</b>"
-            elif signal_value in (Const.SELL, Const.STRONG_SELL):
-                return f" | <b>CLOSE all postions</b>"
-        elif order_type == Const.SHORT:
-            if signal_value in (Const.BUY, Const.STRONG_BUY):
-                return f" | <b>CLOSE all postions</b>"
-            elif signal_value in (Const.SELL, Const.STRONG_SELL):
-                return f" | <b>You can open more SHORT positions</b>"
-        else:
-            return ""
 
 
 class JobScheduler:
@@ -1034,8 +984,10 @@ class NotificationBot(NotificationBase):
         for message_inst in messages_inst.get_messages().values():
             channel_id = message_inst.get_channel_id()
 
+            channel_mdl = ChannelHandler.get_channel(id=channel_id)
+
             params = {
-                "chat_id": channel_id,
+                "chat_id": channel_mdl.channel,
                 "text": message_inst.get_message_text(),
                 "parse_mode": "HTML",
             }

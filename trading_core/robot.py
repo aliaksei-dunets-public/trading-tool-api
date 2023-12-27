@@ -225,13 +225,14 @@ class TraderBase:
             f"{self.__class__.__name__}: {self.session_mdl.id} - The Trader Run has started"
         )
 
-        signal_param = cmn.StrategyParamModel(
+        signal_param = cmn.SignalParamModel(
             trader_id=self.session_mdl.trader_id,
             symbol=self.session_mdl.symbol,
             interval=self.session_mdl.interval,
             strategy=self.session_mdl.strategy,
             from_buffer=True,
             closed_bars=True,
+            types=[cmn.SignalType.DEBUG_SIGNAL],
         )
 
         signal_mdl = SignalFactory().get_signal(param=signal_param)

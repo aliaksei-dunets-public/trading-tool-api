@@ -7,11 +7,13 @@ from .core import logger, config
 from .common import (
     IntervalType,
     StrategyType,
+    SignalType,
     StrategyConfigModel,
     SignalModel,
     HistoryDataParamModel,
     IndicatorParamModel,
     StrategyParamModel,
+    SignalParamModel,
     TraderSymbolIntervalLimitModel,
 )
 from .handler import buffer_runtime_handler, ExchangeHandler
@@ -23,14 +25,60 @@ class SignalFactory:
     def __init__(self) -> None:
         self.__buffer_inst = buffer_runtime_handler.get_signal_handler()
 
-    def get_signal(self, param: StrategyParamModel) -> SignalModel:
+    def get_signal(self, param: SignalParamModel) -> SignalModel:
+        signal_mdl = self._get_signal(param)
+        if signal_mdl and signal_mdl.is_compatible(signal_types=param.types):
+            return signal_mdl
+        else:
+            return None
+
+    def get_signals(self, params: list[SignalParamModel]) -> list[SignalModel]:
+        signal_mdls = []
+
+        for signal_param in params:
+            signal_mdl = self.get_signal(param=signal_param)
+            if signal_mdl:
+                signal_mdls.append(signal_mdl)
+
+        return signal_mdls
+
+    def get_signals_by_list(
+        self,
+        trader_id: str,
+        symbols: list,
+        intervals: list,
+        strategies: list,
+        signal_types: list,
+        closed_bars: bool,
+    ) -> list[SignalModel]:
+        signal_params = []
+        for symbol in symbols:
+            for interval in intervals:
+                for strategy in strategies:
+                    signal_param = SignalParamModel(
+                        trader_id=trader_id,
+                        symbol=symbol,
+                        interval=interval,
+                        strategy=strategy,
+                        from_buffer=True,
+                        closed_bars=closed_bars,
+                        types=signal_types,
+                    )
+
+                    signal_params.append(signal_param)
+
+        return self.get_signals(params=signal_params)
+
+    def _get_signal(self, param: SignalParamModel) -> SignalModel:
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
             logger.info(f"{self.__class__.__name__}: get_signal({param.model_dump()})")
 
         signal_mdl: SignalModel = None
 
         # Take signal from buffer
-        buffer_key = self._get_buffer_key(**param.model_dump())
+        buffer_key = self._get_buffer_key(
+            symbol=param.symbol, interval=param.interval, strategy=param.strategy
+        )
         if self.__buffer_inst.is_data_in_buffer(key=buffer_key):
             signal_mdl = self.__buffer_inst.get_buffer(key=buffer_key)
 
@@ -66,6 +114,7 @@ class SignalFactory:
 
         if signal_mdl:
             self.__buffer_inst.set_buffer(key=buffer_key, data=signal_mdl)
+
             return signal_mdl
         else:
             logger.error(
@@ -74,16 +123,6 @@ class SignalFactory:
             raise Exception(
                 f"{self.__class__.__name__}: Erro during get_signal({param.model_dump()})"
             )
-
-    def get_signals(self, params: list[StrategyParamModel]) -> list[SignalModel]:
-        signal_mdls = []
-
-        for strategy_param in params:
-            signal_mdl = self.get_signal(param=strategy_param)
-
-            signal_mdls.append(signal_mdl)
-
-        return signal_mdls
 
     def _get_buffer_key(self, symbol: str, interval: str, strategy: str) -> tuple:
         if not symbol or not interval or not strategy:
