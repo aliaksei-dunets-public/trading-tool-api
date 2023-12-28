@@ -322,6 +322,8 @@ class TraderHandler:
         for session_mdl in sessions:
             SessionHandler.delete_session(id=session_mdl.id)
 
+        MongoAlert().delete_many(query={"trader_id": id})
+
         # Remove Trader
         trader_deletion = MongoTrader().delete_one(id=id)
 
@@ -391,6 +393,8 @@ class ChannelHandler:
 
     @staticmethod
     def delete_channel(id: str):
+        # Before deletion of the channel, removes all alerts
+        MongoAlert().delete_many(query={"channel_id": id})
         return MongoChannel().delete_one(id=id)
 
     @staticmethod

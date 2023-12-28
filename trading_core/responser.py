@@ -918,6 +918,7 @@ class JobScheduler:
             minute=minute,
             second=second,
             timezone="UTC",
+            jitter=20,
         )
 
 
