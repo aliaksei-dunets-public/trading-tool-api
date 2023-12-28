@@ -284,8 +284,9 @@ class TraderHandler:
                     exchange_handler.get_accounts()
                     trader_status = TraderStatus.PRIVATE
 
-                except Exception:
-                    pass
+                except Exception as error:
+                    logger.error(f"Trader {id} status check is failed - {error}")
+                    trader_status = TraderStatus.PUBLIC
         else:
             trader_status = TraderStatus.FAILED
 

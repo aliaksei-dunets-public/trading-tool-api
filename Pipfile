@@ -16,6 +16,7 @@ secure-smtplib = "*"
 pytelegrambotapi = "*"
 pydantic = {extras = ["email"], version = "*"}
 cryptography = "*"
+pybit = "*"
 
 [dev-packages]
 autopep8 = "*"

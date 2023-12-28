@@ -1,14 +1,14 @@
 from datetime import datetime, timedelta
-import time
 import requests
 from requests.models import RequestEncodingMixin
 import json
 import pandas as pd
 import math
-import os
 import hmac
 import hashlib
-from enum import Enum
+from pybit.unified_trading import HTTP
+
+from trading_core.common import TraderModel
 
 from .common import (
     SymbolStatus,
@@ -326,8 +326,6 @@ class ExchangeApiBase:
 class ByBitComApi(ExchangeApiBase):
     # Public API Endpoints
     SERVER_TIME_ENDPOINT = "market/time"
-    INSTRUMENTS_INFO_ENDPOINT = "market/instruments-info"
-    KLINES_DATA_ENDPOINT = "market/kline"
 
     TA_API_INTERVAL_1 = "1"
     TA_API_INTERVAL_3 = "3"
@@ -404,7 +402,8 @@ class ByBitComApi(ExchangeApiBase):
                 f"{self.__class__.__name__}: {self._trader_model.exchange_id} - get_history_data({url_params})"
             )
 
-        json_api_response = self._get_api_klines(url_params)
+        json_api_response = self._get_api_http_session().get_kline(**url_params)
+
         klines_data = json_api_response["result"]["list"]
 
         # Convert API response to the DataFrame with columns: 'Datetime', 'Open', 'High', 'Low', 'Close', 'Volume'
@@ -419,6 +418,32 @@ class ByBitComApi(ExchangeApiBase):
         )
 
         return obj_history_data
+
+    def get_leverage_settings(self, symbol: str):
+        return [1, 2, 5, 10, 20, 50]
+
+    def get_accounts(self):
+        account = {
+            "accountId": "USDT",
+            "asset": "USDT",
+            "free": 0,
+        }
+
+        json_api_response = self._get_api_http_session(
+            private_mode=True
+        ).get_wallet_balance(
+            accountType="SPOT",
+            coin="USDT",
+        )
+
+        spot_accounts = json_api_response["result"]["list"]
+        if spot_accounts:
+            coins = spot_accounts[0]["coin"]
+            if coins:
+                usdt_coin = coins[0]
+                account["free"] = usdt_coin["free"]
+
+        return [account]
 
     def _convertResponseToDataFrame(self, api_response: list) -> pd.DataFrame:
         """
@@ -472,60 +497,48 @@ class ByBitComApi(ExchangeApiBase):
                 f"{self.__class__.__name__}: {self._trader_model.exchange_id} - getSymbols({params})"
             )
 
-        response = requests.get(
-            url=self._get_url(self.INSTRUMENTS_INFO_ENDPOINT),
-            params=params,
-        )
+        json_api_response = self._get_api_http_session().get_instruments_info(**params)
 
-        if response.status_code == 200:
-            json_api_response = json.loads(response.text)
+        result = json_api_response["result"]
+        category = result["category"]
 
-            result = json_api_response["result"]
-            category = result["category"]
+        # Create an instance of Symbol and add to the list
+        for row in result["list"]:
+            if row["quoteCoin"] == "USDT":
+                status_converted = (
+                    SymbolStatus.open
+                    if row["status"] == "TRADING"
+                    else SymbolStatus.close
+                )
 
-            # Create an instance of Symbol and add to the list
-            for row in result["list"]:
-                if row["quoteCoin"] == "USDT":
-                    status_converted = (
-                        SymbolStatus.open
-                        if row["status"] == "TRADING"
-                        else SymbolStatus.close
-                    )
+                quantity_step = (
+                    row["lotSizeFilter"]["qtyStep"]
+                    if category == self.CATEGORY_LINEAR
+                    else row["quotePrecision"]
+                )
 
-                    quantity_step = (
-                        row["lotSizeFilter"]["qtyStep"]
-                        if category == self.CATEGORY_LINEAR
-                        else row["quotePrecision"]
-                    )
+                symbol_data = {
+                    "symbol": row["symbol"],
+                    "name": row["symbol"],
+                    "status": status_converted,
+                    "type": SymbolType.leverage
+                    if category == self.CATEGORY_LINEAR
+                    else SymbolType.spot,
+                    "trading_time": "",
+                    "currency": row["quoteCoin"],
+                    "quote_precision": len(quantity_step.split(".")[1])
+                    if "." in quantity_step
+                    else 0,
+                    "trading_fee": 0,
+                }
 
-                    symbol_data = {
-                        "symbol": row["symbol"],
-                        "name": row["symbol"],
-                        "status": status_converted,
-                        "type": SymbolType.leverage
-                        if category == self.CATEGORY_LINEAR
-                        else SymbolType.spot,
-                        "trading_time": "",
-                        "currency": row["quoteCoin"],
-                        "quote_precision": len(quantity_step.split(".")[1])
-                        if "." in quantity_step
-                        else 0,
-                        "trading_fee": 0,
-                    }
+                symbol_model = SymbolModel(**symbol_data)
 
-                    symbol_model = SymbolModel(**symbol_data)
+                symbols[symbol_model.symbol] = symbol_model
+            else:
+                continue
 
-                    symbols[symbol_model.symbol] = symbol_model
-                else:
-                    continue
-
-            return symbols
-
-        else:
-            logger.error(
-                f"ExchangeApiBase: {self._trader_model.exchange_id} - getSymbols -> {response.text}"
-            )
-            raise Exception(response.text)
+        return symbols
 
     def _map_interval(
         self, api_interval: str = None, interval: IntervalType = None
@@ -585,10 +598,39 @@ class ByBitComApi(ExchangeApiBase):
             elif interval == IntervalType.MONTH_1:
                 return self.TA_API_INTERVAL_M
 
+    def _get_api_http_session(
+        self, private_mode: bool = False, tesnet: bool = False
+    ) -> HTTP:
+        if private_mode:
+            api_key = self._trader_model.decrypt_key(self._trader_model.api_key)
+            api_secret = self._trader_model.decrypt_key(self._trader_model.api_secret)
+            api_session = HTTP(
+                testnet=tesnet,
+                api_key=api_key,
+                api_secret=api_secret,
+            )
+        else:
+            api_session = HTTP(
+                testnet=tesnet,
+            )
+        return api_session
+
 
 class DemoByBitComApi(ByBitComApi):
     def get_api_endpoints(self) -> str:
         return "https://api-testnet.bybit.com/v5/"
+
+    def _get_api_http_session(self, private_mode: bool = False) -> HTTP:
+        return super()._get_api_http_session(private_mode=private_mode, tesnet=True)
+
+    def get_accounts(self):
+        json_api_response = self._get_api_http_session(
+            private_mode=True
+        ).get_wallet_balance(
+            accountType="UNIFIED",
+            # coin="USDT",
+        )
+        return json_api_response
 
 
 class DzengiComApi(ExchangeApiBase):

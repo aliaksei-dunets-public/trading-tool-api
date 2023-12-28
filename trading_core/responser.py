@@ -99,10 +99,12 @@ def job_func_send_bot_notification(interval):
     channels = ChannelHandler.get_channels(type=ChannelType.TELEGRAM_BOT)
     channel_ids = [channel_mdl.id for channel_mdl in channels]
 
-    alerts = AlertHandler.get_alerts(interval=interval, channel_ids=channel_ids)
+    if channel_ids:
+        alerts = AlertHandler.get_alerts(interval=interval, channel_ids=channel_ids)
 
-    alert_messages = responser.get_signals_for_alerts(alerts)
-    notificator.send(alert_messages)
+    if alerts:
+        alert_messages = responser.get_signals_for_alerts(alerts)
+        notificator.send(alert_messages)
 
 
 def job_func_send_email_notification(interval):
