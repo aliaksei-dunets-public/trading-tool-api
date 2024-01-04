@@ -104,6 +104,9 @@ class ExchangeApiBase:
     ) -> LeverageModel:
         pass
 
+    def get_fee(self, symbol: str) -> float:
+        pass
+
     def get_end_datetime(
         self, interval: str, original_datetime: datetime, **kwargs
     ) -> datetime:
@@ -453,12 +456,19 @@ class ByBitComApi(ExchangeApiBase):
             Const.API_FLD_ACCOUNT_LOCKED: 0,
         }
 
+        params = {
+            "accountType": "UNIFIED",
+            "coin": "USDT",
+        }
+
+        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+            logger.info(
+                f"{self.__class__.__name__}: {self._trader_model.exchange_id} - get_accounts({params})"
+            )
+
         json_api_response = self._get_api_http_session(
             private_mode=True
-        ).get_wallet_balance(
-            accountType="UNIFIED",
-            coin="USDT",
-        )
+        ).get_wallet_balance(**params)
 
         spot_accounts = json_api_response["result"]["list"]
         if spot_accounts:
@@ -484,6 +494,25 @@ class ByBitComApi(ExchangeApiBase):
                     position_models.append(position_mdl)
 
         return position_models
+
+    def get_fee(self, symbol: str) -> float:
+        params = {"category": self.CATEGORY_LINEAR, "symbol": symbol}
+
+        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+            logger.info(
+                f"{self.__class__.__name__}: {self._trader_model.exchange_id} - get_fee_rates({params})"
+            )
+
+        json_api_response = self._get_api_http_session(private_mode=True).get_fee_rates(
+            **params
+        )
+
+        fee_rates = json_api_response[Const.API_FLD_RESULT][Const.API_FLD_LIST]
+        if fee_rates:
+            fee_rate = fee_rates[0]
+            return float(fee_rate["takerFeeRate"])
+
+        return 0
 
     def get_open_position(
         self, symbol: str, order_id: str = None, position_id: str = None
@@ -516,31 +545,32 @@ class ByBitComApi(ExchangeApiBase):
         symbol: str,
         limit: int = 1,
     ) -> list[OrderCloseModel]:
-        close_positions = []
-        open_positions = self.get_open_leverages(symbol=symbol)
+        pass
+        # close_positions = []
+        # open_positions = self.get_open_leverages(symbol=symbol)
 
-        if not open_positions:
-            json_api_response = self._get_api_http_session(
-                private_mode=True
-            ).get_closed_pnl(category=self.CATEGORY_LINEAR, symbol=symbol)
+        # if not open_positions:
+        #     json_api_response = self._get_api_http_session(
+        #         private_mode=True
+        #     ).get_closed_pnl(category=self.CATEGORY_LINEAR, symbol=symbol)
 
-            api_positions = json_api_response[Const.API_FLD_RESULT][Const.API_FLD_LIST]
+        #     api_positions = json_api_response[Const.API_FLD_RESULT][Const.API_FLD_LIST]
 
-            for position in api_positions:
-                close_details_data = {
-                    Const.DB_STATUS: OrderStatus.closed,
-                    Const.DB_CLOSE_DATETIME: self.getDatetimeByUnixTimeMs(
-                        float(position["updatedTime"])
-                    ),
-                    Const.DB_CLOSE_PRICE: position["avgExitPrice"],
-                    Const.DB_CLOSE_REASON: OrderReason.TRADER,
-                    Const.DB_TOTAL_PROFIT: position["closedPnl"],
-                    Const.DB_FEE: 0,
-                }
+        #     for position in api_positions:
+        #         close_details_data = {
+        #             Const.DB_STATUS: OrderStatus.closed,
+        #             Const.DB_CLOSE_DATETIME: self.getDatetimeByUnixTimeMs(
+        #                 float(position["updatedTime"])
+        #             ),
+        #             Const.DB_CLOSE_PRICE: position["avgExitPrice"],
+        #             Const.DB_CLOSE_REASON: OrderReason.TRADER,
+        #             Const.DB_TOTAL_PROFIT: position["closedPnl"],
+        #             Const.DB_FEE: 0,
+        #         }
 
-                close_positions.append(OrderCloseModel(**close_details_data))
+        #         close_positions.append(OrderCloseModel(**close_details_data))
 
-        return close_positions
+        # return close_positions
 
     def get_close_position(
         self,
@@ -553,28 +583,7 @@ class ByBitComApi(ExchangeApiBase):
         )
 
         if not open_position:
-            json_api_response = self._get_api_http_session(
-                private_mode=True
-            ).get_closed_pnl(category=self.CATEGORY_LINEAR, symbol=symbol)
-
-            api_positions = json_api_response[Const.API_FLD_RESULT][Const.API_FLD_LIST]
-
-            for position in api_positions:
-                if order_id != position[Const.API_FLD_ORDER_ID]:
-                    continue
-
-                close_details_data = {
-                    Const.DB_STATUS: OrderStatus.closed,
-                    Const.DB_CLOSE_DATETIME: self.getDatetimeByUnixTimeMs(
-                        float(position["updatedTime"])
-                    ),
-                    Const.DB_CLOSE_PRICE: position["avgExitPrice"],
-                    Const.DB_CLOSE_REASON: OrderReason.TRADER,
-                    Const.DB_TOTAL_PROFIT: position["closedPnl"],
-                    Const.DB_FEE: 0,
-                }
-
-                return OrderCloseModel(**close_details_data)
+            return self._get_close_position(symbol=symbol)
 
     def create_leverage(self, position_mdl: LeverageModel) -> LeverageModel:
         created_ids = self._place_order(position_mdl=position_mdl)
@@ -615,22 +624,9 @@ class ByBitComApi(ExchangeApiBase):
 
         closed_position_ids = self._place_order(position_mdl=openned_posision_mdl)
 
-        if closed_position_ids:
-            closed_position_mdl = self.get_position(
-                symbol=openned_posision_mdl.symbol,
-                order_id=closed_position_ids[Const.API_FLD_ORDER_ID],
-            )
-
-            closed_mdl = self.get_close_position(
-                symbol=symbol,
-                order_id=closed_position_mdl.order_id,
-            )
-
-            if closed_mdl:
-                closed_mdl.fee = closed_position_mdl.fee
-                return closed_mdl
-
-        return None
+        return self._get_close_position(
+            symbol=symbol, order_id=closed_position_ids[Const.API_FLD_ORDER_ID]
+        )
 
     def _convertResponseToDataFrame(self, api_response: list) -> pd.DataFrame:
         """
@@ -716,7 +712,7 @@ class ByBitComApi(ExchangeApiBase):
                     "quote_precision": len(quantity_step.split(".")[1])
                     if "." in quantity_step
                     else 0,
-                    "trading_fee": 0,
+                    # "trading_fee": 0,
                 }
 
                 symbol_model = SymbolModel(**symbol_data)
@@ -736,7 +732,7 @@ class ByBitComApi(ExchangeApiBase):
     ) -> list[LeverageModel]:
         position_models = []
 
-        param = {
+        params = {
             "category": self.CATEGORY_LINEAR,
             "symbol": symbol,
             "orderStatus": "Filled",
@@ -744,18 +740,33 @@ class ByBitComApi(ExchangeApiBase):
         }
 
         if order_id:
-            param[Const.API_FLD_ORDER_ID] = order_id
+            params[Const.API_FLD_ORDER_ID] = order_id
 
         if position_id:
-            param[Const.API_FLD_ORDER_LINK_ID] = position_id
+            params[Const.API_FLD_ORDER_LINK_ID] = position_id
+
+        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+            logger.info(
+                f"{self.__class__.__name__}: {self._trader_model.exchange_id} - get_order_history({params})"
+            )
 
         json_api_response = self._get_api_http_session(
             private_mode=True
-        ).get_order_history(**param)
+        ).get_order_history(**params)
 
         api_positions = json_api_response["result"]["list"]
 
         for position in api_positions:
+            closed_reason = ""
+            api_stop_order_type = position["stopOrderType"]
+            if api_stop_order_type:
+                if api_stop_order_type == "TakeProfit":
+                    closed_reason = OrderReason.TAKE_PROFIT
+                elif api_stop_order_type == "StopLoss":
+                    closed_reason = OrderReason.STOP_LOSS
+                else:
+                    closed_reason = OrderReason.TRADER
+
             position_data = {
                 Const.DB_SESSION_ID: "1",
                 Const.DB_POSITION_ID: position[Const.API_FLD_ORDER_LINK_ID],
@@ -779,10 +790,33 @@ class ByBitComApi(ExchangeApiBase):
                 if Const.API_FLD_TAKE_PROFIT in position
                 and position[Const.API_FLD_TAKE_PROFIT] != ""
                 else 0,
+                Const.DB_CLOSE_REASON: closed_reason,
             }
             position_models.append(LeverageModel(**position_data))
 
         return position_models
+
+    def _get_close_position(
+        self,
+        symbol: str,
+        order_id: str = None,
+    ) -> OrderCloseModel:
+        closed_position_mdl = self.get_position(
+            symbol=symbol,
+            order_id=order_id,
+        )
+
+        closed_pnls = self._get_closed_pnl(symbol=symbol)
+
+        if closed_position_mdl.order_id in closed_pnls:
+            closed_mdl = closed_pnls[closed_position_mdl.order_id]
+
+            if closed_mdl:
+                closed_mdl.fee = closed_position_mdl.fee
+                closed_mdl.close_reason = closed_position_mdl.close_reason
+                return closed_mdl
+
+        return None
 
     def _check_open_position(self, symbol: str) -> bool:
         position_info = self._get_position_info(symbol=symbol)
@@ -794,9 +828,18 @@ class ByBitComApi(ExchangeApiBase):
             return False
 
     def _get_position_info(self, symbol: str) -> dict:
+        params = {
+            "category": self.CATEGORY_LINEAR,
+            "symbol": symbol,
+        }
+
+        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+            logger.info(
+                f"{self.__class__.__name__}: {self._trader_model.exchange_id} - get_positions({params})"
+            )
+
         json_api_response = self._get_api_http_session(private_mode=True).get_positions(
-            category=self.CATEGORY_LINEAR,
-            symbol=symbol,
+            **params
         )
 
         # There are some open positions is size is not equal 0
@@ -817,33 +860,81 @@ class ByBitComApi(ExchangeApiBase):
 
             if position_info["leverage"] != str(position_mdl.leverage):
                 try:
-                    api_session_handler.set_leverage(
-                        category=self.CATEGORY_LINEAR,
-                        symbol=position_mdl.symbol,
-                        buyLeverage=str(position_mdl.leverage),
-                        sellLeverage=str(position_mdl.leverage),
-                    )
+                    set_leverage_params = {
+                        "category": self.CATEGORY_LINEAR,
+                        "symbol": position_mdl.symbol,
+                        "buyLeverage": str(position_mdl.leverage),
+                        "sellLeverage": str(position_mdl.leverage),
+                    }
+
+                    if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+                        logger.info(
+                            f"{self.__class__.__name__}: {self._trader_model.exchange_id} - set_leverage({set_leverage_params})"
+                        )
+
+                    api_session_handler.set_leverage(**set_leverage_params)
                 except Exception as error:
                     logger.warning(
                         f"{self.__class__.__name__}: During creation of a position - {error}"
                     )
 
-        json_api_response = api_session_handler.place_order(
-            category=self.CATEGORY_LINEAR,
-            symbol=position_mdl.symbol,
-            side=self._map_side(side=position_mdl.side),
-            orderType="Market" if position_mdl.type == OrderType.market else "Limit",
-            qty=position_mdl.quantity,
-            timeInForce="IOC",
-            orderLinkId=position_id,
-            isLeverage=1,
-            takeProfit=position_mdl.take_profit,
-            stopLoss=position_mdl.stop_loss,
-        )
+        place_order_params = {
+            "category": self.CATEGORY_LINEAR,
+            "symbol": position_mdl.symbol,
+            "side": self._map_side(side=position_mdl.side),
+            "orderType": "Market" if position_mdl.type == OrderType.market else "Limit",
+            "qty": position_mdl.quantity,
+            "timeInForce": "IOC",
+            "orderLinkId": position_id,
+            "isLeverage": 1,
+            "takeProfit": position_mdl.take_profit,
+            "stopLoss": position_mdl.stop_loss,
+        }
+
+        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+            logger.info(
+                f"{self.__class__.__name__}: {self._trader_model.exchange_id} - place_order({place_order_params})"
+            )
+
+        json_api_response = api_session_handler.place_order(**place_order_params)
 
         created_ids = json_api_response[Const.API_FLD_RESULT]
 
         return created_ids
+
+    def _get_closed_pnl(self, symbol: str, limit: int = 1) -> dict:
+        closed_pnl_positions = {}
+
+        params = {"category": self.CATEGORY_LINEAR, "symbol": symbol, "limit": limit}
+
+        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+            logger.info(
+                f"{self.__class__.__name__}: {self._trader_model.exchange_id} - get_closed_pnl({params})"
+            )
+
+        json_api_response = self._get_api_http_session(
+            private_mode=True
+        ).get_closed_pnl(**params)
+
+        api_positions = json_api_response[Const.API_FLD_RESULT][Const.API_FLD_LIST]
+
+        for position in api_positions:
+            close_details_data = {
+                Const.DB_STATUS: OrderStatus.closed,
+                Const.DB_CLOSE_DATETIME: self.getDatetimeByUnixTimeMs(
+                    float(position["updatedTime"])
+                ),
+                Const.DB_CLOSE_PRICE: position["avgExitPrice"],
+                Const.DB_CLOSE_REASON: OrderReason.TRADER,
+                Const.DB_TOTAL_PROFIT: position["closedPnl"],
+                Const.DB_FEE: 0,
+            }
+
+            closed_pnl_positions[position[Const.API_FLD_ORDER_ID]] = OrderCloseModel(
+                **close_details_data
+            )
+
+        return closed_pnl_positions
 
     def _map_interval(
         self, api_interval: str = None, interval: IntervalType = None

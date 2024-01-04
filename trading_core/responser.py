@@ -103,7 +103,9 @@ def job_func_send_bot_notification(interval):
         alerts = AlertHandler.get_alerts(interval=interval, channel_ids=channel_ids)
 
     if alerts:
-        alert_messages = responser.get_signals_for_alerts(alerts)
+        alert_messages = responser.get_signals_for_alerts(
+            alert_mdls=alerts, interval=interval
+        )
         notificator.send(alert_messages)
 
 

@@ -300,7 +300,7 @@ class SymbolModel(SymbolIdModel):
     # order_type: OrderType
     currency: str
     quote_precision: int
-    trading_fee: float = 0
+    trading_fee: float = None
 
     @validator("descr", pre=True, always=True)
     def concate_descr(cls, descr, values):

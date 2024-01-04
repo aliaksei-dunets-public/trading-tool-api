@@ -894,6 +894,9 @@ class ExchangeHandler:
             symbol=symbol, order_id=order_id, position_id=position_id
         )
 
+    def get_fee(self, symbol: str) -> float:
+        return self._api.get_fee(symbol=symbol)
+
     def get_end_datetime(self, interval: str, **kwargs) -> datetime:
         original_datetime = datetime.now()
         return self._api.get_end_datetime(interval, original_datetime, **kwargs)
@@ -1150,6 +1153,13 @@ class SymbolHandler(BaseOnExchangeHandler):
         symbol_id_list = [element[Const.DB_SYMBOL] for element in symbol_list]
 
         return symbol_id_list
+
+    def get_symbol_fee(self, symbol: str) -> float:
+        symbol_mdl = self.get_symbol(symbol=symbol)
+        if not symbol_mdl.trading_fee:
+            symbol_mdl.trading_fee = self._exchange_handler.get_fee(symbol=symbol)
+
+        return symbol_mdl.trading_fee if symbol_mdl.trading_fee else 0
 
 
 class HistoryDataHandler(BaseOnExchangeHandler):

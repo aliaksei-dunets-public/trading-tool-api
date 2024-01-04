@@ -426,10 +426,9 @@ class DataManagerBase:
             self._session_mdl.trader_id
         )
 
-        symbol_handler = buffer_runtime_handler.get_symbol_handler(
+        self._symbol_handler = buffer_runtime_handler.get_symbol_handler(
             self._session_mdl.trader_id
         )
-        self._symbol_mdl = symbol_handler.get_symbol(self._session_mdl.symbol)
 
         self._side_mng: SideManager = None
 
@@ -744,7 +743,9 @@ class DataManagerBase:
         return open_price
 
     def _get_quantity(self, open_price: float) -> float:
-        symbol_quote_precision = self._symbol_mdl.quote_precision
+        symbol_quote_precision = self._symbol_handler.get_symbol(
+            self._session_mdl.symbol
+        ).quote_precision
         fee = self._get_fee()
         total_balance_without_fee = self._get_current_balance(fee)
         price = self._get_open_price(open_price)
@@ -766,7 +767,7 @@ class DataManagerBase:
 
     def _get_fee(self) -> float:
         total_balance = self._get_current_balance()
-        symbol_fee = self._symbol_mdl.trading_fee
+        symbol_fee = self._symbol_handler.get_symbol_fee(self._session_mdl.symbol)
         fee = total_balance * symbol_fee / 100
         return -fee
 
