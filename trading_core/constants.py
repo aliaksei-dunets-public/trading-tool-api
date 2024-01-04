@@ -73,6 +73,7 @@ class Const:
     API_FLD_ID = FLD_ID
     API_FLD_ACCOUNT_ID = "accountId"
     API_FLD_ORDER_ID = "orderId"
+    API_FLD_ORDER_LINK_ID = "orderLinkId"
     API_FLD_POSITION_ID = "positionId"
     API_FLD_SYMBOL = DB_SYMBOL
     API_FLD_INTERVAL = FLD_INTERVAL
@@ -102,6 +103,8 @@ class Const:
     API_FLD_ACCOUNT_FREE = "free"
     API_FLD_ACCOUNT_LOCKED = "locked"
     API_FLD_CATEGORY = "category"
+    API_FLD_RESULT = "result"
+    API_FLD_LIST = "list"
 
     ########################### Legacy code ####################################
 

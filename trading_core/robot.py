@@ -14,6 +14,8 @@ from decimal import Decimal, ROUND_DOWN
 from datetime import datetime
 from bson import ObjectId
 
+from trading_core.common import OrderModel
+
 from .core import Const
 import trading_core.common as cmn
 from .strategy import StrategyFactory, SignalFactory
@@ -308,8 +310,7 @@ class TraderManager(TraderBase):
         self.data_mng: DataManagerBase = DataManagerBase.get_db_manager(trader_mng=self)
 
         # Make synchronize just for ACTIVE sessions
-        if self.session_mdl.status == cmn.SessionStatus.active:
-            self.data_mng.synchronize(manager=self.api_mng)
+        self.data_mng.synchronize(manager=self.api_mng)
 
     def open_position(self, open_mdl: cmn.OrderOpenModel) -> cmn.OrderOpenModel:
         logger.info(f"{self.__class__.__name__}: The Trader is openning a position")
@@ -397,18 +398,22 @@ class HistorySimulatorManager(TraderBase):
 
         # Init signal instance
         for index, strategy_row in strategy_df.iterrows():
-            signal_data = {
-                "date_time": index,
-                "open": strategy_row["Open"],
-                "high": strategy_row["High"],
-                "low": strategy_row["Low"],
-                "close": strategy_row["Close"],
-                "volume": strategy_row["Volume"],
-                "strategy": self.session_mdl.strategy,
-                "signal": strategy_row[Const.PARAM_SIGNAL],
-            }
-
-            signal_mdl = cmn.SignalModel(**signal_data)
+            signal_mdl = cmn.SignalModel(
+                trader_id=strategy_param.trader_id,
+                symbol=strategy_param.symbol,
+                interval=strategy_param.interval,
+                strategy=strategy_param.strategy,
+                limit=strategy_param.limit,
+                from_buffer=strategy_param.from_buffer,
+                closed_bars=strategy_param.closed_bars,
+                date_time=index,
+                open=strategy_row["Open"],
+                high=strategy_row["High"],
+                low=strategy_row["Low"],
+                close=strategy_row["Close"],
+                volume=strategy_row["Volume"],
+                signal=strategy_row[Const.PARAM_SIGNAL],
+            )
             self._process_signal(signal_mdl)
 
 
@@ -612,6 +617,11 @@ class DataManagerBase:
         return None
 
     def get_open_positions(self) -> list:
+        return None
+
+    def get_position(
+        self, order_id: str = None, position_id: str = None
+    ) -> cmn.OrderModel:
         return None
 
     def has_open_position(self) -> bool:
@@ -851,16 +861,17 @@ class LeverageManagerBase(DataManagerBase):
 
 
 class LeverageApiManager(LeverageManagerBase):
-    def get_open_positions(self) -> list:
-        api_positions = self._exchange_handler.get_open_leverages(
-            symbol=self._session_mdl.symbol
+    def get_position(self, order_id: str = None, position_id: str = None) -> OrderModel:
+        position_mdl = self._exchange_handler.get_open_position(
+            symbol=self._session_mdl.symbol,
+            order_id=order_id,
+            position_id=position_id,
         )
-
-        for position_mdl in api_positions:
+        if position_mdl:
             position_mdl.session_id = self._session_mdl.id
             position_mdl.leverage = self._session_mdl.leverage
 
-        return api_positions
+        return position_mdl
 
     def open_position(self, open_mdl: cmn.LeverageModel) -> cmn.LeverageModel:
         # Prepate model for opennig
@@ -885,6 +896,7 @@ class LeverageApiManager(LeverageManagerBase):
     def close_position(self) -> cmn.OrderCloseModel:
         order_close_mdl = self._exchange_handler.close_leverage(
             symbol=self._current_position.symbol,
+            order_id=self._current_position.order_id,
             position_id=self._current_position.position_id,
         )
 
@@ -904,6 +916,9 @@ class LeverageApiManager(LeverageManagerBase):
         super().recalculate_position(signal_mdl)
 
         # Update position via API
+
+    def _init_open_positions(self):
+        pass
 
     def _open_position(self, position_mdl: cmn.LeverageModel) -> cmn.LeverageModel:
         logger.info(
@@ -951,25 +966,28 @@ class LeverageDatabaseManager(LeverageManagerBase):
     def synchronize(self, manager: LeverageManagerBase):
         # manager - api data manager works with the Trader
         if self._current_position:
-            # Open position exists in the Database
-            if manager._current_position:
-                # Open position exists in the Trader
-                if (
-                    self._current_position.order_id
-                    != manager._current_position.order_id
-                ):
-                    # Position order IDs aren't matched -> cancel the position in the Database
-                    self._close_position_by_ref()
-            else:
-                # Open position doens't exists in the Exhange Trader -> cancel the position in the Database
-                self._close_position_by_ref()
-        else:
-            # Open position doen't exist in the Database
-            if manager._current_position:
-                manager._current_position.open_reason = cmn.OrderReason.TRADER
-                self.open_position_by_ref(position_mdl=manager._current_position)
+            api_position_mdl = manager.get_position(
+                order_id=self._current_position.order_id,
+                position_id=self._current_position.position_id,
+            )
 
-        super().synchronize(manager)
+            manager._set_current_postion(api_position_mdl)
+
+            # Open position exists in the Database
+            if not api_position_mdl:
+                # Open position doens't exists in the Exhange Trader -> cancel the position in the Database
+                logger.info(
+                    f"{self.__class__.__name__}: Close the leverage {self._current_position.id} by the ref position id {self._current_position.position_id}"
+                )
+                api_order_closed_mdl = self._exchange_handler.get_close_position(
+                    symbol=self._current_position.symbol,
+                    order_id=self._current_position.order_id,
+                    position_id=self._current_position.position_id,
+                )
+
+                self.close_position(api_order_closed_mdl)
+
+                super().synchronize(manager)
 
     def recalculate_position(
         self, signal_mdl: cmn.SignalModel
@@ -1054,8 +1072,9 @@ class LeverageDatabaseManager(LeverageManagerBase):
             f"{self.__class__.__name__}: Close the leverage {self._current_position.id} by the ref position id {self._current_position.position_id}"
         )
         api_order_closed_mdl = self._exchange_handler.get_close_leverages(
-            position_id=self._current_position.position_id,
             symbol=self._current_position.symbol,
+            order_id=self._current_position.order_id,
+            position_id=self._current_position.position_id,
             limit=10,
         )
 

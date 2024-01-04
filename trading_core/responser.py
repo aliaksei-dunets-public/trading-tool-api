@@ -717,14 +717,19 @@ class ResponserEmail(ResponserBase):
 
 
 class ResponserBot(ResponserBase):
-    def get_signals_for_alerts(self, alert_mdls: list[AlertModel]) -> Messages:
+    def get_signals_for_alerts(
+        self, alert_mdls: list[AlertModel], interval: IntervalType = None
+    ) -> Messages:
         messages_inst = Messages()
 
         for alert_mdl in alert_mdls:
             trader_id = alert_mdl.trader_id
             channel_id = alert_mdl.channel_id
             symbols = alert_mdl.symbols
-            intervals = alert_mdl.intervals
+            if interval:
+                intervals = [interval]
+            else:
+                intervals = alert_mdl.intervals
             strategies = alert_mdl.strategies
             signal_types = alert_mdl.signals
 
