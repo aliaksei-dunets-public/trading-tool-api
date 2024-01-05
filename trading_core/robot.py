@@ -591,7 +591,9 @@ class DataManagerBase:
 
         return self.close_position(order_close_mdl)
 
-    def recalculate_position(self, signal_mdl: cmn.SignalModel):
+    def recalculate_position(
+        self, signal_mdl: cmn.SignalModel
+    ) -> cmn.TrailingStopModel:
         logger.info(
             f"{self.__class__.__name__}: Recalculate the position {self._current_position.id} by the signal"
         )
@@ -687,7 +689,7 @@ class DataManagerBase:
             self._current_position.close_datetime = order_close_mdl.close_datetime
             self._current_position.close_price = order_close_mdl.close_price
             self._current_position.close_reason = order_close_mdl.close_reason
-            self._current_position.fee = self._current_position.fee
+            self._current_position.fee = order_close_mdl.fee
             self._current_position.total_profit = order_close_mdl.total_profit
 
             return order_close_mdl
@@ -914,9 +916,15 @@ class LeverageApiManager(LeverageManagerBase):
         return order_close_mdl
 
     def recalculate_position(self, signal_mdl: cmn.SignalModel):
-        super().recalculate_position(signal_mdl)
+        trailing_stop_mdl = super().recalculate_position(signal_mdl)
 
-        # Update position via API
+        if trailing_stop_mdl:
+            self._exchange_handler.update_trading_stop(
+                symbol=self._session_mdl.symbol,
+                trading_stop=trailing_stop_mdl,
+                order_id=self._current_position.order_id,
+                position_id=self._current_position.position_id,
+            )
 
     def _init_open_positions(self):
         pass

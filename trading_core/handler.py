@@ -42,6 +42,7 @@ from .common import (
     OrderModel,
     LeverageModel,
     TransactionModel,
+    TrailingStopModel,
 )
 from .mongodb import (
     MongoUser,
@@ -896,6 +897,20 @@ class ExchangeHandler:
 
     def get_fee(self, symbol: str) -> float:
         return self._api.get_fee(symbol=symbol)
+
+    def update_trading_stop(
+        self,
+        symbol: str,
+        trading_stop: TrailingStopModel,
+        order_id: str = None,
+        position_id: str = None,
+    ):
+        return self._api.update_trading_stop(
+            symbol=symbol,
+            trading_stop=trading_stop,
+            order_id=order_id,
+            position_id=position_id,
+        )
 
     def get_end_datetime(self, interval: str, **kwargs) -> datetime:
         original_datetime = datetime.now()

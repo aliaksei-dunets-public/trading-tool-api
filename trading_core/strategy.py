@@ -182,7 +182,7 @@ class StrategyFactory:
             StrategyType.CCI_20_100_TREND_UP_LEVEL: StrategyConfigModel(
                 strategy=StrategyType.CCI_20_100_TREND_UP_LEVEL,
                 name="Check Trend Up Level and CCI(20) +/- 100",
-                length=14,
+                length=20,
                 miv_value=-100,
                 max_value=100,
             ),
@@ -548,15 +548,11 @@ class Strategy_CCI_100_TrendUpLevel(Strategy_CCI_Trend_Base):
             decision = self._get_signal_decision(current_value, previous_value)
 
             if trend in [Const.STRONG_TREND_UP, Const.TREND_UP]:
-                if decision in [Const.STRONG_SELL, Const.SELL]:
+                if decision != Const.STRONG_BUY:
                     decision = ""
-                elif decision == Const.BUY:
-                    decision = Const.STRONG_BUY
             elif trend in [Const.STRONG_TREND_DOWN, Const.TREND_DOWN]:
-                if decision in [Const.STRONG_BUY, Const.BUY]:
+                if decision != Const.STRONG_SELL:
                     decision = ""
-                elif decision == Const.SELL:
-                    decision = Const.STRONG_SELL
 
             signals.append(decision)
 

@@ -27,9 +27,21 @@ from .common import (
     OrderModel,
     OrderCloseModel,
     LeverageModel,
+    TrailingStopModel,
 )
-from .core import logger, config
+from .core import config
 from .constants import Const
+
+import logging
+
+# Set up logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler()],
+)
+
+logger = logging.getLogger("api")
 
 
 class ExchangeApiBase:
@@ -105,6 +117,15 @@ class ExchangeApiBase:
         pass
 
     def get_fee(self, symbol: str) -> float:
+        pass
+
+    def update_trading_stop(
+        self,
+        symbol: str,
+        trading_stop: TrailingStopModel,
+        order_id: str = None,
+        position_id: str = None,
+    ):
         pass
 
     def get_end_datetime(
@@ -248,7 +269,7 @@ class ExchangeApiBase:
 
         else:
             raise Exception(
-                f"{self.__class__.__name__}: {self._trader_model.exchange_id} - In the get_end_datetime Interval: {interval} is not determined"
+                f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} - In the get_end_datetime Interval: {interval} is not determined"
             )
 
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
@@ -257,7 +278,7 @@ class ExchangeApiBase:
             )
 
             logger.info(
-                f"{self.__class__.__name__}: {self._trader_model.exchange_id} - get_end_datetime(interval: {interval}, {other_attributes}) -> Original: {original_datetime} | Closed: {offset_date_time}"
+                f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} - get_end_datetime(interval: {interval}, {other_attributes}) -> Original: {original_datetime} | Closed: {offset_date_time}"
             )
 
         return offset_date_time
@@ -339,7 +360,7 @@ class ExchangeApiBase:
             return json.loads(response.text)
         else:
             logger.error(
-                f"{self.__class__.__name__}: {self._trader_model.exchange_id} - __get_api_klines({url_params}) -> {response.text}"
+                f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} - __get_api_klines({url_params}) -> {response.text}"
             )
             raise Exception(response.text)
 
@@ -375,7 +396,7 @@ class ByBitComApi(ExchangeApiBase):
     def ping_server(self, **kwargs) -> bool:
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
             logger.info(
-                f"{self.__class__.__name__}: {self._trader_model.exchange_id} - ping_server({kwargs})"
+                f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} - ping_server({kwargs})"
             )
 
         response = requests.get(self._get_url(self.SERVER_TIME_ENDPOINT))
@@ -425,7 +446,7 @@ class ByBitComApi(ExchangeApiBase):
 
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
             logger.info(
-                f"{self.__class__.__name__}: {self._trader_model.exchange_id} - get_history_data({url_params})"
+                f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} - get_history_data({url_params})"
             )
 
         json_api_response = self._get_api_http_session().get_kline(**url_params)
@@ -463,7 +484,7 @@ class ByBitComApi(ExchangeApiBase):
 
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
             logger.info(
-                f"{self.__class__.__name__}: {self._trader_model.exchange_id} - get_accounts({params})"
+                f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} - get_accounts({params})"
             )
 
         json_api_response = self._get_api_http_session(
@@ -500,7 +521,7 @@ class ByBitComApi(ExchangeApiBase):
 
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
             logger.info(
-                f"{self.__class__.__name__}: {self._trader_model.exchange_id} - get_fee_rates({params})"
+                f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} - get_fee_rates({params})"
             )
 
         json_api_response = self._get_api_http_session(private_mode=True).get_fee_rates(
@@ -513,6 +534,28 @@ class ByBitComApi(ExchangeApiBase):
             return float(fee_rate["takerFeeRate"])
 
         return 0
+
+    def update_trading_stop(
+        self,
+        symbol: str,
+        trading_stop: TrailingStopModel,
+        order_id: str = None,
+        position_id: str = None,
+    ):
+        params = {
+            "category": self.CATEGORY_LINEAR,
+            "symbol": symbol,
+            "takeProfit": str(trading_stop.take_profit),
+            "stopLoss": str(trading_stop.stop_loss),
+            "positionIdx": 0,
+        }
+
+        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+            logger.info(
+                f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} - set_trading_stop({params})"
+            )
+
+        self._get_api_http_session(private_mode=True).set_trading_stop(**params)
 
     def get_open_position(
         self, symbol: str, order_id: str = None, position_id: str = None
@@ -677,7 +720,7 @@ class ByBitComApi(ExchangeApiBase):
 
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
             logger.info(
-                f"{self.__class__.__name__}: {self._trader_model.exchange_id} - getSymbols({params})"
+                f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} - getSymbols({params})"
             )
 
         json_api_response = self._get_api_http_session().get_instruments_info(**params)
@@ -747,7 +790,7 @@ class ByBitComApi(ExchangeApiBase):
 
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
             logger.info(
-                f"{self.__class__.__name__}: {self._trader_model.exchange_id} - get_order_history({params})"
+                f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} - get_order_history({params})"
             )
 
         json_api_response = self._get_api_http_session(
@@ -835,7 +878,7 @@ class ByBitComApi(ExchangeApiBase):
 
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
             logger.info(
-                f"{self.__class__.__name__}: {self._trader_model.exchange_id} - get_positions({params})"
+                f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} - get_positions({params})"
             )
 
         json_api_response = self._get_api_http_session(private_mode=True).get_positions(
@@ -869,7 +912,7 @@ class ByBitComApi(ExchangeApiBase):
 
                     if config.get_config_value(Const.CONFIG_DEBUG_LOG):
                         logger.info(
-                            f"{self.__class__.__name__}: {self._trader_model.exchange_id} - set_leverage({set_leverage_params})"
+                            f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} - set_leverage({set_leverage_params})"
                         )
 
                     api_session_handler.set_leverage(**set_leverage_params)
@@ -893,7 +936,7 @@ class ByBitComApi(ExchangeApiBase):
 
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
             logger.info(
-                f"{self.__class__.__name__}: {self._trader_model.exchange_id} - place_order({place_order_params})"
+                f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} - place_order({place_order_params})"
             )
 
         json_api_response = api_session_handler.place_order(**place_order_params)
@@ -909,7 +952,7 @@ class ByBitComApi(ExchangeApiBase):
 
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
             logger.info(
-                f"{self.__class__.__name__}: {self._trader_model.exchange_id} - get_closed_pnl({params})"
+                f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} - get_closed_pnl({params})"
             )
 
         json_api_response = self._get_api_http_session(
@@ -1109,7 +1152,7 @@ class DzengiComApi(ExchangeApiBase):
             return True
         else:
             logger.error(
-                f"ExchangeApiBase: {self._trader_model.exchange_id} - ping_server -> {response.text}"
+                f"ExchangeApiBase: {self._trader_model.exchange_id.value} - ping_server -> {response.text}"
             )
             return False
 
@@ -1191,7 +1234,7 @@ class DzengiComApi(ExchangeApiBase):
 
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
             logger.info(
-                f"ExchangeApiBase: {self._trader_model.exchange_id} - getSymbols()"
+                f"ExchangeApiBase: {self._trader_model.exchange_id.value} - getSymbols()"
             )
 
         response = requests.get(self._get_url(self.EXCHANGE_INFORMATION_ENDPOINT))
@@ -1240,7 +1283,7 @@ class DzengiComApi(ExchangeApiBase):
 
         else:
             logger.error(
-                f"ExchangeApiBase: {self._trader_model.exchange_id} - getSymbols -> {response.text}"
+                f"ExchangeApiBase: {self._trader_model.exchange_id.value} - getSymbols -> {response.text}"
             )
             raise Exception(response.text)
 
@@ -1269,7 +1312,7 @@ class DzengiComApi(ExchangeApiBase):
 
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
             logger.info(
-                f"ExchangeApiBase: {self._trader_model.exchange_id} - get_history_data({url_params})"
+                f"ExchangeApiBase: {self._trader_model.exchange_id.value} - get_history_data({url_params})"
             )
 
         json_api_response = self._get_api_klines(url_params)
@@ -1534,6 +1577,19 @@ class DzengiComApi(ExchangeApiBase):
 
             return OrderCloseModel(**close_details_data)
 
+    def update_trading_stop(
+        self,
+        symbol: str,
+        trading_stop: TrailingStopModel,
+        order_id: str = None,
+        position_id: str = None,
+    ):
+        self.update_trading_position(
+            position_id=position_id,
+            take_profit=trading_stop.take_profit,
+            stop_loss=trading_stop.stop_loss,
+        )
+
     def update_trading_position(
         self,
         position_id,
@@ -1545,13 +1601,6 @@ class DzengiComApi(ExchangeApiBase):
         """
         To edit current leverage trade by changing stop loss and take profit
         levels.
-
-        :return: dict object
-        Example:
-        {
-            "requestId": 242040,
-            "state": “PROCESSED”
-        }
         """
         self._validate_recv_window(recv_window)
         return self._post(
@@ -1807,7 +1856,7 @@ class DzengiComApi(ExchangeApiBase):
         # api_secret = config.get_env_value("CURRENCY_COM_API_SECRET")
         # if not api_secret:
         #     raise Exception(
-        #         f"ExchangeApiBase: {self._trader_model.exchange_id} - API secret is not maintained"
+        #         f"ExchangeApiBase: {self._trader_model.exchange_id.value} - API secret is not maintained"
         #     )
 
         t = self.getUnixTimeMsByDatetime(datetime.now())
@@ -1826,7 +1875,7 @@ class DzengiComApi(ExchangeApiBase):
         # api_key = config.get_env_value("CURRENCY_COM_API_KEY")
         # if not api_key:
         #     raise Exception(
-        #         f"ExchangeApiBase: {self._trader_model.exchange_id} - API key is not maintained"
+        #         f"ExchangeApiBase: {self._trader_model.exchange_id.value} - API key is not maintained"
         #     )
 
         return {**kwargs, self.HEADER_API_KEY_NAME: api_key}
@@ -1834,7 +1883,7 @@ class DzengiComApi(ExchangeApiBase):
     def _get(self, path, **kwargs):
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
             logger.info(
-                f"ExchangeApiBase: {self._trader_model.exchange_id} - GET /{path}({kwargs})"
+                f"ExchangeApiBase: {self._trader_model.exchange_id.value} - GET /{path}({kwargs})"
             )
 
         url = self._get_url(path)
@@ -1849,16 +1898,16 @@ class DzengiComApi(ExchangeApiBase):
             return response.json()
         else:
             logger.error(
-                f"ExchangeApiBase: {self._trader_model.exchange_id} - GET /{path} -> {response.status_code}: {response.text}"
+                f"ExchangeApiBase: {self._trader_model.exchange_id.value} - GET /{path} -> {response.status_code}: {response.text}"
             )
             raise Exception(
-                f"ExchangeApiBase: {self._trader_model.exchange_id} - GET /{path} -> {response.status_code}: {response.text}"
+                f"ExchangeApiBase: {self._trader_model.exchange_id.value} - GET /{path} -> {response.status_code}: {response.text}"
             )
 
     def _post(self, path, **kwargs):
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
             logger.info(
-                f"ExchangeApiBase: {self._trader_model.exchange_id} - POST /{path}({kwargs})"
+                f"ExchangeApiBase: {self._trader_model.exchange_id.value} - POST /{path}({kwargs})"
             )
 
         url = self._get_url(path)
@@ -1873,13 +1922,13 @@ class DzengiComApi(ExchangeApiBase):
             return response.json()
         else:
             raise Exception(
-                f"ExchangeApiBase: {self._trader_model.exchange_id} - POST /{path} -> {response.status_code}: {response.text}"
+                f"ExchangeApiBase: {self._trader_model.exchange_id.value} - POST /{path} -> {response.status_code}: {response.text}"
             )
 
     def _delete(self, path, **kwargs):
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
             logger.info(
-                f"ExchangeApiBase: {self._trader_model.exchange_id} - DELETE /{path}"
+                f"ExchangeApiBase: {self._trader_model.exchange_id.value} - DELETE /{path}"
             )
 
         url = self._get_url(path)
@@ -1894,7 +1943,7 @@ class DzengiComApi(ExchangeApiBase):
             return response.json()
         else:
             raise Exception(
-                f"ExchangeApiBase: {self._trader_model.exchange_id} - DELETE /{path} -> {response.status_code}: {response.text}"
+                f"ExchangeApiBase: {self._trader_model.exchange_id.value} - DELETE /{path} -> {response.status_code}: {response.text}"
             )
 
     def _map_interval(

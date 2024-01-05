@@ -1,45 +1,56 @@
 from trading_core.handler import ExchangeHandler
 import trading_core.common as cmn
+import pandas_ta as ta
+import pandas as pd
 
 handler = ExchangeHandler.get_handler(trader_id="658048536aed0b022350af0b")
 symbol = "SOLUSDT"
 
-leverage_mdl = cmn.LeverageModel(
-    session_id="1",
-    account_id="USDT",
-    symbol=symbol,
-    side=cmn.OrderSideType.sell,
-    quantity=0.5,
+params = cmn.HistoryDataParamModel(
+    symbol=symbol, interval=cmn.IntervalType.MIN_5, limit=500
 )
-created_leverage = handler.create_leverage(position_mdl=leverage_mdl)
-print(created_leverage)
 
-print(handler.get_open_position(symbol=symbol, order_id=created_leverage.order_id))
+history_data_mdl = handler.get_history_data(params)
+df = history_data_mdl.data
 
-print(handler.get_close_position(symbol=symbol, order_id=created_leverage.order_id))
+print(df)
 
-close_position = handler.close_leverage(
-    symbol=symbol, order_id=created_leverage.order_id
+# Create your own Custom Strategy
+CustomStrategy = ta.Strategy(
+    name="Momo and Volatility",
+    description="SMA 50,200, BBANDS, RSI, MACD and Volume SMA 20",
+    ta=[
+        # {
+        #     "kind": "dema",
+        #     "length": 50,
+        # },
+        # {
+        #     "kind": "dema",
+        #     "length": 100,
+        # },
+        {
+            "kind": "cci",
+            "length": 20,
+            "col_names": ("CCI_20"),
+        },
+        {
+            "kind": "cci",
+            "length": 50,
+            "col_names": ("CCI_50"),
+        },
+        # {
+        #     "kind": "atr",
+        #     "length": 14,
+        # },
+        {
+            "kind": "macd",
+            "fast": 8,
+            "slow": 21,
+            "col_names": ("MACD", "MACD_H", "MACD_S"),
+        },
+    ],
 )
-print(close_position)
+# To run your "Custom Strategy"
+df.ta.strategy(CustomStrategy)
 
-# print(handler.get_close_position(symbol=symbol, order_id=close_position.order_id))
-
-print(handler.get_close_position(symbol=symbol, order_id=created_leverage.order_id))
-
-# open_position = handler.get_open_leverages(
-#     symbol="SOLUSDT", position_id="65955d43ad237eee82671f9f"
-# )
-
-# print(open_position)
-
-# print(
-#     handler.get_close_leverages(
-#         order_id="96bcb6fd-7c53-47cd-92fd-e90332d8ba9e",
-#         symbol="SOLUSDT",
-#     )
-# )
-
-# print(handler.get_open_orders(symbol=symbol))
-
-# print(handler.get_close_leverages(symbol=symbol))
+print(df)
