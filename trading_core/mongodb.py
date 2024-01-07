@@ -40,7 +40,7 @@ class MongoBase:
 
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
             logger.info(
-                f"{self.__class__.__name__}: {self._collection.name} - get_history_data({query})"
+                f"{self.__class__.__name__}: {self._collection.name} - insert_one({query})"
             )
 
         result = self._collection.insert_one(query)

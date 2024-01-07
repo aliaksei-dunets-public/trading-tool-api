@@ -1,15 +1,3 @@
-# 1. During creation of the session check/schedule a job based on interval
-# 2. The application job read active ssesions and procced the next steps for every session:
-# 2.1. Read orders from the database
-# 2.2. Read orders from exchange API
-# 2.3. Get signals based on session config
-# 2.4. Make a desicion regarding existing position/create a new position
-# 2.4.1. Call API for open/close a position
-# 2.4.2. Call DB
-# 2.4.2.1. Add transaction
-# 2.4.2.2. Update/Create the position
-# 2.4.2.3. Update Balance
-
 from decimal import Decimal, ROUND_DOWN
 from datetime import datetime
 from bson import ObjectId

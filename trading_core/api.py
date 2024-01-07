@@ -471,7 +471,7 @@ class ByBitComApi(ExchangeApiBase):
 
     def get_accounts(self):
         account = {
-            Const.API_FLD_ACCOUNT_ID: "USDT",
+            Const.API_FLD_ACCOUNT_ID: f"{self._trader_model.id}_USDT",
             "asset": "USDT",
             Const.API_FLD_ACCOUNT_FREE: 0,
             Const.API_FLD_ACCOUNT_LOCKED: 0,
