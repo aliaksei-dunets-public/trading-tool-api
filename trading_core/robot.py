@@ -6,7 +6,7 @@ from trading_core.common import OrderModel
 
 from .core import Const
 import trading_core.common as cmn
-from .strategy import StrategyFactory, SignalFactory
+from .strategy import StrategyFactory, SignalFactory, Indicator_ATR
 from .handler import (
     SessionHandler,
     BalanceHandler,
@@ -207,6 +207,8 @@ class TraderBase:
             position.calculate_percent()
             position.calculate_high_percent()
             position.calculate_low_percent()
+            position.calculate_stop_loss_percent()
+            position.calculate_take_profit_percent()
 
         return positions
 
@@ -400,6 +402,7 @@ class HistorySimulatorManager(TraderBase):
                 low=strategy_row["Low"],
                 close=strategy_row["Close"],
                 volume=strategy_row["Volume"],
+                atr=strategy_row[cmn.IndicatorType.ATR.value],
                 signal=strategy_row[Const.PARAM_SIGNAL],
             )
             self._process_signal(signal_mdl)
@@ -587,7 +590,7 @@ class DataManagerBase:
         )
 
         # Calculate Trailing Stop
-        if self._session_mdl.is_trailing_stop and self._session_mdl.take_profit_rate:
+        if self._session_mdl.is_trailing_stop:
             trailing_stop_mdl = self._side_mng.get_trailing_stop_loss(
                 position_mdl=self._current_position, signal_mdl=signal_mdl
             )
@@ -629,6 +632,7 @@ class DataManagerBase:
 
     def _get_open_position_template(self, open_mdl: cmn.OrderOpenModel) -> dict:
         open_price = self._get_open_price(open_mdl.open_price)
+        open_atr = self._get_current_atr()
 
         position_template = {
             Const.DB_ORDER_ID: "000001",
@@ -638,8 +642,12 @@ class DataManagerBase:
             Const.DB_STATUS: cmn.OrderStatus.opened,
             Const.DB_SYMBOL: self._session_mdl.symbol,
             Const.DB_QUANTITY: self._get_quantity(open_price),
-            Const.DB_STOP_LOSS: self._side_mng.get_stop_loss(open_price),
-            Const.DB_TAKE_PROFIT: self._side_mng.get_take_profit(open_price),
+            Const.DB_STOP_LOSS: self._side_mng.get_stop_loss(
+                price=open_price, atr=open_atr
+            ),
+            Const.DB_TAKE_PROFIT: self._side_mng.get_take_profit(
+                price=open_price, atr=open_atr
+            ),
             Const.DB_OPEN_PRICE: open_price,
             Const.DB_OPEN_DATETIME: open_mdl.open_datetime,
             Const.DB_OPEN_REASON: open_mdl.open_reason,
@@ -778,6 +786,24 @@ class DataManagerBase:
         price = candle_bar["Close"].values[0]
 
         return price
+
+    def _get_current_atr(self):
+        if self._session_mdl.is_trailing_stop:
+            indicator = Indicator_ATR(length=14)
+
+            param = cmn.IndicatorParamModel(
+                trader_id=self._session_mdl.trader_id,
+                symbol=self._session_mdl.symbol,
+                interval=self._session_mdl.interval,
+                closed_bars=True,
+            )
+            atr_df = indicator.get_indicator(param)
+
+            atr_value = atr_df.tail(1)[cmn.IndicatorType.ATR.value].values[0]
+
+            return atr_value
+        else:
+            return None
 
     def _get_current_balance(self, fee: float = 0) -> float:
         # Take Total Balance from Balance Model and take into account Fee if it's required
@@ -1012,7 +1038,7 @@ class LeverageDatabaseManager(LeverageManagerBase):
                 local_order_id=self._current_position.id,
                 type=cmn.TransactionType.DB_UPDATE_POSITION,
                 date_time=signal_mdl.date_time,
-                data=query,
+                data=trailing_stop_mdl.model_dump(),
             )
 
         if not self._update_position(query):
@@ -1025,6 +1051,8 @@ class LeverageDatabaseManager(LeverageManagerBase):
             f"{self.__class__.__name__}: An position template for openning in the DB - {position_mdl.model_dump()}"
         )
         created_position_mdl = LeverageHandler.create_leverage(position_mdl)
+        created_position_mdl.calculate_stop_loss_percent()
+        created_position_mdl.calculate_take_profit_percent()
 
         self._trader_mng.transaction_mng.add_transaction(
             local_order_id=created_position_mdl.id,
@@ -1111,6 +1139,8 @@ class LeverageLocalDataManager(LeverageManagerBase):
     def _open_position(self, position_mdl: cmn.LeverageModel):
         # Simulate creation of the order
         position_mdl.id = str(ObjectId())
+        position_mdl.calculate_stop_loss_percent()
+        position_mdl.calculate_take_profit_percent()
 
         self._trader_mng.transaction_mng.add_transaction(
             local_order_id=position_mdl.id,
@@ -1194,21 +1224,39 @@ class SideManager:
     def get_side_type(self) -> cmn.OrderSideType:
         raise Exception("Robot: SideManager - get_side_type() isn't implemented")
 
-    def get_stop_loss(self, price: float) -> float:
-        return (price * self._session_mdl.stop_loss_rate) / 100
+    def get_stop_loss(self, price: float, atr: float = None) -> float:
+        stop_loss_value = 0
+        if self._session_mdl.is_trailing_stop == True and atr:
+            stop_loss_value = self._get_stop_loss_atr_coeff() * atr
+        else:
+            stop_loss_value = (price * self._session_mdl.stop_loss_rate) / 100
+
+        return stop_loss_value
 
     def get_trailing_stop_loss(
         self, position_mdl: cmn.OrderModel, signal_mdl: cmn.SignalModel
     ) -> cmn.TrailingStopModel:
         pass
 
-    def get_take_profit(self, price: float) -> float:
-        return (price * self._session_mdl.take_profit_rate) / 100
+    def get_take_profit(self, price: float, atr: float = None) -> float:
+        take_profit_value = 0
+        if self._session_mdl.is_trailing_stop == True and atr:
+            take_profit_value = self._get_take_profit_atr_coeff() * atr
+        else:
+            take_profit_value = (price * self._session_mdl.take_profit_rate) / 100
+
+        return take_profit_value
 
     def get_total_profit(
         self, quantity: float, open_price: float, close_price: float
     ) -> float:
         pass
+
+    def _get_stop_loss_atr_coeff(self) -> float:
+        return 4
+
+    def _get_take_profit_atr_coeff(self) -> float:
+        return 10
 
 
 # Short Positions
@@ -1228,7 +1276,10 @@ class SellManager(SideManager):
         ):
             close_price = position_mdl.take_profit
             close_reason = cmn.OrderReason.TAKE_PROFIT
-        elif signal_mdl.signal in [cmn.SignalType.STRONG_BUY, cmn.SignalType.BUY]:
+        elif signal_mdl.signal in [
+            cmn.SignalType.STRONG_BUY,
+            cmn.SignalType.BUY,
+        ]:
             close_price = signal_mdl.close
             close_reason = cmn.OrderReason.SIGNAL
         else:
@@ -1254,8 +1305,8 @@ class SellManager(SideManager):
     def get_side_type(self):
         return cmn.OrderSideType.sell
 
-    def get_stop_loss(self, price: float) -> float:
-        stop_loss_value = super().get_stop_loss(price=price)
+    def get_stop_loss(self, price: float, atr: float = None) -> float:
+        stop_loss_value = super().get_stop_loss(price=price, atr=atr)
         if stop_loss_value > 0:
             return price + stop_loss_value
         else:
@@ -1264,54 +1315,43 @@ class SellManager(SideManager):
     def get_trailing_stop_loss(
         self, position_mdl: cmn.OrderModel, signal_mdl: cmn.SignalModel
     ) -> cmn.TrailingStopModel:
-        if position_mdl.take_profit:
-            take_profit_value = position_mdl.open_price - position_mdl.take_profit
-            current_value = position_mdl.open_price - signal_mdl.close
-
-            half_take_profit_value = take_profit_value / 2
-            quarter_take_profit_value = take_profit_value / 4
-
-            fee_price_value = abs(position_mdl.fee * 2 / position_mdl.quantity)
-            fee_price_value += fee_price_value * 0.1
-
-            # Check if current price is greater then the open price, return None. Else calculate a new stop loss value
-            if current_value <= 0 or take_profit_value <= 0:
-                return None
-
-            # Canlculate percent of current price from take profit price
-            current_price_percent_from_take_profit = current_value / take_profit_value
-
+        if self._session_mdl.is_trailing_stop == True and signal_mdl.atr:
             take_profit = position_mdl.take_profit
             stop_loss = position_mdl.stop_loss
 
-            if current_price_percent_from_take_profit >= 0.5:
-                if (
-                    current_price_percent_from_take_profit >= 0.8
-                    and signal_mdl.low > position_mdl.take_profit
-                ):
-                    take_profit = position_mdl.take_profit - quarter_take_profit_value
+            new_take_profit = (
+                signal_mdl.close - self._get_take_profit_atr_coeff() * signal_mdl.atr
+            )
+            if take_profit > new_take_profit:
+                take_profit = new_take_profit
 
-                new_stop_loss = (
-                    signal_mdl.close + half_take_profit_value - fee_price_value
-                )
+            new_stop_loss = (
+                signal_mdl.close + self._get_stop_loss_atr_coeff() * signal_mdl.atr
+            )
 
-                if position_mdl.stop_loss > new_stop_loss:
-                    stop_loss = new_stop_loss
-                else:
-                    stop_loss = position_mdl.stop_loss
+            if stop_loss > new_stop_loss:
+                stop_loss = new_stop_loss
 
             if (
                 take_profit != position_mdl.take_profit
                 or stop_loss != position_mdl.stop_loss
             ):
-                return cmn.TrailingStopModel(
+                trailing_stop_mdl = cmn.TrailingStopModel(
                     stop_loss=stop_loss, take_profit=take_profit
                 )
+                trailing_stop_mdl.calculate_stop_loss_percent(
+                    open_price=position_mdl.open_price
+                )
+                trailing_stop_mdl.calculate_take_profit_percent(
+                    open_price=position_mdl.open_price
+                )
+
+                return trailing_stop_mdl
             else:
                 return None
 
-    def get_take_profit(self, price: float) -> float:
-        take_profit_value = super().get_take_profit(price=price)
+    def get_take_profit(self, price: float, atr: float = None) -> float:
+        take_profit_value = super().get_take_profit(price=price, atr=atr)
         if take_profit_value > 0:
             return price - take_profit_value
         else:
@@ -1341,7 +1381,10 @@ class BuyManager(SideManager):
         ):
             close_price = position_mdl.take_profit
             close_reason = cmn.OrderReason.TAKE_PROFIT
-        elif signal_mdl.signal in [cmn.SignalType.STRONG_SELL, cmn.SignalType.SELL]:
+        elif signal_mdl.signal in [
+            cmn.SignalType.STRONG_SELL,
+            cmn.SignalType.SELL,
+        ]:
             close_price = signal_mdl.close
             close_reason = cmn.OrderReason.SIGNAL
         else:
@@ -1367,8 +1410,8 @@ class BuyManager(SideManager):
     def get_side_type(self):
         return cmn.OrderSideType.buy
 
-    def get_stop_loss(self, price: float) -> float:
-        stop_loss_value = super().get_stop_loss(price=price)
+    def get_stop_loss(self, price: float, atr: float = None) -> float:
+        stop_loss_value = super().get_stop_loss(price=price, atr=atr)
         if stop_loss_value > 0:
             return price - stop_loss_value
         else:
@@ -1377,41 +1420,22 @@ class BuyManager(SideManager):
     def get_trailing_stop_loss(
         self, position_mdl: cmn.OrderModel, signal_mdl: cmn.SignalModel
     ) -> cmn.TrailingStopModel:
-        if position_mdl.take_profit:
-            take_profit_value = position_mdl.take_profit - position_mdl.open_price
-            current_value = signal_mdl.close - position_mdl.open_price
-
-            half_take_profit_value = take_profit_value / 2
-            quarter_take_profit_value = take_profit_value / 4
-
-            fee_price_value = abs(position_mdl.fee * 2 / position_mdl.quantity)
-            fee_price_value += fee_price_value * 0.1
-
-            # Check if current price is greater then the open price, return None. Else calculate a new stop loss value
-            if current_value <= 0 or take_profit_value <= 0:
-                return None
-
-            # Canlculate percent of current price from take profit price
-            current_price_percent_from_take_profit = current_value / take_profit_value
-
+        if self._session_mdl.is_trailing_stop == True and signal_mdl.atr:
             take_profit = position_mdl.take_profit
             stop_loss = position_mdl.stop_loss
 
-            if current_price_percent_from_take_profit >= 0.5:
-                if (
-                    current_price_percent_from_take_profit >= 0.8
-                    and signal_mdl.high < position_mdl.take_profit
-                ):
-                    take_profit = position_mdl.take_profit + quarter_take_profit_value
+            new_take_profit = (
+                signal_mdl.close + self._get_take_profit_atr_coeff() * signal_mdl.atr
+            )
+            if take_profit < new_take_profit:
+                take_profit = new_take_profit
 
-                new_stop_loss = (
-                    signal_mdl.close - half_take_profit_value + fee_price_value
-                )
+            new_stop_loss = (
+                signal_mdl.close - self._get_stop_loss_atr_coeff() * signal_mdl.atr
+            )
 
-                if position_mdl.stop_loss < new_stop_loss:
-                    stop_loss = new_stop_loss
-                else:
-                    stop_loss = position_mdl.stop_loss
+            if stop_loss < new_stop_loss:
+                stop_loss = new_stop_loss
 
             if (
                 take_profit != position_mdl.take_profit
@@ -1423,8 +1447,8 @@ class BuyManager(SideManager):
             else:
                 return None
 
-    def get_take_profit(self, price: float) -> float:
-        take_profit_value = super().get_take_profit(price=price)
+    def get_take_profit(self, price: float, atr: float = None) -> float:
+        take_profit_value = super().get_take_profit(price=price, atr=atr)
         if take_profit_value > 0:
             return price + take_profit_value
         else:

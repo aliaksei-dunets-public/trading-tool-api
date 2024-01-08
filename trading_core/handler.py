@@ -668,6 +668,8 @@ class OrderHandler:
             order_mdl.calculate_percent()
             order_mdl.calculate_high_percent()
             order_mdl.calculate_low_percent()
+            order_mdl.calculate_stop_loss_percent()
+            order_mdl.calculate_take_profit_percent()
 
             result.append(order_mdl)
 
@@ -713,6 +715,8 @@ class LeverageHandler:
             leverage_mdl.calculate_percent()
             leverage_mdl.calculate_high_percent()
             leverage_mdl.calculate_low_percent()
+            leverage_mdl.calculate_stop_loss_percent()
+            leverage_mdl.calculate_take_profit_percent()
 
             result.append(leverage_mdl)
 

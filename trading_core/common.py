@@ -30,6 +30,8 @@ class IntervalType(str, Enum):
 
 class IndicatorType(str, Enum):
     CCI = "CCI"
+    ATR = "ATR"
+    CCI_ATR = "CCI_ATR"
 
 
 class StrategyType(str, Enum):
@@ -309,6 +311,7 @@ class SymbolModel(SymbolIdModel):
 
 
 class SignalModel(CandelBarModel, StrategyParamModel):
+    atr: float = None
     signal: SignalType = SignalType.NONE
 
     def is_compatible(self, signal_types: list = []) -> bool:
@@ -572,6 +575,20 @@ class OrderCloseModel(BaseModel):
 class TrailingStopModel(BaseModel):
     stop_loss: float = 0
     take_profit: float = 0
+    stop_loss_percent: float = 0
+    take_profit_percent: float = 0
+
+    def calculate_stop_loss_percent(self, open_price: float) -> float:
+        if self.stop_loss != 0:
+            self.stop_loss_percent = ((self.stop_loss - open_price) / open_price) * 100
+            return self.stop_loss_percent
+
+    def calculate_take_profit_percent(self, open_price: float) -> float:
+        if self.take_profit != 0:
+            self.take_profit_percent = (
+                (self.take_profit - open_price) / open_price
+            ) * 100
+            return self.take_profit_percent
 
     def to_mongodb_doc(self):
         return {
@@ -623,14 +640,28 @@ class OrderModel(
         return self.percent
 
     def calculate_high_percent(self) -> float:
-        self.high_percent = (
-            (self.high_price - self.open_price) / self.open_price
-        ) * 100
+        if self.high_price != 0:
+            self.high_percent = (
+                (self.high_price - self.open_price) / self.open_price
+            ) * 100
+        else:
+            self.high_percent = 0
         return self.high_percent
 
     def calculate_low_percent(self) -> float:
-        self.low_percent = ((self.low_price - self.open_price) / self.open_price) * 100
+        if self.low_price != 0:
+            self.low_percent = (
+                (self.low_price - self.open_price) / self.open_price
+            ) * 100
+        else:
+            self.low_percent = 0
         return self.low_percent
+
+    def calculate_stop_loss_percent(self) -> float:
+        return super().calculate_stop_loss_percent(open_price=self.open_price)
+
+    def calculate_take_profit_percent(self) -> float:
+        return super().calculate_take_profit_percent(open_price=self.open_price)
 
     def calculate_balance(self) -> float:
         self.balance = self.quantity * self.open_price

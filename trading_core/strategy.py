@@ -8,6 +8,7 @@ from .common import (
     IntervalType,
     StrategyType,
     SignalType,
+    IndicatorType,
     StrategyConfigModel,
     SignalModel,
     HistoryDataParamModel,
@@ -17,7 +18,7 @@ from .common import (
     TraderSymbolIntervalLimitModel,
 )
 from .handler import buffer_runtime_handler, ExchangeHandler
-from .indicator import Indicator_CCI
+from .indicator import Indicator_CCI, Indicator_ATR, Indicator_CCI_ATR
 from .trend import TrendCCI
 
 
@@ -108,6 +109,7 @@ class SignalFactory:
                 low=strategy_row["Low"],
                 close=strategy_row["Close"],
                 volume=strategy_row["Volume"],
+                atr=strategy_row[IndicatorType.ATR.value],
                 signal=strategy_row[Const.PARAM_SIGNAL],
             )
             break
@@ -246,7 +248,7 @@ class StrategyBase:
 class Strategy_CCI(StrategyBase):
     def __init__(self, strategy_config_mdl: StrategyConfigModel):
         StrategyBase.__init__(self, strategy_config_mdl)
-        self._cci = Indicator_CCI(self._strategy_config_mdl.length)
+        self._cci = Indicator_CCI_ATR(self._strategy_config_mdl.length)
 
     def get_strategy_data(self, param: StrategyParamModel):
         super().get_strategy_data(param)
@@ -403,7 +405,7 @@ class StrategyDirectionBasedTrend_CCI(Strategy_CCI_Trend_Base):
                 left_on=Const.COLUMN_DATETIME,
                 right_on=Const.COLUMN_DATETIME,
                 direction="backward",
-                suffixes=("", "_UpLevel"),
+                suffixes=("", "_up_level"),
             )
 
             # Set the datetime column as the index again
@@ -430,11 +432,11 @@ class StrategyDirectionBasedTrend_CCI(Strategy_CCI_Trend_Base):
             current_value = cci_df.iloc[i, 5]
             previous_value = cci_df.iloc[i - 1, 5]
 
-            trend = cci_df.iloc[i, 6]
-            trend_previous = cci_df.iloc[i - 1, 6]
+            trend = cci_df.iloc[i, 7]
+            trend_previous = cci_df.iloc[i - 1, 7]
 
-            if len(cci_df.columns) >= 8:
-                trend_up_level = cci_df.iloc[i, 7]
+            if len(cci_df.columns) >= 9:
+                trend_up_level = cci_df.iloc[i, 8]
             else:
                 trend_up_level = None
 
@@ -451,12 +453,6 @@ class StrategyDirectionBasedTrend_CCI(Strategy_CCI_Trend_Base):
                         decision = ""
                     elif decision == Const.SELL:
                         decision = Const.STRONG_SELL
-                # Remove signal for close position - use stop loss and take profit
-                # else:
-                #     if trend_previous == Const.STRONG_TREND_DOWN:
-                #         decision = Const.BUY
-                #     elif trend_previous == Const.STRONG_TREND_UP:
-                #         decision = Const.SELL
 
             elif trend == Const.STRONG_TREND_UP:
                 if trend_up_level in [Const.STRONG_TREND_UP, Const.TREND_UP]:
@@ -466,11 +462,6 @@ class StrategyDirectionBasedTrend_CCI(Strategy_CCI_Trend_Base):
                     elif decision == Const.BUY:
                         decision = Const.STRONG_BUY
 
-            # Remove signal for close position - use stop loss and take profit
-            # elif trend == Const.TREND_UP:
-            #     if trend_previous in [Const.STRONG_TREND_DOWN, Const.TREND_DOWN]:
-            #         decision = Const.BUY
-
             elif trend == Const.STRONG_TREND_DOWN:
                 if trend_up_level in [Const.STRONG_TREND_DOWN, Const.TREND_DOWN]:
                     decision = self._get_signal_decision(current_value, previous_value)
@@ -479,11 +470,6 @@ class StrategyDirectionBasedTrend_CCI(Strategy_CCI_Trend_Base):
                     elif decision == Const.SELL:
                         decision = Const.STRONG_SELL
 
-            # Remove signal for close position - use stop loss and take profit
-            # elif trend == Const.TREND_DOWN:
-            #     if trend_previous in [Const.STRONG_TREND_UP, Const.TREND_UP]:
-            #         decision = Const.SELL
-
             signals.append(decision)
 
         return signals
@@ -491,10 +477,6 @@ class StrategyDirectionBasedTrend_CCI(Strategy_CCI_Trend_Base):
 
 class Strategy_CCI_100_TrendUpLevel(Strategy_CCI_Trend_Base):
     def get_strategy_data(self, param: StrategyParamModel):
-        symbol = param.symbol
-        limit = param.limit
-        interval = param.interval
-
         indicator_param = IndicatorParamModel(**param.model_dump())
         cci_df = self._cci.get_indicator(indicator_param)
 
@@ -542,17 +524,25 @@ class Strategy_CCI_100_TrendUpLevel(Strategy_CCI_Trend_Base):
             current_value = cci_df.iloc[i, 5]
             previous_value = cci_df.iloc[i - 1, 5]
 
-            trend = cci_df.iloc[i, 6]
-            # trend_previous = cci_df.iloc[i - 1, 6]
+            trend = cci_df.iloc[i, 7]
 
             decision = self._get_signal_decision(current_value, previous_value)
 
-            if trend in [Const.STRONG_TREND_UP, Const.TREND_UP]:
-                if decision != Const.STRONG_BUY:
+            if trend == Const.STRONG_TREND_UP:
+                if decision == Const.STRONG_SELL:
+                    decision = Const.SELL
+                elif decision == Const.BUY:
                     decision = ""
-            elif trend in [Const.STRONG_TREND_DOWN, Const.TREND_DOWN]:
-                if decision != Const.STRONG_SELL:
+            elif trend == Const.STRONG_TREND_DOWN:
+                if decision == Const.STRONG_BUY:
+                    decision = Const.BUY
+                elif decision == Const.SELL:
                     decision = ""
+            else:
+                if decision == Const.STRONG_BUY:
+                    decision = Const.BUY
+                elif decision == Const.STRONG_SELL:
+                    decision = Const.SELL
 
             signals.append(decision)
 
