@@ -898,8 +898,12 @@ class JobScheduler:
         hour = None
         minute = "0"
         second = "40"
+        jitter = 20
 
-        if interval == IntervalType.MIN_5:
+        if interval == IntervalType.MIN_1:
+            minute = "*"
+            second = "5"
+        elif interval == IntervalType.MIN_5:
             minute = "*/5"
         elif interval == IntervalType.MIN_15:
             minute = "*/15"
@@ -927,7 +931,7 @@ class JobScheduler:
             minute=minute,
             second=second,
             timezone="UTC",
-            jitter=20,
+            jitter=jitter,
         )
 
 

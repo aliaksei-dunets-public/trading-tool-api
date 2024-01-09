@@ -154,7 +154,7 @@ class StrategyFactory:
             StrategyType.CCI_20_BASED_TREND_100,
         ]:
             strategy_instance = StrategyDirectionBasedTrend_CCI(strategy_config_mdl)
-        elif strategy == StrategyType.CCI_20_100_TREND_UP_LEVEL:
+        elif strategy in [StrategyType.CCI_20_100_TREND_UP_LEVEL]:
             strategy_instance = Strategy_CCI_100_TrendUpLevel(strategy_config_mdl)
         else:
             raise Exception(
@@ -282,17 +282,9 @@ class Strategy_CCI(StrategyBase):
             current_value = cci_df.iloc[i, 5]
             previous_value = cci_df.iloc[i - 1, 5]
 
-            if self._max_value and self._min_value == 0:
-                if current_value > self._max_value and previous_value < self._max_value:
-                    decision = Const.STRONG_BUY
-                elif (
-                    current_value < self._max_value and previous_value > self._max_value
-                ):
-                    decision = Const.STRONG_SELL
-            else:
-                decision = self._get_signal_decision(
-                    current_value=current_value, previous_value=previous_value
-                )
+            decision = self._get_signal_decision(
+                current_value=current_value, previous_value=previous_value
+            )
 
             signals.append(decision)
 
@@ -300,17 +292,23 @@ class Strategy_CCI(StrategyBase):
 
     def _get_signal_decision(self, current_value, previous_value):
         decision = ""
-        if current_value > self._max_value:
-            if previous_value < self._max_value:
-                decision = Const.BUY
-        elif current_value < self._min_value:
-            if previous_value > self._min_value:
-                decision = Const.SELL
-        else:
-            if previous_value > self._max_value:
-                decision = Const.STRONG_SELL
-            elif previous_value < self._min_value:
+        if self._max_value == 0 and self._min_value == 0:
+            if current_value > self._max_value and previous_value < self._max_value:
                 decision = Const.STRONG_BUY
+            elif current_value < self._max_value and previous_value > self._max_value:
+                decision = Const.STRONG_SELL
+        else:
+            if current_value > self._max_value:
+                if previous_value < self._max_value:
+                    decision = Const.BUY
+            elif current_value < self._min_value:
+                if previous_value > self._min_value:
+                    decision = Const.SELL
+            else:
+                if previous_value > self._max_value:
+                    decision = Const.STRONG_SELL
+                elif previous_value < self._min_value:
+                    decision = Const.STRONG_BUY
 
         return decision
 
@@ -329,7 +327,10 @@ class Strategy_CCI_Trend_Base(Strategy_CCI):
         limit = param.limit
         next_interval = None
         # Detect Next Interval
-        if interval == IntervalType.MIN_5:
+        if interval == IntervalType.MIN_1:
+            next_interval = IntervalType.MIN_5
+            limit = limit // 5 + 1
+        elif interval == IntervalType.MIN_5:
             next_interval = IntervalType.MIN_15
             limit = limit // 3 + 1
         elif interval == IntervalType.MIN_15:
@@ -365,6 +366,25 @@ class Strategy_CCI_Trend_Base(Strategy_CCI):
         trend_param.limit = limit
 
         return trend_param
+
+    def _get_decision_base_trend(self, trend, cci_decision) -> str:
+        if trend == Const.STRONG_TREND_UP:
+            if cci_decision == Const.STRONG_SELL:
+                cci_decision = Const.SELL
+            elif cci_decision == Const.BUY:
+                cci_decision = ""
+        elif trend == Const.STRONG_TREND_DOWN:
+            if cci_decision == Const.STRONG_BUY:
+                cci_decision = Const.BUY
+            elif cci_decision == Const.SELL:
+                cci_decision = ""
+        else:
+            if cci_decision == Const.STRONG_BUY:
+                cci_decision = Const.BUY
+            elif cci_decision == Const.STRONG_SELL:
+                cci_decision = Const.SELL
+
+        return cci_decision
 
 
 class StrategyDirectionBasedTrend_CCI(Strategy_CCI_Trend_Base):
@@ -526,23 +546,10 @@ class Strategy_CCI_100_TrendUpLevel(Strategy_CCI_Trend_Base):
 
             trend = cci_df.iloc[i, 7]
 
-            decision = self._get_signal_decision(current_value, previous_value)
-
-            if trend == Const.STRONG_TREND_UP:
-                if decision == Const.STRONG_SELL:
-                    decision = Const.SELL
-                elif decision == Const.BUY:
-                    decision = ""
-            elif trend == Const.STRONG_TREND_DOWN:
-                if decision == Const.STRONG_BUY:
-                    decision = Const.BUY
-                elif decision == Const.SELL:
-                    decision = ""
-            else:
-                if decision == Const.STRONG_BUY:
-                    decision = Const.BUY
-                elif decision == Const.STRONG_SELL:
-                    decision = Const.SELL
+            decision = self._get_decision_base_trend(
+                trend=trend,
+                cci_decision=self._get_signal_decision(current_value, previous_value),
+            )
 
             signals.append(decision)
 
