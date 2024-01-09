@@ -1259,10 +1259,10 @@ class SideManager:
         pass
 
     def _get_stop_loss_atr_coeff(self) -> float:
-        return 6
+        return 2
 
     def _get_take_profit_atr_coeff(self) -> float:
-        return 2
+        return 6
 
 
 # Short Positions
