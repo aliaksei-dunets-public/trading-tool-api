@@ -542,6 +542,7 @@ class OrderOpenModel(BaseModel):
     open_price: float = 0
     open_datetime: datetime = datetime.now()
     open_reason: OrderReason = OrderReason.NONE
+    open_atr: float = None
 
     def to_mongodb_doc(self):
         return {

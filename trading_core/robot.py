@@ -236,6 +236,8 @@ class TraderBase:
         logger.info(f"{self.__class__.__name__}: The Trader is openning a position")
         if not self.data_mng.has_open_position():
             open_mdl.open_reason = cmn.OrderReason.MANUAL
+            open_mdl.open_atr = self.data_mng.get_current_atr()
+
             position = self.data_mng.open_position(open_mdl)
             return position
 
@@ -307,6 +309,8 @@ class TraderManager(TraderBase):
 
         if not self.data_mng.has_open_position():
             open_mdl.open_reason = cmn.OrderReason.MANUAL
+            open_mdl.open_atr = self.data_mng.get_current_atr()
+
             api_mng_position = self.api_mng.open_position(open_mdl)
             data_mng_position = self.data_mng.open_position_by_ref(api_mng_position)
             return data_mng_position
@@ -510,6 +514,7 @@ class DataManagerBase:
             open_price=signal_mdl.close,
             open_datetime=signal_mdl.date_time,
             open_reason=cmn.OrderReason.SIGNAL,
+            open_atr=signal_mdl.atr,
         )
 
         # Open the position
@@ -637,7 +642,6 @@ class DataManagerBase:
 
     def _get_open_position_template(self, open_mdl: cmn.OrderOpenModel) -> dict:
         open_price = self._get_open_price(open_mdl.open_price)
-        open_atr = self._get_current_atr()
 
         position_template = {
             Const.DB_ORDER_ID: "000001",
@@ -648,10 +652,10 @@ class DataManagerBase:
             Const.DB_SYMBOL: self._session_mdl.symbol,
             Const.DB_QUANTITY: self._get_quantity(open_price),
             Const.DB_STOP_LOSS: self._side_mng.get_stop_loss(
-                price=open_price, atr=open_atr
+                price=open_price, atr=open_mdl.open_atr
             ),
             Const.DB_TAKE_PROFIT: self._side_mng.get_take_profit(
-                price=open_price, atr=open_atr
+                price=open_price, atr=open_mdl.open_atr
             ),
             Const.DB_OPEN_PRICE: open_price,
             Const.DB_OPEN_DATETIME: open_mdl.open_datetime,
@@ -792,7 +796,7 @@ class DataManagerBase:
 
         return price
 
-    def _get_current_atr(self):
+    def get_current_atr(self):
         if self._session_mdl.is_trailing_stop:
             indicator = Indicator_ATR(length=14)
 
@@ -825,17 +829,6 @@ class DataManagerBase:
 class OrderManagerBase(DataManagerBase):
     def is_required_to_open_position(self, signal_mdl: cmn.SignalModel) -> bool:
         return signal_mdl.signal == cmn.SignalType.STRONG_BUY
-
-    def _prepare_open_position(self, open_mdl: cmn.OrderOpenModel) -> cmn.OrderModel:
-        super()._prepare_open_position(open_mdl)
-        position_data = self._get_open_position_template(open_mdl)
-
-        logger.info(
-            f"{self.__class__.__name__}: An position template for openning - {position_data}"
-        )
-
-        return cmn.OrderModel(**position_data)
-
 
 class OrderApiManager(OrderManagerBase):
     pass
