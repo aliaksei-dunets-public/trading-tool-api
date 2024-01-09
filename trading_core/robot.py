@@ -70,7 +70,7 @@ class TransactionManager:
     def create_transaction(self, transaction_mdl: cmn.TransactionModel):
         TransactionHandler().create_transaction(transaction_mdl)
         logger.info(
-            f"{self.__class__.__name__}: {self.__session_mdl.id} - The transaction {transaction_mdl.type} for {transaction_mdl.session_id} have been saved"
+            f"{self.__class__.__name__}: {self.__session_mdl.id} - The transaction {transaction_mdl.type} for {transaction_mdl.date_time} have been saved"
         )
 
     def get_transactions(self) -> list:
@@ -224,6 +224,7 @@ class TraderBase:
             strategy=self.session_mdl.strategy,
             from_buffer=True,
             closed_bars=True,
+            # DEBUG type is required because there should be all signals
             types=[cmn.SignalType.DEBUG_SIGNAL],
         )
 
@@ -830,6 +831,7 @@ class OrderManagerBase(DataManagerBase):
     def is_required_to_open_position(self, signal_mdl: cmn.SignalModel) -> bool:
         return signal_mdl.signal == cmn.SignalType.STRONG_BUY
 
+
 class OrderApiManager(OrderManagerBase):
     pass
 
@@ -939,7 +941,7 @@ class LeverageApiManager(LeverageManagerBase):
             )
 
             self._trader_mng.transaction_mng.add_transaction(
-                local_order_id=self._current_position.id,
+                order_id=self._current_position.order_id,
                 type=cmn.TransactionType.API_UPDATE_POSITION,
                 date_time=signal_mdl.date_time,
                 data=trailing_stop_mdl.model_dump(),
@@ -1486,7 +1488,9 @@ class Robot:
         session_mdl = self._get_session_mdl(session_id)
         self._run(session_mdl)
 
-    def run_job(self, interval: str):
+    def run_job(self, interval: str) -> dict:
+        errors = {}
+
         logger.info(
             f"{self.__class__.__name__}: Robot has started for the interval {interval}"
         )
@@ -1499,7 +1503,11 @@ class Robot:
             try:
                 self._run(session_mdl)
             except Exception as error:
-                logger.error(f"Error during session run - {error}")
+                error_message = f"Error during session {session_mdl.id} run - {error}"
+                logger.error(error_message)
+                errors[session_mdl.id] = error_message
+
+        return errors
 
     def run_history_simulation(self):
         logger.info(

@@ -24,6 +24,7 @@ from trading_core.common import (
     ExchangeId,
     IntervalType,
     ChannelType,
+    AlertType,
     HistoryDataParamModel,
     StrategyParamModel,
     SymbolIntervalLimitModel,
@@ -132,7 +133,13 @@ def job_func_trading_robot(interval):
             f"JOB: {Const.JOB_TYPE_ROBOT} is triggered for interval - {interval}"
         )
 
-    Robot().run_job(interval)
+    robot_errors = Robot().run_job(interval)
+
+    if robot_errors:
+        responser = ResponserBot()
+        notificator = NotificationBot()
+        message_inst = responser.get_error_messages(robot_errors=robot_errors)
+        notificator.send(message_inst)
 
 
 class MessageBase:
@@ -756,6 +763,25 @@ class ResponserBot(ResponserBase):
 
         return messages_inst
 
+    def get_error_messages(self, robot_errors: dict) -> Messages:
+        messages_inst = Messages()
+
+        alert_mdls = AlertHandler().get_alerts(type=AlertType.ERROR)
+
+        for alert_mdl in alert_mdls:
+            channel_id = alert_mdl.channel_id
+
+            for session_id, error_text in robot_errors.items():
+                message_text = f"<b>{session_id}</b>: - {error_text}\n\n"
+
+                # Add header of the message before the first content
+                if not messages_inst.check_message(channel_id):
+                    message_text = f"<b>Error Alerts: \n</b>{message_text}"
+
+                messages_inst.add_message_text(channel_id=channel_id, text=message_text)
+
+        return messages_inst
+
 
 class JobScheduler:
     _instance = None
@@ -905,6 +931,8 @@ class JobScheduler:
             second = "5"
         elif interval == IntervalType.MIN_5:
             minute = "*/5"
+            second = "20"
+            jitter = 10
         elif interval == IntervalType.MIN_15:
             minute = "*/15"
         elif interval == IntervalType.MIN_30:
