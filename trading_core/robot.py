@@ -1233,11 +1233,14 @@ class SideManager:
         raise Exception("Robot: SideManager - get_side_type() isn't implemented")
 
     def get_stop_loss(self, price: float, atr: float = None) -> float:
-        stop_loss_value = 0
+        # Static Stop Loss Value
+        stop_loss_value = (price * self._session_mdl.stop_loss_rate) / 100
+
         if self._session_mdl.is_trailing_stop == True and atr:
-            stop_loss_value = self._get_stop_loss_atr_coeff() * atr
-        else:
-            stop_loss_value = (price * self._session_mdl.stop_loss_rate) / 100
+            stop_loss_value_atr = self._get_stop_loss_atr_coeff() * atr
+
+            if stop_loss_value == 0 or stop_loss_value_atr < stop_loss_value:
+                stop_loss_value = stop_loss_value_atr
 
         return stop_loss_value
 
@@ -1247,11 +1250,14 @@ class SideManager:
         pass
 
     def get_take_profit(self, price: float, atr: float = None) -> float:
-        take_profit_value = 0
+        # Static Take Pofit Value
+        take_profit_value = (price * self._session_mdl.take_profit_rate) / 100
+
         if self._session_mdl.is_trailing_stop == True and atr:
-            take_profit_value = self._get_take_profit_atr_coeff() * atr
-        else:
-            take_profit_value = (price * self._session_mdl.take_profit_rate) / 100
+            take_profit_value_atr = self._get_take_profit_atr_coeff() * atr
+
+            if take_profit_value == 0 or take_profit_value_atr < take_profit_value:
+                take_profit_value = take_profit_value_atr
 
         return take_profit_value
 
@@ -1324,6 +1330,8 @@ class SellManager(SideManager):
         self, position_mdl: cmn.OrderModel, signal_mdl: cmn.SignalModel
     ) -> cmn.TrailingStopModel:
         if self._session_mdl.is_trailing_stop == True and signal_mdl.atr:
+            static_take_profit = self.get_take_profit(price=position_mdl.open_price)
+
             take_profit = position_mdl.take_profit
             stop_loss = position_mdl.stop_loss
 
@@ -1331,8 +1339,12 @@ class SellManager(SideManager):
                 signal_mdl.close - self._get_take_profit_atr_coeff() * signal_mdl.atr
             )
             if take_profit > new_take_profit:
-                take_profit = new_take_profit
+                if static_take_profit != 0 and static_take_profit >= new_take_profit:
+                    take_profit = static_take_profit
+                else:
+                    take_profit = new_take_profit
 
+            # Stop Loss calculation
             new_stop_loss = (
                 signal_mdl.close + self._get_stop_loss_atr_coeff() * signal_mdl.atr
             )
@@ -1360,6 +1372,7 @@ class SellManager(SideManager):
 
     def get_take_profit(self, price: float, atr: float = None) -> float:
         take_profit_value = super().get_take_profit(price=price, atr=atr)
+
         if take_profit_value > 0:
             return price - take_profit_value
         else:
@@ -1429,14 +1442,20 @@ class BuyManager(SideManager):
         self, position_mdl: cmn.OrderModel, signal_mdl: cmn.SignalModel
     ) -> cmn.TrailingStopModel:
         if self._session_mdl.is_trailing_stop == True and signal_mdl.atr:
+            static_take_profit = self.get_take_profit(price=position_mdl.open_price)
+
             take_profit = position_mdl.take_profit
             stop_loss = position_mdl.stop_loss
 
             new_take_profit = (
                 signal_mdl.close + self._get_take_profit_atr_coeff() * signal_mdl.atr
             )
+
             if take_profit < new_take_profit:
-                take_profit = new_take_profit
+                if static_take_profit != 0 and static_take_profit <= new_take_profit:
+                    take_profit = static_take_profit
+                else:
+                    take_profit = new_take_profit
 
             new_stop_loss = (
                 signal_mdl.close - self._get_stop_loss_atr_coeff() * signal_mdl.atr

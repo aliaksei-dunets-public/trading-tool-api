@@ -545,11 +545,23 @@ class Strategy_CCI_100_TrendUpLevel(Strategy_CCI_Trend_Base):
             previous_value = cci_df.iloc[i - 1, 5]
 
             trend = cci_df.iloc[i, 7]
+            decision = self._get_signal_decision(current_value, previous_value)
 
-            decision = self._get_decision_base_trend(
-                trend=trend,
-                cci_decision=self._get_signal_decision(current_value, previous_value),
-            )
+            if trend == Const.STRONG_TREND_UP:
+                if decision == Const.STRONG_SELL:
+                    decision = Const.SELL
+                elif decision == Const.BUY:
+                    decision = ""
+            elif trend == Const.STRONG_TREND_DOWN:
+                if decision == Const.STRONG_BUY:
+                    decision = Const.BUY
+                elif decision == Const.SELL:
+                    decision = ""
+            else:
+                if decision == Const.STRONG_BUY:
+                    decision = Const.BUY
+                elif decision == Const.STRONG_SELL:
+                    decision = Const.SELL
 
             signals.append(decision)
 
