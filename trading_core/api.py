@@ -28,6 +28,7 @@ from .common import (
     OrderCloseModel,
     LeverageModel,
     TrailingStopModel,
+    APIException,
 )
 from .core import config
 from .constants import Const
@@ -269,7 +270,7 @@ class ExchangeApiBase:
 
         else:
             raise Exception(
-                f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} - In the get_end_datetime Interval: {interval} is not determined"
+                f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} ({self._trader_model.id}) - In the get_end_datetime Interval: {interval} is not determined"
             )
 
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
@@ -278,7 +279,7 @@ class ExchangeApiBase:
             )
 
             logger.info(
-                f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} - get_end_datetime(interval: {interval}, {other_attributes}) -> Original: {original_datetime} | Closed: {offset_date_time}"
+                f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} ({self._trader_model.id}) - get_end_datetime(interval: {interval}, {other_attributes}) -> Original: {original_datetime} | Closed: {offset_date_time}"
             )
 
         return offset_date_time
@@ -360,7 +361,7 @@ class ExchangeApiBase:
             return json.loads(response.text)
         else:
             logger.error(
-                f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} - __get_api_klines({url_params}) -> {response.text}"
+                f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} ({self._trader_model.id}) - __get_api_klines({url_params}) -> {response.text}"
             )
             raise Exception(response.text)
 
@@ -396,7 +397,7 @@ class ByBitComApi(ExchangeApiBase):
     def ping_server(self, **kwargs) -> bool:
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
             logger.info(
-                f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} - ping_server({kwargs})"
+                f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} ({self._trader_model.id}) - ping_server({kwargs})"
             )
 
         response = requests.get(self._get_url(self.SERVER_TIME_ENDPOINT))
@@ -446,10 +447,13 @@ class ByBitComApi(ExchangeApiBase):
 
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
             logger.info(
-                f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} - get_history_data({url_params})"
+                f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} ({self._trader_model.id}) - get_history_data({url_params})"
             )
 
         json_api_response = self._get_api_http_session().get_kline(**url_params)
+
+        # Validate Response format and Code/Message
+        self._validate_response(json_api_response)
 
         klines_data = json_api_response["result"]["list"]
 
@@ -484,12 +488,15 @@ class ByBitComApi(ExchangeApiBase):
 
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
             logger.info(
-                f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} - get_accounts({params})"
+                f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} ({self._trader_model.id}) - get_accounts({params})"
             )
 
         json_api_response = self._get_api_http_session(
             private_mode=True
         ).get_wallet_balance(**params)
+
+        # Validate Response format and Code/Message
+        self._validate_response(json_api_response)
 
         spot_accounts = json_api_response["result"]["list"]
         if spot_accounts:
@@ -521,12 +528,15 @@ class ByBitComApi(ExchangeApiBase):
 
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
             logger.info(
-                f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} - get_fee_rates({params})"
+                f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} ({self._trader_model.id}) - get_fee_rates({params})"
             )
 
         json_api_response = self._get_api_http_session(private_mode=True).get_fee_rates(
             **params
         )
+
+        # Validate Response format and Code/Message
+        self._validate_response(json_api_response)
 
         fee_rates = json_api_response[Const.API_FLD_RESULT][Const.API_FLD_LIST]
         if fee_rates:
@@ -552,7 +562,7 @@ class ByBitComApi(ExchangeApiBase):
 
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
             logger.info(
-                f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} - set_trading_stop({params})"
+                f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} ({self._trader_model.id}) - set_trading_stop({params})"
             )
 
         self._get_api_http_session(private_mode=True).set_trading_stop(**params)
@@ -589,31 +599,6 @@ class ByBitComApi(ExchangeApiBase):
         limit: int = 1,
     ) -> list[OrderCloseModel]:
         pass
-        # close_positions = []
-        # open_positions = self.get_open_leverages(symbol=symbol)
-
-        # if not open_positions:
-        #     json_api_response = self._get_api_http_session(
-        #         private_mode=True
-        #     ).get_closed_pnl(category=self.CATEGORY_LINEAR, symbol=symbol)
-
-        #     api_positions = json_api_response[Const.API_FLD_RESULT][Const.API_FLD_LIST]
-
-        #     for position in api_positions:
-        #         close_details_data = {
-        #             Const.DB_STATUS: OrderStatus.closed,
-        #             Const.DB_CLOSE_DATETIME: self.getDatetimeByUnixTimeMs(
-        #                 float(position["updatedTime"])
-        #             ),
-        #             Const.DB_CLOSE_PRICE: position["avgExitPrice"],
-        #             Const.DB_CLOSE_REASON: OrderReason.TRADER,
-        #             Const.DB_TOTAL_PROFIT: position["closedPnl"],
-        #             Const.DB_FEE: 0,
-        #         }
-
-        #         close_positions.append(OrderCloseModel(**close_details_data))
-
-        # return close_positions
 
     def get_close_position(
         self,
@@ -632,6 +617,11 @@ class ByBitComApi(ExchangeApiBase):
         created_ids = self._place_order(position_mdl=position_mdl)
 
         if created_ids:
+            if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+                logger.info(
+                    f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} ({self._trader_model.id}) - Position has been created with ids: {created_ids}"
+                )
+
             created_position_mdl = self.get_open_position(
                 symbol=position_mdl.symbol, order_id=created_ids[Const.API_FLD_ORDER_ID]
             )
@@ -666,6 +656,11 @@ class ByBitComApi(ExchangeApiBase):
         openned_posision_mdl.stop_loss = 0
 
         closed_position_ids = self._place_order(position_mdl=openned_posision_mdl)
+
+        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+            logger.info(
+                f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} ({self._trader_model.id}) - Position has been closed with ids: {closed_position_ids}"
+            )
 
         return self._get_close_position(
             symbol=symbol, order_id=closed_position_ids[Const.API_FLD_ORDER_ID]
@@ -720,10 +715,13 @@ class ByBitComApi(ExchangeApiBase):
 
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
             logger.info(
-                f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} - getSymbols({params})"
+                f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} ({self._trader_model.id}) - getSymbols({params})"
             )
 
         json_api_response = self._get_api_http_session().get_instruments_info(**params)
+
+        # Validate Response format and Code/Message
+        self._validate_response(json_api_response)
 
         result = json_api_response["result"]
         category = result["category"]
@@ -790,12 +788,15 @@ class ByBitComApi(ExchangeApiBase):
 
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
             logger.info(
-                f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} - get_order_history({params})"
+                f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} ({self._trader_model.id}) - get_order_history({params})"
             )
 
         json_api_response = self._get_api_http_session(
             private_mode=True
         ).get_order_history(**params)
+
+        # Validate Response format and Code/Message
+        self._validate_response(json_api_response)
 
         api_positions = json_api_response["result"]["list"]
 
@@ -878,12 +879,15 @@ class ByBitComApi(ExchangeApiBase):
 
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
             logger.info(
-                f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} - get_positions({params})"
+                f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} ({self._trader_model.id}) - get_positions({params})"
             )
 
         json_api_response = self._get_api_http_session(private_mode=True).get_positions(
             **params
         )
+
+        # Validate Response format and Code/Message
+        self._validate_response(json_api_response)
 
         # There are some open positions is size is not equal 0
         positions = json_api_response["result"]["list"]
@@ -912,10 +916,15 @@ class ByBitComApi(ExchangeApiBase):
 
                     if config.get_config_value(Const.CONFIG_DEBUG_LOG):
                         logger.info(
-                            f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} - set_leverage({set_leverage_params})"
+                            f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} ({self._trader_model.id}) - set_leverage({set_leverage_params})"
                         )
 
-                    api_session_handler.set_leverage(**set_leverage_params)
+                    json_api_response = api_session_handler.set_leverage(
+                        **set_leverage_params
+                    )
+
+                    # Validate Response format and Code/Message
+                    self._validate_response(json_api_response)
                 except Exception as error:
                     logger.warning(
                         f"{self.__class__.__name__}: During creation of a position - {error}"
@@ -936,10 +945,13 @@ class ByBitComApi(ExchangeApiBase):
 
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
             logger.info(
-                f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} - place_order({place_order_params})"
+                f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} ({self._trader_model.id}) - place_order({place_order_params})"
             )
 
         json_api_response = api_session_handler.place_order(**place_order_params)
+
+        # Validate Response format and Code/Message
+        self._validate_response(json_api_response)
 
         created_ids = json_api_response[Const.API_FLD_RESULT]
 
@@ -952,12 +964,15 @@ class ByBitComApi(ExchangeApiBase):
 
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
             logger.info(
-                f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} - get_closed_pnl({params})"
+                f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} ({self._trader_model.id}) - get_closed_pnl({params})"
             )
 
         json_api_response = self._get_api_http_session(
             private_mode=True
         ).get_closed_pnl(**params)
+
+        # Validate Response format and Code/Message
+        self._validate_response(json_api_response)
 
         api_positions = json_api_response[Const.API_FLD_RESULT][Const.API_FLD_LIST]
 
@@ -1051,15 +1066,30 @@ class ByBitComApi(ExchangeApiBase):
             api_key = self._trader_model.decrypt_key(self._trader_model.api_key)
             api_secret = self._trader_model.decrypt_key(self._trader_model.api_secret)
             api_session = HTTP(
-                testnet=tesnet,
-                api_key=api_key,
-                api_secret=api_secret,
+                testnet=tesnet, api_key=api_key, api_secret=api_secret, recv_window=6000
             )
         else:
             api_session = HTTP(
                 testnet=tesnet,
             )
         return api_session
+
+    def _validate_response(self, response: dict):
+        message_text = f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} ({self._trader_model.id}) - "
+        if Const.API_FLD_RET_CODE in response and Const.API_FLD_RET_MESSAGE in response:
+            code = response[Const.API_FLD_RET_CODE]
+            if code == 0:
+                return
+            else:
+                message_text = (
+                    f"{message_text}{code}: {response[Const.API_FLD_RET_MESSAGE]}"
+                )
+        else:
+            message_text = f"{message_text}Incorrect API response format"
+
+        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+            logger.error(message_text)
+        raise APIException(message_text)
 
 
 class DemoByBitComApi(ByBitComApi):
@@ -1068,29 +1098,6 @@ class DemoByBitComApi(ByBitComApi):
 
     def _get_api_http_session(self, private_mode: bool = False) -> HTTP:
         return super()._get_api_http_session(private_mode=private_mode, tesnet=True)
-
-    # def get_accounts(self):
-    #     account = {
-    #         "accountId": "USDT",
-    #         "asset": "USDT",
-    #         "free": 0,
-    #     }
-
-    #     json_api_response = self._get_api_http_session(
-    #         private_mode=True
-    #     ).get_wallet_balance(
-    #         accountType="UNIFIED",
-    #         coin="USDT",
-    #     )
-
-    #     spot_accounts = json_api_response["result"]["list"]
-    #     if spot_accounts:
-    #         coins = spot_accounts[0]["coin"]
-    #         if coins:
-    #             usdt_coin = coins[0]
-    #             account["free"] = usdt_coin["walletBalance"]
-
-    #     return [account]
 
 
 class DzengiComApi(ExchangeApiBase):

@@ -105,6 +105,8 @@ class Const:
     API_FLD_CATEGORY = "category"
     API_FLD_RESULT = "result"
     API_FLD_LIST = "list"
+    API_FLD_RET_CODE = "retCode"
+    API_FLD_RET_MESSAGE = "retMsg"
 
     ########################### Legacy code ####################################
 

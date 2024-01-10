@@ -756,3 +756,7 @@ class TransactionModel(AdminModel, IdentifierModel):
             "type": self.type,
             "data": self.data,
         }
+
+
+class APIException(Exception):
+    pass

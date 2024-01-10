@@ -776,7 +776,7 @@ class ResponserBot(ResponserBase):
 
                 # Add header of the message before the first content
                 if not messages_inst.check_message(channel_id):
-                    message_text = f"<b>Error Alerts: \n</b>{message_text}"
+                    message_text = f"<b>Robot Error Alerts: \n</b>{message_text}"
 
                 messages_inst.add_message_text(channel_id=channel_id, text=message_text)
 
