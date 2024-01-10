@@ -154,8 +154,17 @@ class StrategyFactory:
             StrategyType.CCI_20_BASED_TREND_100,
         ]:
             strategy_instance = StrategyDirectionBasedTrend_CCI(strategy_config_mdl)
-        elif strategy in [StrategyType.CCI_20_100_TREND_UP_LEVEL]:
+        elif strategy in [
+            StrategyType.CCI_20_100_TREND_UP_LEVEL,
+            StrategyType.CCI_14_100_TREND_UP_LEVEL,
+        ]:
             strategy_instance = Strategy_CCI_100_TrendUpLevel(strategy_config_mdl)
+        elif strategy in [
+            StrategyType.CCI_20_100_TRENDS_DIRECTION,
+        ]:
+            strategy_instance = Strategy_CCI_100_TRENDS_QUICK_POSITIONS(
+                strategy_config_mdl
+            )
         else:
             raise Exception(
                 f"{StrategyFactory.__name__}: Strategy {strategy} isn't implemented"
@@ -174,6 +183,13 @@ class StrategyFactory:
                 miv_value=-100,
                 max_value=100,
             ),
+            StrategyType.CCI_20_TREND_100: StrategyConfigModel(
+                strategy=StrategyType.CCI_20_TREND_100,
+                name="CCI(20) cross +/- 100",
+                length=20,
+                miv_value=-100,
+                max_value=100,
+            ),
             StrategyType.CCI_14_BASED_TREND_100: StrategyConfigModel(
                 strategy=StrategyType.CCI_14_BASED_TREND_100,
                 name="Check Trends and CCI(14) cross +/- 100",
@@ -188,6 +204,20 @@ class StrategyFactory:
                 miv_value=-100,
                 max_value=100,
             ),
+            # StrategyType.CCI_14_100_TREND_UP_LEVEL: StrategyConfigModel(
+            #     strategy=StrategyType.CCI_14_100_TREND_UP_LEVEL,
+            #     name="Check Trend Up Level and CCI(14) +/- 100",
+            #     length=14,
+            #     miv_value=-100,
+            #     max_value=100,
+            # ),
+            # StrategyType.CCI_20_100_TRENDS_DIRECTION: StrategyConfigModel(
+            #     strategy=StrategyType.CCI_20_100_TRENDS_DIRECTION,
+            #     name="Quick positions for Trends and CCI(20) +/- 100",
+            #     length=20,
+            #     miv_value=-100,
+            #     max_value=100,
+            # ),
         }
 
     @staticmethod
@@ -494,6 +524,20 @@ class StrategyDirectionBasedTrend_CCI(Strategy_CCI_Trend_Base):
 
         return signals
 
+    def _get_decision_base_trend(self, trend, cci_decision) -> str:
+        if trend in [Const.STRONG_TREND_UP, Const.TREND_UP]:
+            if cci_decision == Const.STRONG_SELL:
+                cci_decision = Const.SELL
+            elif cci_decision == Const.BUY:
+                cci_decision = ""
+        elif trend in [Const.STRONG_TREND_DOWN, Const.TREND_DOWN]:
+            if cci_decision == Const.STRONG_BUY:
+                cci_decision = Const.BUY
+            elif cci_decision == Const.SELL:
+                cci_decision = ""
+
+        return cci_decision
+
 
 class Strategy_CCI_100_TrendUpLevel(Strategy_CCI_Trend_Base):
     def get_strategy_data(self, param: StrategyParamModel):
@@ -503,25 +547,33 @@ class Strategy_CCI_100_TrendUpLevel(Strategy_CCI_Trend_Base):
         # Generate Up Trend Param
         up_trend_param = self._get_up_trend_param(param)
 
-        # Get Trend data for the next timeframe
-        trend_df = TrendCCI().calculate_trends(up_trend_param)
+        if up_trend_param:
+            # Get Trend data for the next timeframe
+            up_trend_df = TrendCCI().calculate_trends(up_trend_param)
 
-        # Assuming cci and trend are your DataFrames
-        # Reset index to make the datetime column a regular column
-        cci_df.reset_index(inplace=True)
-        trend_df.reset_index(inplace=True)
+            # Assuming cci and trend are your DataFrames
+            # Reset index to make the datetime column a regular column
+            cci_df.reset_index(inplace=True)
+            up_trend_df.reset_index(inplace=True)
 
-        # Merge the DataFrames based on the datetime column
-        merged_df = pd.merge_asof(
-            cci_df,
-            trend_df[[Const.COLUMN_DATETIME, Const.PARAM_TREND]],
-            left_on=Const.COLUMN_DATETIME,
-            right_on=Const.COLUMN_DATETIME,
-            direction="backward",
-        )
+            # Merge the DataFrames based on the datetime column
+            merged_df = pd.merge_asof(
+                cci_df,
+                up_trend_df[[Const.COLUMN_DATETIME, Const.PARAM_TREND]],
+                left_on=Const.COLUMN_DATETIME,
+                right_on=Const.COLUMN_DATETIME,
+                direction="backward",
+            )
 
-        # Set the datetime column as the index again
-        merged_df.set_index(Const.COLUMN_DATETIME, inplace=True)
+            merged_df = merged_df.rename(
+                columns={Const.PARAM_TREND: f"{Const.PARAM_TREND}_up_level"}
+            )
+
+            # Set the datetime column as the index again
+            merged_df.set_index(Const.COLUMN_DATETIME, inplace=True)
+
+        else:
+            merged_df = cci_df
 
         merged_df.insert(
             cci_df.shape[1],
@@ -544,24 +596,127 @@ class Strategy_CCI_100_TrendUpLevel(Strategy_CCI_Trend_Base):
             current_value = cci_df.iloc[i, 5]
             previous_value = cci_df.iloc[i - 1, 5]
 
+            if len(cci_df.columns) >= 8:
+                trend = cci_df.iloc[i, 7]
+
+            if not trend:
+                decision = ""
+            else:
+                decision = self._get_decision_base_trend(
+                    trend=trend,
+                    cci_decision=self._get_signal_decision(
+                        current_value, previous_value
+                    ),
+                )
+
+            signals.append(decision)
+
+        return signals
+
+
+class Strategy_CCI_100_TRENDS_QUICK_POSITIONS(Strategy_CCI_Trend_Base):
+    def get_strategy_data(self, param: StrategyParamModel):
+        # Get Trend data
+        trend_param = TraderSymbolIntervalLimitModel(**param.model_dump())
+        trend_df = TrendCCI().calculate_trends(trend_param)
+
+        indicator_param = IndicatorParamModel(**param.model_dump())
+        cci_df = self._cci.get_indicator(indicator_param)
+
+        cci_df = pd.merge(
+            cci_df,
+            trend_df[[Const.PARAM_TREND]],
+            how="left",
+            left_on=Const.COLUMN_DATETIME,
+            right_on=Const.COLUMN_DATETIME,
+        )
+
+        # Generate Up Trend Param
+        up_trend_param = self._get_up_trend_param(param)
+
+        if not up_trend_param:
+            merged_df = cci_df
+        else:
+            # Get Trend data for the upper timeframe
+            up_trend_df = TrendCCI().calculate_trends(up_trend_param)
+
+            # Assuming cci and trend are your DataFrames
+            # Reset index to make the datetime column a regular column
+            cci_df.reset_index(inplace=True)
+            up_trend_df.reset_index(inplace=True)
+
+            # Merge the DataFrames based on the datetime column
+            merged_df = pd.merge_asof(
+                cci_df,
+                up_trend_df[[Const.COLUMN_DATETIME, Const.PARAM_TREND]],
+                left_on=Const.COLUMN_DATETIME,
+                right_on=Const.COLUMN_DATETIME,
+                direction="backward",
+                suffixes=("", "_up_level"),
+            )
+
+            # Set the datetime column as the index again
+            merged_df.set_index(Const.COLUMN_DATETIME, inplace=True)
+
+        merged_df.insert(
+            cci_df.shape[1],
+            Const.PARAM_SIGNAL,
+            self._determineSignal(merged_df),
+        )
+
+        return merged_df
+
+    def _determineSignal(self, cci_df):
+        signals = []
+        trend_up_level = None
+
+        for i in range(len(cci_df)):
+            decision = ""
+
+            if i == 0:
+                signals.append(decision)
+                continue
+
+            current_value = cci_df.iloc[i, 5]
+            previous_value = cci_df.iloc[i - 1, 5]
+
             trend = cci_df.iloc[i, 7]
+            trend_previous = cci_df.iloc[i - 1, 7]
+
+            if len(cci_df.columns) >= 9:
+                trend_up_level = cci_df.iloc[i, 8]
+
             decision = self._get_signal_decision(current_value, previous_value)
 
-            if trend == Const.STRONG_TREND_UP:
-                if decision == Const.STRONG_SELL:
-                    decision = Const.SELL
-                elif decision == Const.BUY:
-                    decision = ""
-            elif trend == Const.STRONG_TREND_DOWN:
-                if decision == Const.STRONG_BUY:
-                    decision = Const.BUY
-                elif decision == Const.SELL:
-                    decision = ""
+            if not trend_up_level:
+                decision = self._get_decision_base_trend(
+                    trend=trend, cci_decision=decision
+                )
+            elif trend_up_level in [Const.STRONG_TREND_UP, Const.TREND_UP]:
+                if trend == Const.STRONG_TREND_UP:
+                    if decision == Const.STRONG_SELL:
+                        decision = Const.SELL
+                    elif decision == Const.BUY:
+                        decision = Const.STRONG_BUY
+                else:
+                    decision = self._get_decision_base_trend(
+                        trend=trend_up_level, cci_decision=decision
+                    )
+
+            elif trend_up_level in [Const.STRONG_TREND_DOWN, Const.TREND_DOWN]:
+                if trend == Const.STRONG_TREND_DOWN:
+                    if decision == Const.STRONG_BUY:
+                        decision = Const.BUY
+                    elif decision == Const.SELL:
+                        decision = Const.STRONG_SELL
+                else:
+                    decision = self._get_decision_base_trend(
+                        trend=trend_up_level, cci_decision=decision
+                    )
             else:
-                if decision == Const.STRONG_BUY:
-                    decision = Const.BUY
-                elif decision == Const.STRONG_SELL:
-                    decision = Const.SELL
+                decision = self._get_decision_base_trend(
+                    trend=trend_up_level, cci_decision=decision
+                )
 
             signals.append(decision)
 

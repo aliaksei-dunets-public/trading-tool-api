@@ -938,6 +938,7 @@ class ByBitComApi(ExchangeApiBase):
             "qty": position_mdl.quantity,
             "timeInForce": "IOC",
             "orderLinkId": position_id,
+            "positionIdx": 0,
             "isLeverage": 1,
             "takeProfit": position_mdl.take_profit,
             "stopLoss": position_mdl.stop_loss,

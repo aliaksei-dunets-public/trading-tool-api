@@ -1270,7 +1270,7 @@ class SideManager:
         return 2
 
     def _get_take_profit_atr_coeff(self) -> float:
-        return 6
+        return 4
 
 
 # Short Positions
