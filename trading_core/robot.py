@@ -332,7 +332,7 @@ class TraderManager(TraderBase):
     def _recalculate_position(self, signal_mdl: cmn.SignalModel):
         if self.data_mng.has_open_position():
             self.api_mng.recalculate_position(signal_mdl)
-            super()._recalculate_position(signal_mdl=signal_mdl)
+            self.data_mng.recalculate_position(signal_mdl)
 
     def _decide_to_open_position(self, signal_mdl: cmn.SignalModel):
         logger.info(
@@ -597,7 +597,7 @@ class DataManagerBase:
         self, signal_mdl: cmn.SignalModel
     ) -> cmn.TrailingStopModel:
         logger.info(
-            f"{self.__class__.__name__}: Recalculate the position {self._current_position.id} by the signal"
+            f"{self.__class__.__name__}: Recalculate the position (order_id: {self._current_position.order_id}) by the signal"
         )
 
         # Calculate Trailing Stop

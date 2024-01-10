@@ -453,7 +453,7 @@ class ByBitComApi(ExchangeApiBase):
         json_api_response = self._get_api_http_session().get_kline(**url_params)
 
         # Validate Response format and Code/Message
-        self._validate_response(json_api_response)
+        self._validate_response(response=json_api_response, response_log=False)
 
         klines_data = json_api_response["result"]["list"]
 
@@ -721,7 +721,7 @@ class ByBitComApi(ExchangeApiBase):
         json_api_response = self._get_api_http_session().get_instruments_info(**params)
 
         # Validate Response format and Code/Message
-        self._validate_response(json_api_response)
+        self._validate_response(response=json_api_response, response_log=False)
 
         result = json_api_response["result"]
         category = result["category"]
@@ -1074,11 +1074,15 @@ class ByBitComApi(ExchangeApiBase):
             )
         return api_session
 
-    def _validate_response(self, response: dict):
+    def _validate_response(self, response: dict, response_log: bool = True):
         message_text = f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} ({self._trader_model.id}) - "
         if Const.API_FLD_RET_CODE in response and Const.API_FLD_RET_MESSAGE in response:
             code = response[Const.API_FLD_RET_CODE]
             if code == 0:
+                if response_log:
+                    message_text = f"{message_text}{code}: {response}"
+                    if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+                        logger.info(message_text)
                 return
             else:
                 message_text = (
