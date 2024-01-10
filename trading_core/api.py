@@ -510,7 +510,7 @@ class ByBitComApi(ExchangeApiBase):
     def get_open_orders(self, symbol: str = None):
         pass
 
-    def get_open_leverages(self, symbol: str, limit: int = 1) -> list[LeverageModel]:
+    def get_open_leverages(self, symbol: str, limit: int = 5) -> list[LeverageModel]:
         position_models = []
 
         open_order_ids = self._check_open_position(symbol)
@@ -769,7 +769,7 @@ class ByBitComApi(ExchangeApiBase):
         symbol: str,
         order_id: str = None,
         position_id: str = None,
-        limit: int = 1,
+        limit: int = 5,
     ) -> list[LeverageModel]:
         position_models = []
 
