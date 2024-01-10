@@ -160,7 +160,7 @@ class StrategyFactory:
         ]:
             strategy_instance = Strategy_CCI_100_TrendUpLevel(strategy_config_mdl)
         elif strategy in [
-            StrategyType.CCI_20_100_TRENDS_DIRECTION,
+            StrategyType.CCI_14_100_TRENDS_DIRECTION,
         ]:
             strategy_instance = Strategy_CCI_100_TRENDS_QUICK_POSITIONS(
                 strategy_config_mdl
@@ -211,13 +211,13 @@ class StrategyFactory:
             #     miv_value=-100,
             #     max_value=100,
             # ),
-            # StrategyType.CCI_20_100_TRENDS_DIRECTION: StrategyConfigModel(
-            #     strategy=StrategyType.CCI_20_100_TRENDS_DIRECTION,
-            #     name="Quick positions for Trends and CCI(20) +/- 100",
-            #     length=20,
-            #     miv_value=-100,
-            #     max_value=100,
-            # ),
+            StrategyType.CCI_14_100_TRENDS_DIRECTION: StrategyConfigModel(
+                strategy=StrategyType.CCI_14_100_TRENDS_DIRECTION,
+                name="Quick positions for Trends and CCI(14) +/- 100",
+                length=14,
+                miv_value=-100,
+                max_value=100,
+            ),
         }
 
     @staticmethod
@@ -688,32 +688,7 @@ class Strategy_CCI_100_TRENDS_QUICK_POSITIONS(Strategy_CCI_Trend_Base):
 
             decision = self._get_signal_decision(current_value, previous_value)
 
-            if not trend_up_level:
-                decision = self._get_decision_base_trend(
-                    trend=trend, cci_decision=decision
-                )
-            elif trend_up_level in [Const.STRONG_TREND_UP, Const.TREND_UP]:
-                if trend == Const.STRONG_TREND_UP:
-                    if decision == Const.STRONG_SELL:
-                        decision = Const.SELL
-                    elif decision == Const.BUY:
-                        decision = Const.STRONG_BUY
-                else:
-                    decision = self._get_decision_base_trend(
-                        trend=trend_up_level, cci_decision=decision
-                    )
-
-            elif trend_up_level in [Const.STRONG_TREND_DOWN, Const.TREND_DOWN]:
-                if trend == Const.STRONG_TREND_DOWN:
-                    if decision == Const.STRONG_BUY:
-                        decision = Const.BUY
-                    elif decision == Const.SELL:
-                        decision = Const.STRONG_SELL
-                else:
-                    decision = self._get_decision_base_trend(
-                        trend=trend_up_level, cci_decision=decision
-                    )
-            else:
+            if trend_up_level in [Const.STRONG_TREND_UP, Const.STRONG_TREND_DOWN]:
                 decision = self._get_decision_base_trend(
                     trend=trend_up_level, cci_decision=decision
                 )
