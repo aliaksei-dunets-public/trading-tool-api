@@ -581,16 +581,34 @@ class TrailingStopModel(BaseModel):
     stop_loss_percent: float = 0
     take_profit_percent: float = 0
 
-    def calculate_stop_loss_percent(self, open_price: float) -> float:
+    def _calculate_delta(
+        self, side: OrderSideType, current_price: float, open_price: float
+    ) -> float:
+        if side == OrderSideType.buy:
+            return current_price - open_price
+        elif side == OrderSideType.sell:
+            return open_price - current_price
+
+    def calculate_stop_loss_percent(
+        self, open_price: float, side: OrderSideType
+    ) -> float:
         if self.stop_loss != 0:
-            self.stop_loss_percent = ((self.stop_loss - open_price) / open_price) * 100
+            delta = self._calculate_delta(
+                side=side, current_price=self.stop_loss, open_price=open_price
+            )
+            self.stop_loss_percent = (delta / open_price) * 100
             return self.stop_loss_percent
 
-    def calculate_take_profit_percent(self, open_price: float) -> float:
+    def calculate_take_profit_percent(
+        self, open_price: float, side: OrderSideType
+    ) -> float:
         if self.take_profit != 0:
-            self.take_profit_percent = (
-                (self.take_profit - open_price) / open_price
-            ) * 100
+            if self.take_profit > open_price:
+                delta = self.take_profit - open_price
+            else:
+                delta = open_price - self.take_profit
+
+            self.take_profit_percent = (delta / open_price) * 100
             return self.take_profit_percent
 
     def to_mongodb_doc(self):
@@ -639,7 +657,11 @@ class OrderModel(
     def calculate_percent(self, price: float = 0) -> float:
         price = self.close_price if self.close_price else price
 
-        self.percent = ((price - self.open_price) / self.open_price) * 100
+        delta = self._calculate_delta(
+            side=self.side, current_price=price, open_price=self.open_price
+        )
+
+        self.percent = (delta / self.open_price) * 100
         return self.percent
 
     def calculate_high_percent(self) -> float:
@@ -661,10 +683,14 @@ class OrderModel(
         return self.low_percent
 
     def calculate_stop_loss_percent(self) -> float:
-        return super().calculate_stop_loss_percent(open_price=self.open_price)
+        return super().calculate_stop_loss_percent(
+            open_price=self.open_price, side=self.side
+        )
 
     def calculate_take_profit_percent(self) -> float:
-        return super().calculate_take_profit_percent(open_price=self.open_price)
+        return super().calculate_take_profit_percent(
+            open_price=self.open_price, side=self.side
+        )
 
     def calculate_balance(self) -> float:
         self.balance = self.quantity * self.open_price

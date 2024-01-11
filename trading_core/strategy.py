@@ -688,6 +688,13 @@ class Strategy_CCI_100_TRENDS_QUICK_POSITIONS(Strategy_CCI_Trend_Base):
 
             decision = self._get_signal_decision(current_value, previous_value)
 
+            # if trend == Const.STRONG_TREND_UP:
+            #     if decision != Const.STRONG_BUY:
+            #         decision = ""
+            # elif trend == Const.STRONG_TREND_DOWN:
+            #     if decision != Const.STRONG_SELL:
+            #         decision = ""
+
             if trend_up_level in [Const.STRONG_TREND_UP, Const.STRONG_TREND_DOWN]:
                 decision = self._get_decision_base_trend(
                     trend=trend_up_level, cci_decision=decision
