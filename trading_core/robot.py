@@ -264,6 +264,7 @@ class TraderBase:
 
         # Open position exists -> check if required it to close
         if self.data_mng.has_open_position():
+            self.data_mng.recalculate_analytics(signal_mdl)
             if self.data_mng.is_required_to_close_position(signal_mdl):
                 self._decide_to_close_position(signal_mdl)
             # Recalculate Position should be done after decision about close the position because the robot are working with closed bars
@@ -618,6 +619,9 @@ class DataManagerBase:
     def recalculate_position_by_ref(
         self, signal_mdl: cmn.SignalModel, trailing_stop_mdl: cmn.TrailingStopModel
     ) -> cmn.TrailingStopModel:
+        pass
+
+    def recalculate_analytics(self, signal_mdl: cmn.SignalModel):
         pass
 
     def get_current_position(self) -> cmn.OrderModel:
@@ -1037,12 +1041,6 @@ class LeverageDatabaseManager(LeverageManagerBase):
     ) -> cmn.TrailingStopModel:
         trailing_stop_mdl = super().recalculate_position(signal_mdl)
 
-        # Highest Order price
-        self._current_position.calculate_high_price(signal_mdl.high)
-
-        # Lowest Order price
-        self._current_position.calculate_low_price(signal_mdl.low)
-
         order_analytic_mdl = cmn.OrderAnalyticModel(
             **self._current_position.to_mongodb_doc()
         )
@@ -1055,11 +1053,14 @@ class LeverageDatabaseManager(LeverageManagerBase):
 
             query.update(trailing_stop_mdl.to_mongodb_doc())
 
+            transaction_data = trailing_stop_mdl.model_dump()
+            transaction_data[Const.DB_OPEN_PRICE] = self._current_position.open_price
+
             self._trader_mng.transaction_mng.add_transaction(
                 local_order_id=self._current_position.id,
                 type=cmn.TransactionType.DB_UPDATE_POSITION,
                 date_time=signal_mdl.date_time,
-                data=trailing_stop_mdl.model_dump(),
+                data=transaction_data,
             )
 
         if not self._update_position(query):
@@ -1068,6 +1069,12 @@ class LeverageDatabaseManager(LeverageManagerBase):
             )
 
         return trailing_stop_mdl
+
+    def recalculate_analytics(self, signal_mdl: cmn.SignalModel):
+        # Highest Order price
+        self._current_position.calculate_high_price(signal_mdl.high)
+        # Lowest Order price
+        self._current_position.calculate_low_price(signal_mdl.low)
 
     def _open_position(self, position_mdl: cmn.LeverageModel):
         logger.info(
@@ -1143,25 +1150,28 @@ class LeverageLocalDataManager(LeverageManagerBase):
     ) -> cmn.TrailingStopModel:
         trailing_stop_mdl = super().recalculate_position(signal_mdl)
 
-        # Highest Order price
-        self._current_position.calculate_high_price(signal_mdl.high)
-
-        # Lowest Order price
-        self._current_position.calculate_low_price(signal_mdl.low)
-
         if trailing_stop_mdl:
             self._current_position.stop_loss = trailing_stop_mdl.stop_loss
             self._current_position.take_profit = trailing_stop_mdl.take_profit
+
+            transaction_data = trailing_stop_mdl.model_dump()
+            transaction_data[Const.DB_OPEN_PRICE] = self._current_position.open_price
 
             self._trader_mng.transaction_mng.add_transaction(
                 local_order_id=self._current_position.id,
                 type=cmn.TransactionType.DB_UPDATE_POSITION,
                 date_time=signal_mdl.date_time,
-                data=trailing_stop_mdl.model_dump(),
+                data=transaction_data,
                 save=False,
             )
 
         return trailing_stop_mdl
+
+    def recalculate_analytics(self, signal_mdl: cmn.SignalModel):
+        # Highest Order price
+        self._current_position.calculate_high_price(signal_mdl.high)
+        # Lowest Order price
+        self._current_position.calculate_low_price(signal_mdl.low)
 
     def _open_position(self, position_mdl: cmn.LeverageModel):
         # Simulate creation of the order

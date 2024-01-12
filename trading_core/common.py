@@ -43,6 +43,7 @@ class StrategyType(str, Enum):
     CCI_14_100_TREND_UP_LEVEL = "CCI_14_100_TREND_UP_LEVEL"
     CCI_14_100_TRENDS_DIRECTION = "CCI_14_100_TRENDS_DIRECTION"
     CCI_50_TREND_0 = "CCI_50_TREND_0"
+    EMA_8_CROSS_EMA_30_FILTER_CCI_14 = "EMA_8_CROSS_EMA_30_FILTER_CCI_14"
 
 
 class Importance(str, Enum):
@@ -651,7 +652,9 @@ class OrderModel(
         return self.high_price
 
     def calculate_low_price(self, price: float = 0) -> float:
-        self.low_price = self.low_price if self.low_price <= price else price
+        self.low_price = (
+            self.low_price if self.low_price != 0 and self.low_price <= price else price
+        )
         return self.low_price
 
     def calculate_percent(self, price: float = 0) -> float:

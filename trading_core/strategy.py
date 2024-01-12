@@ -1,3 +1,4 @@
+import pandas_ta as ta
 import pandas as pd
 
 from trading_core.common import StrategyParamModel
@@ -165,6 +166,12 @@ class StrategyFactory:
             strategy_instance = Strategy_CCI_100_TRENDS_QUICK_POSITIONS(
                 strategy_config_mdl
             )
+        elif strategy in [
+            StrategyType.EMA_8_CROSS_EMA_30_FILTER_CCI_14,
+        ]:
+            strategy_instance = Strategy_EMA_8_CROSS_EMA_30_FILTER_CCI_14(
+                strategy_config_mdl
+            )
         else:
             raise Exception(
                 f"{StrategyFactory.__name__}: Strategy {strategy} isn't implemented"
@@ -214,6 +221,13 @@ class StrategyFactory:
             StrategyType.CCI_14_100_TRENDS_DIRECTION: StrategyConfigModel(
                 strategy=StrategyType.CCI_14_100_TRENDS_DIRECTION,
                 name="Quick positions for Trends and CCI(14) +/- 100",
+                length=14,
+                miv_value=-100,
+                max_value=100,
+            ),
+            StrategyType.EMA_8_CROSS_EMA_30_FILTER_CCI_14: StrategyConfigModel(
+                strategy=StrategyType.EMA_8_CROSS_EMA_30_FILTER_CCI_14,
+                name="EMA 8 crosses EMA 30 with filter CCI(14) +/- 100",
                 length=14,
                 miv_value=-100,
                 max_value=100,
@@ -703,3 +717,183 @@ class Strategy_CCI_100_TRENDS_QUICK_POSITIONS(Strategy_CCI_Trend_Base):
             signals.append(decision)
 
         return signals
+
+
+class Strategy_EMA_8_CROSS_EMA_30_FILTER_CCI_14(StrategyBase):
+    CCI_COLUMN_NAME = "CCI"
+    ATR_COLUMN_NAME = "ATR"
+    EMA_8_COLUMN_NAME = "EMA_8"
+    EMA_30_COLUMN_NAME = "EMA_30"
+
+    def get_strategy_data(self, param: StrategyParamModel):
+        super().get_strategy_data(param)
+        default_limit = 32
+        limit = param.limit + default_limit
+
+        history_data_param = HistoryDataParamModel(**param.model_dump())
+        history_data_param.limit = limit
+
+        history_data_mdl = buffer_runtime_handler.get_history_data_handler(
+            trader_id=param.trader_id
+        ).get_history_data(history_data_param)
+
+        # Create your own Custom Strategy
+        CustomStrategy = ta.Strategy(
+            name="EMA_8_CROSS_EMA_30_FILTER_CCI_14",
+            description="EMA 8 crosses EMA 30 with filter CCI(14) +/- 100",
+            ta=[
+                {
+                    "kind": "cci",
+                    "length": 14,
+                    "col_names": (self.CCI_COLUMN_NAME, "MULTIPROCESSING_OFF"),
+                },
+                {
+                    "kind": "atr",
+                    "length": 14,
+                    "col_names": (self.ATR_COLUMN_NAME),
+                },
+                {
+                    "kind": "ema",
+                    "length": 8,
+                    "col_names": (self.EMA_8_COLUMN_NAME),
+                },
+                {
+                    "kind": "ema",
+                    "length": 30,
+                    "col_names": (self.EMA_30_COLUMN_NAME),
+                },
+                # {
+                #     "kind": "macd",
+                #     "fast": 8,
+                #     "slow": 21,
+                #     "col_names": ("MACD", "MACD_H", "MACD_S"),
+                # },
+            ],
+        )
+        # To run your "Custom Strategy"
+        df = pd.DataFrame(history_data_mdl.data)
+        df.ta.strategy(CustomStrategy)
+
+        df = df.dropna(
+            subset=[
+                self.CCI_COLUMN_NAME,
+                self.CCI_COLUMN_NAME,
+                self.EMA_8_COLUMN_NAME,
+                self.EMA_30_COLUMN_NAME,
+            ]
+        )
+
+        df.insert(df.shape[1], Const.PARAM_SIGNAL, self._determineSignal(df))
+
+        return df
+
+    def _determineSignal(self, df):
+        signals = []
+
+        for i in range(len(df)):
+            decision = ""
+
+            if i < 2:
+                signals.append(decision)
+                continue
+
+            current_bar = df.iloc[i]
+            current_cci = current_bar[self.CCI_COLUMN_NAME]
+
+            previous_bar = df.iloc[i - 1]
+            second_previous_bar = df.iloc[i - 2]
+
+            decision = self._get_ema_cross_signal(
+                target_series=previous_bar, previous_series=second_previous_bar
+            )
+
+            if decision == SignalType.STRONG_BUY:
+                if current_cci <= self._strategy_config_mdl.max_value:
+                    decision = SignalType.NONE
+            elif decision == SignalType.STRONG_SELL:
+                if current_cci >= self._strategy_config_mdl.miv_value:
+                    decision = SignalType.NONE
+
+            # current_cci = df.iloc[i, 5]
+            # previous_cci = df.iloc[i - 1, 5]
+
+            # current_ema_8 = df.iloc[i, 7]
+            # previous_ema_8 = df.iloc[i - 1, 7]
+
+            # current_ema_30 = df.iloc[i, 8]
+            # previous_ema_30 = df.iloc[i - 1, 8]
+
+            # current_delta = current_ema_8 - current_ema_30
+            # previous_delta = previous_ema_8 - previous_ema_30
+
+            # if current_delta >= 0:
+            #     # Current - LONG
+            #     if previous_delta >= 0:
+            #         # Previous - LONG
+            #         pass
+            #     else:
+            #         # Previous - SHORT
+            #         decision = Const.STRONG_BUY
+            # else:
+            #     # SHORT
+            #     if previous_delta >= 0:
+            #         # Previous - LONG
+            #         decision = Const.STRONG_SELL
+            #     else:
+            #         # Previous - SHORT
+            #         pass
+
+            signals.append(decision)
+
+        return signals
+
+    def _get_ema_cross_signal(self, target_series, previous_series) -> SignalType:
+        target_ema_8 = target_series[self.EMA_8_COLUMN_NAME]
+        target_ema_30 = target_series[self.EMA_30_COLUMN_NAME]
+
+        previous_ema_8 = previous_series[self.EMA_8_COLUMN_NAME]
+        previous_ema_30 = previous_series[self.EMA_30_COLUMN_NAME]
+
+        target_delta = target_ema_8 - target_ema_30
+        previous_delta = previous_ema_8 - previous_ema_30
+
+        if target_delta >= 0:
+            # Current - LONG
+            if previous_delta >= 0:
+                # Previous - LONG
+                decision = SignalType.NONE
+            else:
+                # Previous - SHORT
+                decision = SignalType.STRONG_BUY
+        else:
+            # SHORT
+            if previous_delta >= 0:
+                # Previous - LONG
+                decision = SignalType.STRONG_SELL
+            else:
+                # Previous - SHORT
+                decision = SignalType.NONE
+
+        return decision
+
+    def _get_signal_decision(self, current_value, previous_value):
+        decision = ""
+        if self._max_value == 0 and self._min_value == 0:
+            if current_value > self._max_value and previous_value < self._max_value:
+                decision = Const.STRONG_BUY
+            elif current_value < self._max_value and previous_value > self._max_value:
+                decision = Const.STRONG_SELL
+        else:
+            if current_value > self._max_value:
+                if previous_value < self._max_value:
+                    decision = Const.BUY
+            elif current_value < self._min_value:
+                if previous_value > self._min_value:
+                    decision = Const.SELL
+            else:
+                if previous_value > self._max_value:
+                    decision = Const.STRONG_SELL
+                elif previous_value < self._min_value:
+                    decision = Const.STRONG_BUY
+
+        return decision
