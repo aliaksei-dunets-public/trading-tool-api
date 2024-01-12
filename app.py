@@ -475,52 +475,28 @@ def get_history_simulation():
     trader_id = request.args.get("trader_id", None)
     trading_type = request.args.get("trading_type", None)
     symbol = request.args.get("symbol", None)
-    interval = request.args.get("interval", "5m")
-    strategy = request.args.get("strategy", StrategyType.CCI_20_TREND_100)
+    intervals = request.args.getlist("interval", None)
+    strategies = request.args.getlist("strategy", None)
     stop_loss_rate = request.args.get(Const.SRV_STOP_LOSS_RATE, 0)
     is_trailing_stop = responser.get_param_bool(
         request.args.get(Const.SRV_IS_TRAILING_STOP_LOSS, "false")
     )
     take_profit_rate = request.args.get(Const.SRV_TAKE_PROFIT_RATE, 0)
-    init_balance = float(request.args.get(Const.SRV_INIT_BALANCE, 100))
+    init_balance = float(request.args.get(Const.SRV_INIT_BALANCE, 1000))
     limit = int(request.args.get(Const.SRV_LIMIT, 400))
 
-    try:
-        user_email = request.headers.get("User-Email")
-        user_data = UserHandler().get_user_by_email(user_email)
-
-        session_data = {
-            "trader_id": trader_id,
-            "user_id": user_data.id,
-            "trading_type": trading_type,
-            "session_type": SessionType.HISTORY,
-            "symbol": symbol,
-            "interval": interval,
-            "strategy": strategy,
-            "take_profit_rate": take_profit_rate,
-            "stop_loss_rate": stop_loss_rate,
-            "is_trailing_stop": is_trailing_stop,
-        }
-
-        session_mdl = SessionModel(**session_data)
-        session_mng = SessionManager(session_mdl)
-        session_mng.run(init_balance=init_balance, limit=limit)
-
-        balance_mdl = session_mng.get_balance_manager().get_balance_model()
-        posistions = [item.model_dump() for item in session_mng.get_positions()]
-        transactions = [item.model_dump() for item in session_mng.get_transactions()]
-
-        session_response = session_mdl.model_dump()
-        session_response["balance"] = balance_mdl.model_dump()
-        session_response["positions"] = posistions
-        session_response["transactions"] = transactions
-
-        response = [session_response]
-
-    except Exception as error:
-        return jsonify({"error": error}), 500
-
-    return jsonify(response), 200
+    return responser.get_history_simulation(
+        trader_id=trader_id,
+        trading_type=trading_type,
+        symbol=symbol,
+        intervals=intervals,
+        strategies=strategies,
+        stop_loss_rate=stop_loss_rate,
+        is_trailing_stop=is_trailing_stop,
+        take_profit_rate=take_profit_rate,
+        init_balance=init_balance,
+        limit=limit,
+    )
 
 
 @app.route("/create_simulations", methods=["POST"])

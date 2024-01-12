@@ -1,6 +1,7 @@
 import json
 import bson.json_util as json_util
 import pandas as pd
+import numpy as np
 from flask import jsonify
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.schedulers.base import JobLookupError
@@ -40,6 +41,7 @@ from trading_core.common import (
     TransactionModel,
     SessionStatus,
     OrderOpenModel,
+    OrderSideType,
 )
 from trading_core.strategy import StrategyFactory, SignalFactory
 from trading_core.handler import (
@@ -676,6 +678,67 @@ class ResponserWeb(ResponserBase):
     @decorator_json
     def get_trend(self, param: SymbolIntervalLimitModel) -> json:
         return TrendCCI().calculate_trends(param)
+
+    @decorator_json
+    def get_history_simulation(
+        self,
+        trader_id: str,
+        trading_type: str,
+        symbol: str,
+        intervals: list,
+        strategies: list,
+        stop_loss_rate: float,
+        is_trailing_stop: bool,
+        take_profit_rate: float,
+        init_balance: float,
+        limit: int,
+    ) -> json:
+        response = []
+        positions = []
+        high_rates = []
+        low_rates = []
+        optimal_take_profit_rate = 0
+        optimal_stop_loss_rate = 0
+
+        sessions = Robot().run_history_simulation(
+            trader_id=trader_id,
+            trading_type=trading_type,
+            symbol=symbol,
+            intervals=intervals,
+            strategies=strategies,
+            stop_loss_rate=stop_loss_rate,
+            is_trailing_stop=is_trailing_stop,
+            take_profit_rate=take_profit_rate,
+            init_balance=init_balance,
+            limit=limit,
+        )
+
+        for session_mng in sessions:
+            balance_mdl = session_mng.get_balance_manager().get_balance_model()
+            transactions = [
+                item.model_dump() for item in session_mng.get_transactions()
+            ]
+
+            for position in session_mng.get_positions():
+                positions.append(position.model_dump())
+
+                if position.side == OrderSideType.buy:
+                    high_rates.append(position.high_percent)
+                    low_rates.append(-1 * position.low_percent)
+                else:
+                    high_rates.append(-1 * position.low_percent)
+                    low_rates.append(position.high_percent)
+
+            session_response = session_mng.get_session().model_dump()
+            session_response["optimal_take_profit_rate"] = np.percentile(high_rates, 70)
+            session_response["optimal_stop_loss_rate"] = np.percentile(low_rates, 70)
+            session_response["balance"] = balance_mdl.model_dump()
+            session_response["positions"] = positions
+            session_response["transactions"] = transactions
+
+            response.append(session_response)
+
+        return response
 
 
 class ResponserEmail(ResponserBase):

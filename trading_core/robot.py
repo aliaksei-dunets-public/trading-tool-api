@@ -157,6 +157,9 @@ class SessionManager:
         )
         self._trader_mng.run(**kwargs)
 
+    def get_session(self) -> cmn.SessionModel:
+        return self._session_mdl
+
     def get_positions(self) -> list:
         return self._trader_mng.get_positions()
 
@@ -1557,10 +1560,66 @@ class Robot:
 
         return errors
 
-    def run_history_simulation(self):
+    def run_history_simulation(
+        self,
+        trader_id: str,
+        trading_type: str,
+        symbol: str,
+        intervals: list,
+        strategies: list,
+        stop_loss_rate: float,
+        is_trailing_stop: bool,
+        take_profit_rate: float,
+        init_balance: float,
+        limit: int,
+    ) -> list[SessionManager]:
+        session_managers = []
+
         logger.info(
             f"{self.__class__.__name__}: Robot has started a History Simulation"
         )
+
+        for interval in intervals:
+            for strategy in strategies:
+                session_data = {
+                    "trader_id": trader_id,
+                    "user_id": "temporary_user",
+                    "trading_type": trading_type,
+                    "session_type": cmn.SessionType.HISTORY,
+                    "symbol": symbol,
+                    "interval": interval,
+                    "strategy": strategy,
+                    "take_profit_rate": take_profit_rate,
+                    "stop_loss_rate": stop_loss_rate,
+                    "is_trailing_stop": is_trailing_stop,
+                }
+
+                try:
+                    session_mdl = cmn.SessionModel(**session_data)
+                    session_mng = SessionManager(session_mdl)
+                    session_mng.run(init_balance=init_balance, limit=limit)
+
+                    balance_mdl = session_mng.get_balance_manager().get_balance_model()
+                    posistions = [
+                        item.model_dump() for item in session_mng.get_positions()
+                    ]
+                    transactions = [
+                        item.model_dump() for item in session_mng.get_transactions()
+                    ]
+
+                    session_response = session_mdl.model_dump()
+                    session_response["balance"] = balance_mdl.model_dump()
+                    session_response["positions"] = posistions
+                    session_response["transactions"] = transactions
+
+                    session_managers.append(session_mng)
+
+                except Exception as error:
+                    logger.info(
+                        f"{self.__class__.__name__}: History simulation has been failed - {error} - for session: {session_data}"
+                    )
+
+        return session_managers
 
     def _get_session_mdl(self, session_id) -> cmn.SessionModel:
         return SessionHandler.get_session(session_id)
