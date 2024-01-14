@@ -958,7 +958,7 @@ class ByBitComApi(ExchangeApiBase):
 
         return created_ids
 
-    def _get_closed_pnl(self, symbol: str, limit: int = 1) -> dict:
+    def _get_closed_pnl(self, symbol: str, limit: int = 5) -> dict:
         closed_pnl_positions = {}
 
         params = {"category": self.CATEGORY_LINEAR, "symbol": symbol, "limit": limit}
@@ -1081,7 +1081,7 @@ class ByBitComApi(ExchangeApiBase):
             code = response[Const.API_FLD_RET_CODE]
             if code == 0:
                 if response_log:
-                    message_text = f"{message_text}{code}: {response}"
+                    message_text = f"{message_text}: {response}"
                     if config.get_config_value(Const.CONFIG_DEBUG_LOG):
                         logger.info(message_text)
                 return

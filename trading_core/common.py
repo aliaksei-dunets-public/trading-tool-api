@@ -791,3 +791,7 @@ class TransactionModel(AdminModel, IdentifierModel):
 
 class APIException(Exception):
     pass
+
+
+class RobotException(Exception):
+    pass

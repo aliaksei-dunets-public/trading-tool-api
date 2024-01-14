@@ -694,11 +694,6 @@ class ResponserWeb(ResponserBase):
         limit: int,
     ) -> json:
         response = []
-        positions = []
-        high_rates = []
-        low_rates = []
-        optimal_take_profit_rate = 0
-        optimal_stop_loss_rate = 0
 
         sessions = Robot().run_history_simulation(
             trader_id=trader_id,
@@ -714,6 +709,10 @@ class ResponserWeb(ResponserBase):
         )
 
         for session_mng in sessions:
+            positions = []
+            high_rates = []
+            low_rates = []
+
             balance_mdl = session_mng.get_balance_manager().get_balance_model()
             transactions = [
                 item.model_dump() for item in session_mng.get_transactions()
@@ -730,8 +729,8 @@ class ResponserWeb(ResponserBase):
                     low_rates.append(position.high_percent)
 
             session_response = session_mng.get_session().model_dump()
-            session_response["optimal_take_profit_rate"] = np.percentile(high_rates, 70)
-            session_response["optimal_stop_loss_rate"] = np.percentile(low_rates, 70)
+            session_response["optimal_take_profit_rate"] = np.percentile(high_rates, 80)
+            session_response["optimal_stop_loss_rate"] = np.percentile(low_rates, 80)
             session_response["balance"] = balance_mdl.model_dump()
             session_response["positions"] = positions
             session_response["transactions"] = transactions

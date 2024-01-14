@@ -198,7 +198,7 @@ class TraderBase:
         elif session_model.session_type == cmn.SessionType.HISTORY:
             return HistorySimulatorManager(session_model)
         else:
-            raise Exception(
+            raise cmn.RobotException(
                 f"TraderBase: Manager can't de detected for session type {session_model.session_type}"
             )
 
@@ -451,7 +451,7 @@ class DataManagerBase:
         elif trader_mng.session_mdl.trading_type == cmn.TradingType.LEVERAGE:
             return LeverageApiManager(trader_mng)
         else:
-            raise Exception(
+            raise cmn.RobotException(
                 "Robot: API Manager - Incorrect session type {session_mdl.trading_type}"
             )
 
@@ -462,7 +462,7 @@ class DataManagerBase:
         elif trader_mng.session_mdl.trading_type == cmn.TradingType.LEVERAGE:
             return LeverageDatabaseManager(trader_mng)
         else:
-            raise Exception(
+            raise cmn.RobotException(
                 "Robot: DB Manager - Incorrect trading type {session_mdl.trading_type}"
             )
 
@@ -473,7 +473,7 @@ class DataManagerBase:
         elif trader_mng.session_mdl.trading_type == cmn.TradingType.LEVERAGE:
             return LeverageLocalDataManager(trader_mng)
         else:
-            raise Exception(
+            raise cmn.RobotException(
                 "Robot: Local Manager - Incorrect trading type {session_mdl.trading_type}"
             )
 
@@ -481,7 +481,7 @@ class DataManagerBase:
         logger.error(
             f"{self.__class__.__name__}: is_required_to_open_position() isn't implemented"
         )
-        raise Exception(
+        raise cmn.RobotException(
             f"{self.__class__.__name__}: is_required_to_open_position() isn't implemented"
         )
 
@@ -688,7 +688,7 @@ class DataManagerBase:
 
     def _open_position(self, position_mdl: cmn.OrderModel):
         logger.error(f"{self.__class__.__name__}: _open_position() isn't implemented")
-        raise Exception(
+        raise cmn.RobotException(
             f"{self.__class__.__name__}: _open_position() isn't implemented"
         )
 
@@ -718,13 +718,13 @@ class DataManagerBase:
 
     def _close_position(self, order_close_mdl: cmn.OrderCloseModel) -> bool:
         logger.error(f"{self.__class__.__name__}: _close_position() isn't implemented")
-        raise Exception(
+        raise cmn.RobotException(
             f"{self.__class__.__name__}: _close_position() isn't implemented"
         )
 
     def _update_position(self, trailing_stop_mdl: cmn.TrailingStopModel) -> bool:
         logger.error(f"{self.__class__.__name__}: _update_position() isn't implemented")
-        raise Exception(
+        raise cmn.RobotException(
             f"{self.__class__.__name__}: _update_position() isn't implemented"
         )
 
@@ -781,7 +781,7 @@ class DataManagerBase:
         quantity_round_down = float(rounded_value)
 
         if quantity_round_down <= 0:
-            raise Exception(
+            raise cmn.RobotException(
                 f"{self.__class__.__name__}: It's not enough balance {total_balance_without_fee} for trading"
             )
 
@@ -831,6 +831,11 @@ class DataManagerBase:
 
     def _get_current_balance(self, fee: float = 0) -> float:
         # Take Total Balance from Balance Model and take into account Fee if it's required
+        total_balance = self._trader_mng.balance_mng.get_total_balance() + fee
+        if total_balance <= 0:
+            raise cmn.RobotException(
+                f"{self.__class__.__name__}: It's not enough balance {total_balance} for trading"
+            )
         return self._trader_mng.balance_mng.get_total_balance() + fee
 
     def _recalculate_balance(self):
@@ -1067,7 +1072,7 @@ class LeverageDatabaseManager(LeverageManagerBase):
             )
 
         if not self._update_position(query):
-            raise Exception(
+            raise cmn.RobotException(
                 f"DataManagerBase: _update_position() - Error during update position {self._current_position.id}"
             )
 
@@ -1238,7 +1243,7 @@ class SideManager:
         elif side_type == cmn.OrderSideType.sell:
             return SellManager(session_mdl)
         else:
-            raise Exception("Robot: SideManager - Incorrect order side type")
+            raise cmn.RobotException("Robot: SideManager - Incorrect order side type")
 
     @staticmethod
     def get_side_type_by_signal(signal_type: cmn.SignalType) -> cmn.OrderSideType:
@@ -1247,7 +1252,7 @@ class SideManager:
         elif signal_type == cmn.SignalType.STRONG_SELL:
             return cmn.OrderSideType.sell
         else:
-            raise Exception("Robot: SideManager - Incorrect signal type")
+            raise cmn.RobotException("Robot: SideManager - Incorrect signal type")
 
     def is_required_to_close_position(
         self, position_mdl: cmn.OrderModel, signal_mdl: cmn.SignalModel
@@ -1257,12 +1262,14 @@ class SideManager:
     def get_close_details_by_signal(
         self, position_mdl: cmn.OrderModel, signal_mdl: cmn.SignalModel, fee: float = 0
     ) -> cmn.OrderCloseModel:
-        raise Exception(
+        raise cmn.RobotException(
             "Robot: SideManager - get_close_details_by_signal() isn't implemented"
         )
 
     def get_side_type(self) -> cmn.OrderSideType:
-        raise Exception("Robot: SideManager - get_side_type() isn't implemented")
+        raise cmn.RobotException(
+            "Robot: SideManager - get_side_type() isn't implemented"
+        )
 
     def get_stop_loss(self, price: float, atr: float = None) -> float:
         # Static Stop Loss Value
@@ -1302,7 +1309,7 @@ class SideManager:
         return 2
 
     def _get_take_profit_atr_coeff(self) -> float:
-        return 4
+        return 3
 
 
 # Short Positions
@@ -1373,16 +1380,17 @@ class SellManager(SideManager):
                     - self._get_take_profit_atr_coeff() * signal_mdl.atr
                 )
 
-                if take_profit > new_take_profit:
-                    take_profit = new_take_profit
+                # if take_profit > new_take_profit:
+                # take_profit = new_take_profit
 
             # Stop Loss calculation
-            new_stop_loss = (
-                signal_mdl.close + self._get_stop_loss_atr_coeff() * signal_mdl.atr
-            )
+            if self._session_mdl.stop_loss_rate == 0:
+                new_stop_loss = (
+                    signal_mdl.close + self._get_stop_loss_atr_coeff() * signal_mdl.atr
+                )
 
-            if stop_loss > new_stop_loss:
-                stop_loss = new_stop_loss
+                if stop_loss > new_stop_loss:
+                    stop_loss = new_stop_loss
 
             if (
                 take_profit != position_mdl.take_profit
@@ -1485,16 +1493,17 @@ class BuyManager(SideManager):
                     + self._get_take_profit_atr_coeff() * signal_mdl.atr
                 )
 
-                if take_profit > new_take_profit:
-                    take_profit = new_take_profit
+                # if take_profit > new_take_profit:
+                #     take_profit = new_take_profit
 
             # Stop Loss calculation
-            new_stop_loss = (
-                signal_mdl.close - self._get_stop_loss_atr_coeff() * signal_mdl.atr
-            )
+            if self._session_mdl.stop_loss_rate == 0:
+                new_stop_loss = (
+                    signal_mdl.close - self._get_stop_loss_atr_coeff() * signal_mdl.atr
+                )
 
-            if stop_loss < new_stop_loss:
-                stop_loss = new_stop_loss
+                if stop_loss < new_stop_loss:
+                    stop_loss = new_stop_loss
 
             if (
                 take_profit != position_mdl.take_profit
@@ -1582,6 +1591,7 @@ class Robot:
         for interval in intervals:
             for strategy in strategies:
                 session_data = {
+                    "_id": ObjectId(),
                     "trader_id": trader_id,
                     "user_id": "temporary_user",
                     "trading_type": trading_type,
@@ -1598,19 +1608,6 @@ class Robot:
                     session_mdl = cmn.SessionModel(**session_data)
                     session_mng = SessionManager(session_mdl)
                     session_mng.run(init_balance=init_balance, limit=limit)
-
-                    balance_mdl = session_mng.get_balance_manager().get_balance_model()
-                    posistions = [
-                        item.model_dump() for item in session_mng.get_positions()
-                    ]
-                    transactions = [
-                        item.model_dump() for item in session_mng.get_transactions()
-                    ]
-
-                    session_response = session_mdl.model_dump()
-                    session_response["balance"] = balance_mdl.model_dump()
-                    session_response["positions"] = posistions
-                    session_response["transactions"] = transactions
 
                     session_managers.append(session_mng)
 
