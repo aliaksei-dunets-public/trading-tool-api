@@ -958,7 +958,7 @@ class ByBitComApi(ExchangeApiBase):
 
         return created_ids
 
-    def _get_closed_pnl(self, symbol: str, limit: int = 5) -> dict:
+    def _get_closed_pnl(self, symbol: str, limit: int = 10) -> dict:
         closed_pnl_positions = {}
 
         params = {"category": self.CATEGORY_LINEAR, "symbol": symbol, "limit": limit}

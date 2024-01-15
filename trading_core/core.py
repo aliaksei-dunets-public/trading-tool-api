@@ -25,7 +25,7 @@ logging.basicConfig(
     ],
 )
 
-logger = logging.getLogger("trading_core")
+logger = logging.getLogger("core")
 
 
 class Config:
