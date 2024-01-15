@@ -13,6 +13,7 @@ import os
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+import urllib.parse
 
 
 from .constants import Const
@@ -991,6 +992,7 @@ class JobScheduler:
         if interval == IntervalType.MIN_1:
             minute = "*"
             second = "5"
+            jitter = 5
         elif interval == IntervalType.MIN_5:
             minute = "*/5"
             second = "20"

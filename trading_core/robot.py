@@ -155,7 +155,22 @@ class SessionManager:
         logger.info(
             f"{self.__class__.__name__}: {self._session_mdl.id} - The Session Run has started"
         )
-        self._trader_mng.run(**kwargs)
+
+        try:
+            self._trader_mng.run(**kwargs)
+
+        except Exception as error:
+            # Add error details in the transactions
+            self._trader_mng.transaction_mng.add_transaction(
+                type=cmn.TransactionType.ERROR,
+                data={"message": f"{error}"},
+            )
+            # Set FAILED Session status
+            SessionHandler.update_session(
+                id=self._session_mdl.id, query={"status": cmn.SessionStatus.failed}
+            )
+
+            raise error
 
     def get_session(self) -> cmn.SessionModel:
         return self._session_mdl
@@ -956,19 +971,31 @@ class LeverageApiManager(LeverageManagerBase):
                 f"{self.__class__.__name__}: Recalculate the position (order_id: {self._current_position.order_id}) by the reference"
             )
 
-            self._exchange_handler.update_trading_stop(
-                symbol=self._session_mdl.symbol,
-                trading_stop=trailing_stop_mdl,
-                order_id=self._current_position.order_id,
-                position_id=self._current_position.position_id,
-            )
+            try:
+                self._exchange_handler.update_trading_stop(
+                    symbol=self._session_mdl.symbol,
+                    trading_stop=trailing_stop_mdl,
+                    order_id=self._current_position.order_id,
+                    position_id=self._current_position.position_id,
+                )
 
-            self._trader_mng.transaction_mng.add_transaction(
-                order_id=self._current_position.order_id,
-                type=cmn.TransactionType.API_UPDATE_POSITION,
-                date_time=signal_mdl.date_time,
-                data=trailing_stop_mdl.model_dump(),
-            )
+                self._trader_mng.transaction_mng.add_transaction(
+                    order_id=self._current_position.order_id,
+                    type=cmn.TransactionType.API_UPDATE_POSITION,
+                    date_time=signal_mdl.date_time,
+                    data=trailing_stop_mdl.model_dump(),
+                )
+
+            except Exception as error:
+                error_text = f"{self.__class__.__name__}: Recalculate the position (order_id: {self._current_position.order_id}) by the reference has failed - {error}"
+                logger.error(error_text)
+
+                self._trader_mng.transaction_mng.add_transaction(
+                    order_id=self._current_position.order_id,
+                    type=cmn.TransactionType.ERROR,
+                    date_time=signal_mdl.date_time,
+                    data={"message": error_text},
+                )
 
         return trailing_stop_mdl
 

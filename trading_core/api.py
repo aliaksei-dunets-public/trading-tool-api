@@ -410,6 +410,7 @@ class ByBitComApi(ExchangeApiBase):
 
     def get_intervals(self) -> list[IntervalType]:
         return [
+            self._map_interval(api_interval=self.TA_API_INTERVAL_1),
             self._map_interval(api_interval=self.TA_API_INTERVAL_5),
             self._map_interval(api_interval=self.TA_API_INTERVAL_15),
             self._map_interval(api_interval=self.TA_API_INTERVAL_30),
@@ -558,6 +559,8 @@ class ByBitComApi(ExchangeApiBase):
             "takeProfit": str(trading_stop.take_profit),
             "stopLoss": str(trading_stop.stop_loss),
             "positionIdx": 0,
+            "tpTriggerBy": "MarkPrice",
+            "slTriggerBy": "MarkPrice",
         }
 
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
@@ -565,7 +568,12 @@ class ByBitComApi(ExchangeApiBase):
                 f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} ({self._trader_model.id}) - set_trading_stop({params})"
             )
 
-        self._get_api_http_session(private_mode=True).set_trading_stop(**params)
+        json_api_response = self._get_api_http_session(
+            private_mode=True
+        ).set_trading_stop(**params)
+
+        # Validate Response format and Code/Message
+        self._validate_response(json_api_response)
 
     def get_open_position(
         self, symbol: str, order_id: str = None, position_id: str = None
@@ -1148,6 +1156,7 @@ class DzengiComApi(ExchangeApiBase):
     PRICE_TYPE_BID = "bid"
     PRICE_TYPE_ASK = "ask"
 
+    TA_API_INTERVAL_1M = "1m"
     TA_API_INTERVAL_5M = "5m"
     TA_API_INTERVAL_15M = "15m"
     TA_API_INTERVAL_30M = "30m"
@@ -1232,6 +1241,7 @@ class DzengiComApi(ExchangeApiBase):
 
     def get_intervals(self) -> list[IntervalType]:
         return [
+            self._map_interval(api_interval=self.TA_API_INTERVAL_1M),
             self._map_interval(api_interval=self.TA_API_INTERVAL_5M),
             self._map_interval(api_interval=self.TA_API_INTERVAL_15M),
             self._map_interval(api_interval=self.TA_API_INTERVAL_30M),

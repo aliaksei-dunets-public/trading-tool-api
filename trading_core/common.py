@@ -106,6 +106,7 @@ class OrderReason(str, Enum):
 
 
 class TransactionType(str, Enum):
+    ERROR = "Error"
     DB_CREATE_POSITION = "DB: Position Create"
     DB_UPDATE_POSITION = "DB: Position Update"
     DB_CLOSE_POSITION = "DB: Position Close"

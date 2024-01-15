@@ -121,10 +121,10 @@ class SignalFactory:
             return signal_mdl
         else:
             logger.error(
-                f"{self.__class__.__name__}: Erro during get_signal({param.model_dump()})"
+                f"{self.__class__.__name__}: Error during get_signal({param.model_dump()})"
             )
             raise Exception(
-                f"{self.__class__.__name__}: Erro during get_signal({param.model_dump()})"
+                f"{self.__class__.__name__}: Error during get_signal({param.model_dump()})"
             )
 
     def _get_buffer_key(self, symbol: str, interval: str, strategy: str) -> tuple:
