@@ -851,7 +851,7 @@ class DataManagerBase:
             raise cmn.RobotException(
                 f"{self.__class__.__name__}: It's not enough balance {total_balance} for trading"
             )
-        return self._trader_mng.balance_mng.get_total_balance() + fee
+        return total_balance
 
     def _recalculate_balance(self):
         if self._current_position.status == cmn.OrderStatus.closed:
@@ -1157,19 +1157,6 @@ class LeverageDatabaseManager(LeverageManagerBase):
 
         return order_close_mdl
 
-    def _close_position_by_ref(self) -> bool:
-        logger.info(
-            f"{self.__class__.__name__}: Close the leverage {self._current_position.id} by the ref position id {self._current_position.position_id}"
-        )
-        api_order_closed_mdl = self._exchange_handler.get_close_leverages(
-            symbol=self._current_position.symbol,
-            order_id=self._current_position.order_id,
-            position_id=self._current_position.position_id,
-            limit=10,
-        )
-
-        return self.close_position(api_order_closed_mdl)
-
 
 class LeverageLocalDataManager(LeverageManagerBase):
     def __init__(self, session_mdl: cmn.SessionModel):
@@ -1237,13 +1224,6 @@ class LeverageLocalDataManager(LeverageManagerBase):
         current_position: cmn.LeverageModel = self._local_positions[
             self._current_position.id
         ]
-
-        current_position.status = order_close_mdl.status
-        current_position.close_datetime = order_close_mdl.close_datetime
-        current_position.close_price = order_close_mdl.close_price
-        current_position.close_reason = order_close_mdl.close_reason
-        current_position.total_profit = order_close_mdl.total_profit
-        current_position.fee += order_close_mdl.fee
 
         self._trader_mng.transaction_mng.add_transaction(
             local_order_id=current_position.id,

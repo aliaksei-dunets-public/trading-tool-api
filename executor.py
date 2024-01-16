@@ -3,8 +3,17 @@ import trading_core.common as cmn
 import pandas_ta as ta
 import pandas as pd
 
-# handler = ExchangeHandler.get_handler(trader_id="658048536aed0b022350af0b")
-# symbol = "SOLUSDT"
+handler = ExchangeHandler.get_handler(trader_id="658dab8b3b0719ad3f9b53dd")
+symbol = "LDOUSDT"
+
+# closes = handler.get_close_leverages(symbol=symbol, limit=5)
+# print(closes)
+
+print(
+    handler.get_close_position(
+        symbol=symbol, order_id="8b13e11d-4bd1-4255-9c65-600d3416d23f"
+    )
+)
 
 # params = cmn.HistoryDataParamModel(
 #     symbol=symbol, interval=cmn.IntervalType.MIN_5, limit=500
@@ -55,11 +64,11 @@ import pandas as pd
 
 # print(df)
 
-import statistics
-import numpy as np
+# import statistics
+# import numpy as np
 
-take_profit_rates = [1, 2.3, 0.4, 1.5, 0.1, 0.9, 1.1, 0.9, 0.92, 1.56]
+# take_profit_rates = [1, 2.3, 0.4, 1.5, 0.1, 0.9, 1.1, 0.9, 0.92, 1.56]
 
-print(f"Mean {statistics.mean(take_profit_rates)}")
-print(f"Median {statistics.median(take_profit_rates)}")
-print(f"Persintale {np.percentile(take_profit_rates, 80)}")
+# print(f"Mean {statistics.mean(take_profit_rates)}")
+# print(f"Median {statistics.median(take_profit_rates)}")
+# print(f"Persintale {np.percentile(take_profit_rates, 80)}")

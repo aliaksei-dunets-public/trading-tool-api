@@ -541,8 +541,9 @@ class ByBitComApi(ExchangeApiBase):
 
         fee_rates = json_api_response[Const.API_FLD_RESULT][Const.API_FLD_LIST]
         if fee_rates:
+            # API responses the rate but not percent of the rate. For Robot there should be a percent
             fee_rate = fee_rates[0]
-            return float(fee_rate["takerFeeRate"])
+            return float(fee_rate["takerFeeRate"]) * 100
 
         return 0
 
