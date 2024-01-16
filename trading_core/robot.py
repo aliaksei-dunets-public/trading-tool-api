@@ -623,7 +623,7 @@ class DataManagerBase:
 
         # Calculate Trailing Stop
         if self._session_mdl.is_trailing_stop:
-            trailing_stop_mdl = self._side_mng.get_trailing_stop_loss(
+            trailing_stop_mdl = self._side_mng.recalculate_trailing_stop(
                 position_mdl=self._current_position, signal_mdl=signal_mdl
             )
             if trailing_stop_mdl:
@@ -1310,10 +1310,46 @@ class SideManager:
 
         return stop_loss_value
 
-    def get_trailing_stop_loss(
+    def recalculate_trailing_stop(
         self, position_mdl: cmn.OrderModel, signal_mdl: cmn.SignalModel
     ) -> cmn.TrailingStopModel:
-        pass
+        if self._session_mdl.is_trailing_stop == True and signal_mdl.atr:
+            # # Current Stop Loss and Take Profit
+            # take_profit = position_mdl.take_profit
+            # stop_loss = position_mdl.stop_loss
+
+            # # Stop Loss calculation
+            # if self._session_mdl.stop_loss_rate == 0:
+            stop_loss = self._get_trailing_stop_loss(
+                position_mdl=position_mdl, signal_mdl=signal_mdl
+            )
+
+            # # Take Profit calculation is performed only when Static Take Profit = 0
+            # if self._session_mdl.take_profit_rate == 0:
+            take_profit = self._get_trailing_take_profit(
+                position_mdl=position_mdl, signal_mdl=signal_mdl
+            )
+
+            # if take_profit > new_take_profit:
+            #     take_profit = new_take_profit
+
+            if (
+                take_profit != position_mdl.take_profit
+                or stop_loss != position_mdl.stop_loss
+            ):
+                trailing_stop_mdl = cmn.TrailingStopModel(
+                    stop_loss=stop_loss, take_profit=take_profit
+                )
+                trailing_stop_mdl.calculate_stop_loss_percent(
+                    open_price=position_mdl.open_price, side=position_mdl.side
+                )
+                trailing_stop_mdl.calculate_take_profit_percent(
+                    open_price=position_mdl.open_price, side=position_mdl.side
+                )
+
+                return trailing_stop_mdl
+            else:
+                return None
 
     def get_take_profit(self, price: float, atr: float = None) -> float:
         # Static Take Pofit Value
@@ -1337,6 +1373,19 @@ class SideManager:
 
     def _get_take_profit_atr_coeff(self) -> float:
         return 3
+
+    def _get_trailing_stop_loss(
+        self, position_mdl: cmn.OrderModel, signal_mdl: cmn.SignalModel
+    ) -> float:
+        pass
+
+    def _get_trailing_take_profit(
+        self, position_mdl: cmn.OrderModel, signal_mdl: cmn.SignalModel
+    ) -> float:
+        pass
+
+    def _get_price_persent(self, target_price: float, source_price: float) -> float:
+        return (target_price / source_price) * 100
 
 
 # Short Positions
@@ -1392,51 +1441,6 @@ class SellManager(SideManager):
         else:
             return 0
 
-    def get_trailing_stop_loss(
-        self, position_mdl: cmn.OrderModel, signal_mdl: cmn.SignalModel
-    ) -> cmn.TrailingStopModel:
-        if self._session_mdl.is_trailing_stop == True and signal_mdl.atr:
-            # Current Stop Loss and Take Profit
-            take_profit = position_mdl.take_profit
-            stop_loss = position_mdl.stop_loss
-
-            # Take Profit calculation is performed only when Static Take Profit = 0
-            if self._session_mdl.take_profit_rate == 0:
-                new_take_profit = (
-                    signal_mdl.close
-                    - self._get_take_profit_atr_coeff() * signal_mdl.atr
-                )
-
-                # if take_profit > new_take_profit:
-                # take_profit = new_take_profit
-
-            # Stop Loss calculation
-            if self._session_mdl.stop_loss_rate == 0:
-                new_stop_loss = (
-                    signal_mdl.close + self._get_stop_loss_atr_coeff() * signal_mdl.atr
-                )
-
-                if stop_loss > new_stop_loss:
-                    stop_loss = new_stop_loss
-
-            if (
-                take_profit != position_mdl.take_profit
-                or stop_loss != position_mdl.stop_loss
-            ):
-                trailing_stop_mdl = cmn.TrailingStopModel(
-                    stop_loss=stop_loss, take_profit=take_profit
-                )
-                trailing_stop_mdl.calculate_stop_loss_percent(
-                    open_price=position_mdl.open_price, side=position_mdl.side
-                )
-                trailing_stop_mdl.calculate_take_profit_percent(
-                    open_price=position_mdl.open_price, side=position_mdl.side
-                )
-
-                return trailing_stop_mdl
-            else:
-                return None
-
     def get_take_profit(self, price: float, atr: float = None) -> float:
         take_profit_value = super().get_take_profit(price=price, atr=atr)
 
@@ -1449,6 +1453,52 @@ class SellManager(SideManager):
         self, quantity: float, open_price: float, close_price: float
     ) -> float:
         return quantity * (open_price - close_price)
+
+    def _get_trailing_stop_loss(
+        self, position_mdl: cmn.OrderModel, signal_mdl: cmn.SignalModel
+    ) -> float:
+        stop_loss = position_mdl.stop_loss
+        if self._session_mdl.stop_loss_rate == 0:
+            new_stop_loss = (
+                signal_mdl.close + self._get_stop_loss_atr_coeff() * signal_mdl.atr
+            )
+
+            if stop_loss > new_stop_loss:
+                stop_loss = new_stop_loss
+
+        return stop_loss
+
+    def _get_trailing_take_profit(
+        self, position_mdl: cmn.OrderModel, signal_mdl: cmn.SignalModel
+    ) -> float:
+        take_profit = position_mdl.take_profit
+
+        # Take Profit calculation is performed only when Static Take Profit = 0
+        if self._session_mdl.take_profit_rate == 0:
+            stop_loss = self._get_trailing_stop_loss(
+                position_mdl=position_mdl, signal_mdl=signal_mdl
+            )
+
+            # If price is break-even and 80% from take profit -> recalculate take profit based on ATR
+            if stop_loss <= position_mdl.open_price:
+                take_profit_value = position_mdl.open_price - position_mdl.take_profit
+                current_value = position_mdl.open_price - signal_mdl.close
+
+                # Canlculate percent of current price from take profit price
+                current_price_percent_from_take_profit = (
+                    current_value / take_profit_value
+                )
+
+                if current_price_percent_from_take_profit >= 0.8:
+                    new_take_profit = (
+                        signal_mdl.close
+                        - self._get_take_profit_atr_coeff() * signal_mdl.atr
+                    )
+
+                    if take_profit > new_take_profit:
+                        take_profit = new_take_profit
+
+        return take_profit
 
 
 # LONG Position
@@ -1505,51 +1555,6 @@ class BuyManager(SideManager):
         else:
             return 0
 
-    def get_trailing_stop_loss(
-        self, position_mdl: cmn.OrderModel, signal_mdl: cmn.SignalModel
-    ) -> cmn.TrailingStopModel:
-        if self._session_mdl.is_trailing_stop == True and signal_mdl.atr:
-            # Current Stop Loss and Take Profit
-            take_profit = position_mdl.take_profit
-            stop_loss = position_mdl.stop_loss
-
-            # Take Profit calculation is performed only when Static Take Profit = 0
-            if self._session_mdl.take_profit_rate == 0:
-                new_take_profit = (
-                    signal_mdl.close
-                    + self._get_take_profit_atr_coeff() * signal_mdl.atr
-                )
-
-                # if take_profit > new_take_profit:
-                #     take_profit = new_take_profit
-
-            # Stop Loss calculation
-            if self._session_mdl.stop_loss_rate == 0:
-                new_stop_loss = (
-                    signal_mdl.close - self._get_stop_loss_atr_coeff() * signal_mdl.atr
-                )
-
-                if stop_loss < new_stop_loss:
-                    stop_loss = new_stop_loss
-
-            if (
-                take_profit != position_mdl.take_profit
-                or stop_loss != position_mdl.stop_loss
-            ):
-                trailing_stop_mdl = cmn.TrailingStopModel(
-                    stop_loss=stop_loss, take_profit=take_profit
-                )
-                trailing_stop_mdl.calculate_stop_loss_percent(
-                    open_price=position_mdl.open_price, side=position_mdl.side
-                )
-                trailing_stop_mdl.calculate_take_profit_percent(
-                    open_price=position_mdl.open_price, side=position_mdl.side
-                )
-
-                return trailing_stop_mdl
-            else:
-                return None
-
     def get_take_profit(self, price: float, atr: float = None) -> float:
         take_profit_value = super().get_take_profit(price=price, atr=atr)
         if take_profit_value > 0:
@@ -1561,6 +1566,52 @@ class BuyManager(SideManager):
         self, quantity: float, open_price: float, close_price: float
     ) -> float:
         return quantity * (close_price - open_price)
+
+    def _get_trailing_stop_loss(
+        self, position_mdl: cmn.OrderModel, signal_mdl: cmn.SignalModel
+    ) -> float:
+        stop_loss = position_mdl.stop_loss
+        if self._session_mdl.stop_loss_rate == 0:
+            new_stop_loss = (
+                signal_mdl.close - self._get_stop_loss_atr_coeff() * signal_mdl.atr
+            )
+
+            if stop_loss < new_stop_loss:
+                stop_loss = new_stop_loss
+
+        return stop_loss
+
+    def _get_trailing_take_profit(
+        self, position_mdl: cmn.OrderModel, signal_mdl: cmn.SignalModel
+    ) -> float:
+        take_profit = position_mdl.take_profit
+
+        # Take Profit calculation is performed only when Static Take Profit = 0
+        if self._session_mdl.take_profit_rate == 0:
+            stop_loss = self._get_trailing_stop_loss(
+                position_mdl=position_mdl, signal_mdl=signal_mdl
+            )
+
+            # If price is break-even and 80% from take profit -> recalculate take profit based on ATR
+            if stop_loss >= position_mdl.open_price:
+                take_profit_value = position_mdl.take_profit - position_mdl.open_price
+                current_value = signal_mdl.close - position_mdl.open_price
+
+                # Canlculate percent of current price from take profit price
+                current_price_percent_from_take_profit = (
+                    current_value / take_profit_value
+                )
+
+                if current_price_percent_from_take_profit >= 0.8:
+                    new_take_profit = (
+                        signal_mdl.close
+                        + self._get_take_profit_atr_coeff() * signal_mdl.atr
+                    )
+
+                    if take_profit < new_take_profit:
+                        take_profit = new_take_profit
+
+        return take_profit
 
 
 class Robot:

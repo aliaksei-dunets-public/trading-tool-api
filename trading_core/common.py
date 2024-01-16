@@ -44,6 +44,7 @@ class StrategyType(str, Enum):
     CCI_14_100_TRENDS_DIRECTION = "CCI_14_100_TRENDS_DIRECTION"
     CCI_50_TREND_0 = "CCI_50_TREND_0"
     EMA_8_CROSS_EMA_30_FILTER_CCI_14 = "EMA_8_CROSS_EMA_30_FILTER_CCI_14"
+    EMA_8_CROSS_EMA_30_FILTER_CCI_20 = "EMA_8_CROSS_EMA_30_FILTER_CCI_20"
 
 
 class Importance(str, Enum):
@@ -123,6 +124,13 @@ class SignalType(str, Enum):
     SELL = "Sell"
     DEBUG_SIGNAL = "Debug"
     NONE = ""
+
+
+class TrendDirectionType(str, Enum):
+    TREND_UP = "UpTrend"
+    TREND_DOWN = "DownTrend"
+    STRONG_TREND_UP = "StrongUpTrend"
+    STRONG_TREND_DOWN = "StrongDownTrend"
 
 
 class SymbolStatus(str, Enum):
