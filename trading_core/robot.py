@@ -1,8 +1,7 @@
 from decimal import Decimal, ROUND_DOWN
 from datetime import datetime
 from bson import ObjectId
-
-from trading_core.common import OrderModel, TrailingStopModel
+import logging
 
 from .core import Const
 import trading_core.common as cmn
@@ -17,14 +16,6 @@ from .handler import (
     buffer_runtime_handler,
 )
 
-import logging
-
-# Set up logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler()],
-)
 
 logger = logging.getLogger("robot")
 
@@ -912,7 +903,9 @@ class LeverageManagerBase(DataManagerBase):
 
 
 class LeverageApiManager(LeverageManagerBase):
-    def get_position(self, order_id: str = None, position_id: str = None) -> OrderModel:
+    def get_position(
+        self, order_id: str = None, position_id: str = None
+    ) -> cmn.OrderModel:
         position_mdl = self._exchange_handler.get_open_position(
             symbol=self._session_mdl.symbol,
             order_id=order_id,
@@ -964,7 +957,9 @@ class LeverageApiManager(LeverageManagerBase):
         return order_close_mdl
 
     def recalculate_position_by_ref(
-        self, signal_mdl: cmn.SignalModel, trailing_stop_mdl: TrailingStopModel = None
+        self,
+        signal_mdl: cmn.SignalModel,
+        trailing_stop_mdl: cmn.TrailingStopModel = None,
     ) -> cmn.TrailingStopModel:
         if trailing_stop_mdl:
             logger.info(
@@ -1294,24 +1289,13 @@ class SideManager:
         self, position_mdl: cmn.OrderModel, signal_mdl: cmn.SignalModel
     ) -> cmn.TrailingStopModel:
         if self._session_mdl.is_trailing_stop == True and signal_mdl.atr:
-            # # Current Stop Loss and Take Profit
-            # take_profit = position_mdl.take_profit
-            # stop_loss = position_mdl.stop_loss
-
-            # # Stop Loss calculation
-            # if self._session_mdl.stop_loss_rate == 0:
             stop_loss = self._get_trailing_stop_loss(
                 position_mdl=position_mdl, signal_mdl=signal_mdl
             )
 
-            # # Take Profit calculation is performed only when Static Take Profit = 0
-            # if self._session_mdl.take_profit_rate == 0:
             take_profit = self._get_trailing_take_profit(
                 position_mdl=position_mdl, signal_mdl=signal_mdl
             )
-
-            # if take_profit > new_take_profit:
-            #     take_profit = new_take_profit
 
             if (
                 take_profit != position_mdl.take_profit
@@ -1443,6 +1427,8 @@ class SellManager(SideManager):
                 signal_mdl.close + self._get_stop_loss_atr_coeff() * signal_mdl.atr
             )
 
+            new_stop_loss = round(new_stop_loss, 4)
+
             if stop_loss > new_stop_loss:
                 stop_loss = new_stop_loss
 
@@ -1474,6 +1460,8 @@ class SellManager(SideManager):
                         signal_mdl.close
                         - self._get_take_profit_atr_coeff() * signal_mdl.atr
                     )
+
+                    new_take_profit = round(new_take_profit, 4)
 
                     if take_profit > new_take_profit:
                         take_profit = new_take_profit
@@ -1556,6 +1544,8 @@ class BuyManager(SideManager):
                 signal_mdl.close - self._get_stop_loss_atr_coeff() * signal_mdl.atr
             )
 
+            new_stop_loss = round(new_stop_loss, 4)
+
             if stop_loss < new_stop_loss:
                 stop_loss = new_stop_loss
 
@@ -1587,6 +1577,8 @@ class BuyManager(SideManager):
                         signal_mdl.close
                         + self._get_take_profit_atr_coeff() * signal_mdl.atr
                     )
+
+                    new_take_profit = round(new_take_profit, 4)
 
                     if take_profit < new_take_profit:
                         take_profit = new_take_profit

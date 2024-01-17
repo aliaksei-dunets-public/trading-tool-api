@@ -9,9 +9,10 @@ import os
 import hmac
 import hashlib
 from enum import Enum
+import logging
 
 from .constants import Const
-from .core import logger, config
+from .core import config
 from .api import (
     ExchangeApiBase,
     DzengiComApi,
@@ -56,12 +57,17 @@ from .mongodb import (
     MongoTransaction,
 )
 
+logger = logging.getLogger("handler")
+
 
 class BufferBaseHandler:
     def __init__(self):
         self._buffer = {}
 
     def get_buffer(self, **kwargs) -> dict:
+        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+            logger.info(f"{self.__class__.__name__}: get_buffer({kwargs})")
+
         return self._buffer
 
     def is_data_in_buffer(self, **kwargs) -> bool:
@@ -69,15 +75,24 @@ class BufferBaseHandler:
 
     def set_buffer(self, buffer: dict):
         if buffer:
+            if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+                logger.info(f"{self.__class__.__name__}: set_buffer()")
+
             self._buffer = buffer
 
     def clear_buffer(self):
+        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+            logger.info(f"{self.__class__.__name__}: clear_buffer()")
+
         self._buffer.clear()
 
 
 class BufferSingleDictionary(BufferBaseHandler):
     def get_buffer(self, key: str) -> dict:
         if self.is_data_in_buffer(key):
+            if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+                logger.info(f"{self.__class__.__name__}: get_buffer({key})")
+
             return self._buffer[key]
         else:
             None
@@ -86,9 +101,13 @@ class BufferSingleDictionary(BufferBaseHandler):
         return key in self._buffer
 
     def set_buffer(self, key: str, data: dict):
+        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+            logger.info(f"{self.__class__.__name__}: set_buffer({key})")
         self._buffer[key] = data
 
     def remove_from_buffer(self, key: str):
+        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+            logger.info(f"{self.__class__.__name__}: remove_from_buffer({key})")
         self._buffer.pop(key)
 
 
@@ -101,7 +120,7 @@ class BufferHistoryDataHandler(BufferBaseHandler):
         limit = history_data_param.limit
         end_datetime = kwargs.get(Const.FLD_END_DATETIME)
 
-        buffer_key = self._get_buffer_key(symbol=symbol, interval=interval)
+        buffer_key = self.get_buffer_key(symbol=symbol, interval=interval)
         history_data_mdl_buffer: HistoryDataModel = self._buffer[buffer_key]
         df_buffer = history_data_mdl_buffer.data
 
@@ -118,31 +137,33 @@ class BufferHistoryDataHandler(BufferBaseHandler):
 
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
             logger.info(
-                f"{self.__class__.__name__}: getHistoryData({history_data_param.model_dump()})"
+                f"{self.__class__.__name__}: get_buffer({history_data_param.model_dump()})"
             )
 
         return history_data_required
 
-    def is_data_in_buffer(self, symbol: str, interval: str) -> bool:
-        buffer_key = self._get_buffer_key(symbol=symbol, interval=interval)
-        if buffer_key in self._buffer:
+    def is_data_in_buffer(self, buffer_key: tuple) -> bool:
+        if buffer_key and buffer_key in self._buffer:
             return True
         else:
             return False
 
     def set_buffer(self, buffer: HistoryDataModel):
         if buffer:
-            buffer_key = self._get_buffer_key(
+            buffer_key = self.get_buffer_key(
                 symbol=buffer.symbol,
                 interval=buffer.interval,
             )
+
+            if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+                logger.info(f"{self.__class__.__name__}: set_buffer({buffer_key})")
+
             self._buffer[buffer_key] = buffer
 
     def validate_data_in_buffer(
-        self, symbol: str, interval: str, limit: int, end_datetime: datetime
+        self, buffer_key: tuple, limit: int, end_datetime: datetime
     ) -> bool:
-        if self.is_data_in_buffer(symbol=symbol, interval=interval):
-            buffer_key = self._get_buffer_key(symbol=symbol, interval=interval)
+        if self.is_data_in_buffer(buffer_key):
             history_data_mdl_buffer: HistoryDataModel = self._buffer[buffer_key]
             if (
                 limit <= history_data_mdl_buffer.limit
@@ -155,12 +176,12 @@ class BufferHistoryDataHandler(BufferBaseHandler):
         else:
             return False
 
-    def _get_buffer_key(self, symbol: str, interval: str) -> tuple:
+    def get_buffer_key(self, symbol: str, interval: IntervalType) -> tuple:
         if not symbol or not interval:
             Exception(
-                f"History Data buffer key is invalid: symbol: {symbol}, interval: {interval}"
+                f"History Data buffer key is invalid: symbol: {symbol}, interval: {interval.value}"
             )
-        buffer_key = (symbol, interval)
+        buffer_key = (symbol, interval.value)
         return buffer_key
 
 
@@ -1197,8 +1218,11 @@ class HistoryDataHandler(BaseOnExchangeHandler):
         is_buffer = param.from_buffer
         closed_bars = param.closed_bars
 
+        # Get buffer Key
+        buffer_key = self.__buffer_inst.get_buffer_key(symbol=symbol, interval=interval)
+
         # If Data is in buffer for Symbol and Interval
-        if self.__buffer_inst.is_data_in_buffer(symbol=symbol, interval=interval):
+        if self.__buffer_inst.is_data_in_buffer(buffer_key):
             # Get endDatetime for History Data
             end_datetime = self._exchange_handler.get_end_datetime(
                 interval=interval, closed_bars=closed_bars
@@ -1206,7 +1230,7 @@ class HistoryDataHandler(BaseOnExchangeHandler):
 
             # If it reruires to read from the buffer and buffer data is valid -> get hidtory data from the buffer
             if is_buffer and self.__buffer_inst.validate_data_in_buffer(
-                symbol=symbol, interval=interval, limit=limit, end_datetime=end_datetime
+                buffer_key=buffer_key, limit=limit, end_datetime=end_datetime
             ):
                 # Get history data from the buffer for the parameters
                 history_data_mdl = self.__buffer_inst.get_buffer(

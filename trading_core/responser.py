@@ -13,11 +13,10 @@ import os
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-import urllib.parse
-
+import logging
 
 from .constants import Const
-from .core import config, logger
+from .core import config
 from .mongodb import MongoJobs, MongoSimulations
 from .handler import ExchangeHandler, AlertHandler
 from .trend import TrendCCI
@@ -60,6 +59,8 @@ from trading_core.handler import (
 from trading_core.robot import Robot, SessionManager
 
 load_dotenv()
+
+logger = logging.getLogger("responser")
 
 
 def decorator_json(func) -> str:

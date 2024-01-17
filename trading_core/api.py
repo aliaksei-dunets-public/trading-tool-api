@@ -35,12 +35,12 @@ from .constants import Const
 
 import logging
 
-# Set up logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler()],
-)
+# # Set up logging
+# logging.basicConfig(
+#     level=logging.INFO,
+#     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+#     handlers=[logging.StreamHandler()],
+# )
 
 logger = logging.getLogger("api")
 
@@ -615,12 +615,35 @@ class ByBitComApi(ExchangeApiBase):
         order_id: str = None,
         position_id: str = None,
     ) -> OrderCloseModel:
-        open_position = self.get_open_position(
-            symbol=symbol, order_id=order_id, position_id=position_id
-        )
+        open_order_exist = self._check_open_position(symbol)
 
-        if not open_position:
-            return self._get_close_position(symbol=symbol)
+        if not open_order_exist:
+            history_order_mdls = self._get_order_history(symbol=symbol, limit=10)
+
+            open_order_mdl = list(
+                filter(lambda x: x.order_id == order_id, history_order_mdls)
+            )[0]
+
+            if not open_order_mdl:
+                return None
+
+            closed_order_mdl = list(
+                filter(
+                    lambda x: x.side
+                    == self._convert_side_for_closing_order(open_order_mdl.side)
+                    and x.type == open_order_mdl.type
+                    and x.quantity == open_order_mdl.quantity
+                    and x.open_datetime >= open_order_mdl.open_datetime,
+                    history_order_mdls,
+                )
+            )[0]
+
+            if closed_order_mdl:
+                return self._get_close_position(
+                    symbol=symbol, order_id=closed_order_mdl.order_id
+                )
+            else:
+                return None
 
     def create_leverage(self, position_mdl: LeverageModel) -> LeverageModel:
         created_ids = self._place_order(position_mdl=position_mdl)
@@ -655,10 +678,8 @@ class ByBitComApi(ExchangeApiBase):
         if not openned_posision_mdl:
             return None
 
-        openned_posision_mdl.side = (
-            OrderSideType.buy
-            if openned_posision_mdl.side == OrderSideType.sell
-            else OrderSideType.sell
+        openned_posision_mdl.side = self._convert_side_for_closing_order(
+            openned_posision_mdl.side
         )
         openned_posision_mdl.leverage = 0
         openned_posision_mdl.take_profit = 0
@@ -810,7 +831,7 @@ class ByBitComApi(ExchangeApiBase):
         api_positions = json_api_response["result"]["list"]
 
         for position in api_positions:
-            closed_reason = ""
+            closed_reason = OrderReason.NONE
             api_stop_order_type = position["stopOrderType"]
             if api_stop_order_type:
                 if api_stop_order_type == "TakeProfit":
@@ -866,7 +887,11 @@ class ByBitComApi(ExchangeApiBase):
 
             if closed_mdl:
                 closed_mdl.fee = closed_position_mdl.fee
-                closed_mdl.close_reason = closed_position_mdl.close_reason
+                closed_mdl.close_reason = (
+                    closed_position_mdl.close_reason
+                    if closed_position_mdl.close_reason
+                    else OrderReason.TRADER
+                )
                 return closed_mdl
 
         return None
@@ -967,7 +992,7 @@ class ByBitComApi(ExchangeApiBase):
 
         return created_ids
 
-    def _get_closed_pnl(self, symbol: str, limit: int = 10) -> dict:
+    def _get_closed_pnl(self, symbol: str, limit: int = 2) -> dict:
         closed_pnl_positions = {}
 
         params = {"category": self.CATEGORY_LINEAR, "symbol": symbol, "limit": limit}
@@ -1104,6 +1129,15 @@ class ByBitComApi(ExchangeApiBase):
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
             logger.error(message_text)
         raise APIException(message_text)
+
+    def _convert_side_for_closing_order(
+        self, open_order_side: OrderSideType
+    ) -> OrderSideType:
+        return (
+            OrderSideType.buy
+            if open_order_side == OrderSideType.sell
+            else OrderSideType.sell
+        )
 
 
 class DemoByBitComApi(ByBitComApi):

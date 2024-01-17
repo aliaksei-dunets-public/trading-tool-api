@@ -15,11 +15,11 @@ database = client[Const.DATABASE_NAME]
 # traders -> user_id_exchange_asc | REGULAR | UNIQUE/COMPOUND
 
 # Set up logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler()],
-)
+# logging.basicConfig(
+#     level=logging.INFO,
+#     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+#     handlers=[logging.StreamHandler()],
+# )
 
 logger = logging.getLogger("db")
 

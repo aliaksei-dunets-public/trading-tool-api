@@ -3,26 +3,18 @@ from dotenv import load_dotenv
 from datetime import datetime
 import logging
 
-# from logging.handlers import TimedRotatingFileHandler
-
 from .constants import Const
 
 load_dotenv()
 
-# Set up logging
-log_file_prefix = f"{os.getcwd()}/static/logs/"
-log_file_suffix = ".log"
-date_format = "%Y-%m-%d"
-current_date = datetime.utcnow().strftime(date_format)
-log_file_name = log_file_prefix + current_date + log_file_suffix
+logger_format = os.getenv("LOGGER_FORMAT")
+if not logger_format:
+    logger_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[
-        # TimedRotatingFileHandler(log_file_name, when='midnight', backupCount=7),
-        logging.StreamHandler()
-    ],
+    format=logger_format,
+    handlers=[logging.StreamHandler()],
 )
 
 logger = logging.getLogger("core")

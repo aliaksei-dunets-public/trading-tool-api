@@ -80,8 +80,12 @@ class SignalFactory:
 
         # Take signal from buffer
         buffer_key = self._get_buffer_key(
-            symbol=param.symbol, interval=param.interval, strategy=param.strategy
+            trader_id=param.trader_id,
+            symbol=param.symbol,
+            interval=param.interval.value,
+            strategy=param.strategy.value,
         )
+
         if self.__buffer_inst.is_data_in_buffer(key=buffer_key):
             signal_mdl = self.__buffer_inst.get_buffer(key=buffer_key)
 
@@ -128,12 +132,18 @@ class SignalFactory:
                 f"{self.__class__.__name__}: Error during get_signal({param.model_dump()})"
             )
 
-    def _get_buffer_key(self, symbol: str, interval: str, strategy: str) -> tuple:
+    def _get_buffer_key(
+        self, trader_id: str, symbol: str, interval: str, strategy: str
+    ) -> tuple:
         if not symbol or not interval or not strategy:
             Exception(
                 f"{self.__class__.__name__} Buffer key is invalid: symbol: {symbol}, interval: {interval}, strategy: {strategy}"
             )
-        buffer_key = (symbol, interval, strategy)
+        buffer_key = (trader_id, symbol, interval, strategy)
+
+        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+            logger.info(f"{self.__class__.__name__} Signal buffer key - {buffer_key}")
+
         return buffer_key
 
 
