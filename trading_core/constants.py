@@ -37,6 +37,7 @@ class Const:
     DB_OPEN_PRICE = "open_price"
     DB_OPEN_DATETIME = "open_datetime"
     DB_OPEN_REASON = "open_reason"
+    DB_CLOSE_ORDER_ID = "close_order_id"
     DB_CLOSE_PRICE = "close_price"
     DB_CLOSE_DATETIME = "close_datetime"
     DB_CLOSE_REASON = "close_reason"

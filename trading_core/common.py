@@ -568,6 +568,7 @@ class OrderOpenModel(BaseModel):
 
 class OrderCloseModel(BaseModel):
     status: OrderStatus = OrderStatus.new
+    close_order_id: str = ""
     close_price: float = 0
     close_datetime: datetime = datetime.now()
     close_reason: OrderReason = OrderReason.NONE
@@ -576,6 +577,7 @@ class OrderCloseModel(BaseModel):
 
     def to_mongodb_doc(self):
         return {
+            "close_order_id": self.close_order_id,
             "status": self.status,
             "close_price": self.close_price,
             "close_datetime": self.close_datetime,
@@ -606,7 +608,8 @@ class TrailingStopModel(BaseModel):
             delta = self._calculate_delta(
                 side=side, current_price=self.stop_loss, open_price=open_price
             )
-            self.stop_loss_percent = (delta / open_price) * 100
+            self.stop_loss_percent = round((delta / open_price) * 100, 3)
+
             return self.stop_loss_percent
 
     def calculate_take_profit_percent(
@@ -618,7 +621,7 @@ class TrailingStopModel(BaseModel):
             else:
                 delta = open_price - self.take_profit
 
-            self.take_profit_percent = (delta / open_price) * 100
+            self.take_profit_percent = round((delta / open_price) * 100, 3)
             return self.take_profit_percent
 
     def to_mongodb_doc(self):
@@ -723,6 +726,7 @@ class OrderModel(
             "open_price": self.open_price,
             "open_datetime": self.open_datetime,
             "open_reason": self.open_reason,
+            "close_order_id": self.close_order_id,
             "close_price": self.close_price,
             "close_datetime": self.close_datetime,
             "close_reason": self.close_reason,
@@ -764,6 +768,7 @@ class LeverageModel(OrderModel):
             "open_price": self.open_price,
             "open_datetime": self.open_datetime,
             "open_reason": self.open_reason,
+            "close_order_id": self.close_order_id,
             "close_price": self.close_price,
             "close_datetime": self.close_datetime,
             "close_reason": self.close_reason,
