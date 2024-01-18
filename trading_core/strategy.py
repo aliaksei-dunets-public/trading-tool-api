@@ -187,6 +187,15 @@ class StrategyFactory:
             StrategyType.EMA_8_CROSS_EMA_30_FILTER_CCI_20,
         ]:
             strategy_instance = EMA_8_CROSS_EMA_30_FILTER_CCI_20(strategy_config_mdl)
+        elif strategy in [
+            StrategyType.EMA_8_CROSS_EMA_30,
+        ]:
+            strategy_instance = EMA_8_CROSS_EMA_30(strategy_config_mdl)
+        elif strategy in [
+            StrategyType.EMA_30_CROSS_EMA_100,
+        ]:
+            strategy_instance = EMA_30_CROSS_EMA_100(strategy_config_mdl)
+
         else:
             raise Exception(
                 f"{StrategyFactory.__name__}: Strategy {strategy} isn't implemented"
@@ -253,6 +262,20 @@ class StrategyFactory:
                 length=20,
                 miv_value=-100,
                 max_value=100,
+            ),
+            StrategyType.EMA_8_CROSS_EMA_30: StrategyConfigModel(
+                strategy=StrategyType.EMA_8_CROSS_EMA_30,
+                name="EMA 8 cross EMA 30",
+                length=14,
+                miv_value=-100,
+                max_value=100,
+            ),
+            StrategyType.EMA_30_CROSS_EMA_100: StrategyConfigModel(
+                strategy=StrategyType.EMA_30_CROSS_EMA_100,
+                name="EMA 30 crosses EMA 100",
+                length=0,
+                miv_value=0,
+                max_value=0,
             ),
         }
 
@@ -947,7 +970,7 @@ class EMA_8_CROSS_EMA_30_FILTER_CCI_20(StrategyBase):
             ta=[
                 {
                     "kind": "cci",
-                    "length": 14,
+                    "length": 20,
                     "col_names": (self.CCI_COLUMN_NAME, "MULTIPROCESSING_OFF"),
                 },
                 {
@@ -996,7 +1019,7 @@ class EMA_8_CROSS_EMA_30_FILTER_CCI_20(StrategyBase):
         for i in range(len(df)):
             decision = ""
 
-            if i < 2:
+            if i < 1:
                 signals.append(decision)
                 continue
 
@@ -1109,5 +1132,284 @@ class EMA_8_CROSS_EMA_30_FILTER_CCI_20(StrategyBase):
                 decision = SignalType.STRONG_SELL
             elif previous_value < self._min_value:
                 decision = SignalType.STRONG_BUY
+
+        return decision
+
+
+class EMA_8_CROSS_EMA_30(StrategyBase):
+    CCI_COLUMN_NAME = "CCI"
+    ATR_COLUMN_NAME = "ATR"
+    EMA_8_COLUMN_NAME = "EMA_8"
+    EMA_30_COLUMN_NAME = "EMA_30"
+
+    def get_strategy_data(self, param: StrategyParamModel):
+        super().get_strategy_data(param)
+        default_limit = 32
+        limit = param.limit + default_limit
+
+        history_data_param = HistoryDataParamModel(**param.model_dump())
+        history_data_param.limit = limit
+
+        history_data_mdl = buffer_runtime_handler.get_history_data_handler(
+            trader_id=param.trader_id
+        ).get_history_data(history_data_param)
+
+        # Create your own Custom Strategy
+        CustomStrategy = ta.Strategy(
+            name="EMA_8_CROSS_EMA_30_FILTER_CCI_14",
+            description="EMA 8 crosses EMA 30 with filter CCI(14) +/- 100",
+            ta=[
+                {
+                    "kind": "cci",
+                    "length": 20,
+                    "col_names": (self.CCI_COLUMN_NAME, "MULTIPROCESSING_OFF"),
+                },
+                {
+                    "kind": "atr",
+                    "length": 14,
+                    "col_names": (self.ATR_COLUMN_NAME),
+                },
+                {
+                    "kind": "ema",
+                    "length": 8,
+                    "col_names": (self.EMA_8_COLUMN_NAME),
+                },
+                {
+                    "kind": "ema",
+                    "length": 30,
+                    "col_names": (self.EMA_30_COLUMN_NAME),
+                },
+            ],
+        )
+        # To run your "Custom Strategy"
+        df = pd.DataFrame(history_data_mdl.data)
+        df.ta.strategy(CustomStrategy)
+
+        df = df.dropna(
+            subset=[
+                self.CCI_COLUMN_NAME,
+                self.CCI_COLUMN_NAME,
+                self.EMA_8_COLUMN_NAME,
+                self.EMA_30_COLUMN_NAME,
+            ]
+        )
+
+        df.insert(df.shape[1], Const.PARAM_SIGNAL, self._determineSignal(df))
+
+        return df
+
+    def _determineSignal(self, df):
+        signals = []
+
+        for i in range(len(df)):
+            decision = ""
+
+            if i < 2:
+                signals.append(decision)
+                continue
+
+            current_bar = df.iloc[i]
+            current_cci = current_bar[self.CCI_COLUMN_NAME]
+
+            previous_bar = df.iloc[i - 1]
+
+            decision = self._get_ema_signal(
+                target_series=current_bar, previous_series=previous_bar
+            )
+
+            if (
+                decision == SignalType.STRONG_BUY
+                and current_cci >= self._strategy_config_mdl.max_value
+            ):
+                pass
+            elif (
+                decision == SignalType.STRONG_SELL
+                and current_cci <= self._strategy_config_mdl.miv_value
+            ):
+                pass
+            else:
+                decision = SignalType.NONE
+
+            signals.append(decision)
+
+        return signals
+
+    def _get_trend_direction(self, ema_short, ema_long) -> TrendDirectionType:
+        delta = ema_short - ema_long
+        return (
+            TrendDirectionType.TREND_UP if delta > 0 else TrendDirectionType.TREND_DOWN
+        )
+
+    def _get_ema_signal(self, target_series, previous_series) -> SignalType:
+        decision = SignalType.NONE
+
+        target_ema_8 = target_series[self.EMA_8_COLUMN_NAME]
+        target_ema_30 = target_series[self.EMA_30_COLUMN_NAME]
+
+        previous_ema_8 = previous_series[self.EMA_8_COLUMN_NAME]
+        previous_ema_30 = previous_series[self.EMA_30_COLUMN_NAME]
+
+        target_ema_8_30_trend = self._get_trend_direction(
+            ema_short=target_ema_8, ema_long=target_ema_30
+        )
+        previous_ema_8_30_trend = self._get_trend_direction(
+            ema_short=previous_ema_8, ema_long=previous_ema_30
+        )
+
+        if target_ema_8_30_trend == TrendDirectionType.TREND_UP:
+            # Current - LONG
+            if previous_ema_8_30_trend == TrendDirectionType.TREND_DOWN:
+                # Previous - SHORT
+                decision = SignalType.STRONG_BUY
+            else:
+                decision = SignalType.NONE
+
+        else:
+            # Current - SHORT
+            if previous_ema_8_30_trend == TrendDirectionType.TREND_UP:
+                # Previous - LONG
+                decision = SignalType.STRONG_SELL
+            else:
+                decision = SignalType.NONE
+
+        return decision
+
+
+class EMA_30_CROSS_EMA_100(StrategyBase):
+    CCI_COLUMN_NAME = "CCI"
+    ATR_COLUMN_NAME = "ATR"
+    EMA_30_COLUMN_NAME = "EMA_30"
+    EMA_100_COLUMN_NAME = "EMA_100"
+
+    def get_strategy_data(self, param: StrategyParamModel):
+        super().get_strategy_data(param)
+        default_limit = 102
+        limit = param.limit + default_limit
+
+        history_data_param = HistoryDataParamModel(**param.model_dump())
+        history_data_param.limit = limit
+
+        history_data_mdl = buffer_runtime_handler.get_history_data_handler(
+            trader_id=param.trader_id
+        ).get_history_data(history_data_param)
+
+        # Create your own Custom Strategy
+        CustomStrategy = ta.Strategy(
+            name="EMA_8_CROSS_EMA_30_FILTER_CCI_14",
+            description="EMA 8 crosses EMA 30 with filter CCI(14) +/- 100",
+            ta=[
+                {
+                    "kind": "cci",
+                    "length": 20,
+                    "col_names": (self.CCI_COLUMN_NAME, "MULTIPROCESSING_OFF"),
+                },
+                {
+                    "kind": "atr",
+                    "length": 14,
+                    "col_names": (self.ATR_COLUMN_NAME),
+                },
+                {
+                    "kind": "ema",
+                    "length": 30,
+                    "col_names": (self.EMA_30_COLUMN_NAME),
+                },
+                {
+                    "kind": "ema",
+                    "length": 100,
+                    "col_names": (self.EMA_100_COLUMN_NAME),
+                },
+            ],
+        )
+        # To run your "Custom Strategy"
+        df = pd.DataFrame(history_data_mdl.data)
+        df.ta.strategy(CustomStrategy)
+
+        df = df.dropna(
+            subset=[
+                self.CCI_COLUMN_NAME,
+                self.CCI_COLUMN_NAME,
+                self.EMA_30_COLUMN_NAME,
+                self.EMA_100_COLUMN_NAME,
+            ]
+        )
+
+        df.insert(df.shape[1], Const.PARAM_SIGNAL, self._determineSignal(df))
+
+        return df
+
+    def _determineSignal(self, df):
+        signals = []
+
+        for i in range(len(df)):
+            decision = ""
+
+            if i < 1:
+                signals.append(decision)
+                continue
+
+            current_bar = df.iloc[i]
+            current_cci = current_bar[self.CCI_COLUMN_NAME]
+
+            previous_bar = df.iloc[i - 1]
+
+            decision = self._get_ema_signal(
+                target_series=current_bar, previous_series=previous_bar
+            )
+
+            if (
+                decision == SignalType.STRONG_BUY
+                and current_cci >= self._strategy_config_mdl.max_value
+            ):
+                pass
+            elif (
+                decision == SignalType.STRONG_SELL
+                and current_cci <= self._strategy_config_mdl.miv_value
+            ):
+                pass
+            else:
+                decision = SignalType.NONE
+
+            signals.append(decision)
+
+        return signals
+
+    def _get_trend_direction(self, ema_short, ema_long) -> TrendDirectionType:
+        delta = ema_short - ema_long
+        return (
+            TrendDirectionType.TREND_UP if delta > 0 else TrendDirectionType.TREND_DOWN
+        )
+
+    def _get_ema_signal(self, target_series, previous_series) -> SignalType:
+        decision = SignalType.NONE
+
+        target_ema_30 = target_series[self.EMA_30_COLUMN_NAME]
+        target_ema_100 = target_series[self.EMA_100_COLUMN_NAME]
+
+        previous_ema_30 = previous_series[self.EMA_30_COLUMN_NAME]
+        previous_ema_100 = previous_series[self.EMA_100_COLUMN_NAME]
+
+        target_ema_30_100_trend = self._get_trend_direction(
+            ema_short=target_ema_30, ema_long=target_ema_100
+        )
+
+        previous_ema_30_100_trend = self._get_trend_direction(
+            ema_short=previous_ema_30, ema_long=previous_ema_100
+        )
+
+        if target_ema_30_100_trend == TrendDirectionType.TREND_UP:
+            # Current - LONG
+            if previous_ema_30_100_trend == TrendDirectionType.TREND_DOWN:
+                # Previous - SHORT
+                decision = SignalType.STRONG_BUY
+            else:
+                decision = SignalType.NONE
+
+        else:
+            # Current - SHORT
+            if previous_ema_30_100_trend == TrendDirectionType.TREND_UP:
+                # Previous - LONG
+                decision = SignalType.STRONG_SELL
+            else:
+                decision = SignalType.NONE
 
         return decision
