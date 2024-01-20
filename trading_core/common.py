@@ -325,7 +325,8 @@ class SymbolModel(SymbolIdModel):
 
 
 class SignalModel(CandelBarModel, StrategyParamModel):
-    atr: float = None
+    stop_loss_value: float = None
+    take_profit_value: float = None
     signal: SignalType = SignalType.NONE
 
     def is_compatible(self, signal_types: list = []) -> bool:
@@ -557,6 +558,8 @@ class OrderOpenModel(BaseModel):
     open_datetime: datetime = datetime.now()
     open_reason: OrderReason = OrderReason.NONE
     open_atr: float = None
+    open_stop_loss_value: float = None
+    open_take_profit_value: float = None
 
     def to_mongodb_doc(self):
         return {
@@ -592,6 +595,7 @@ class OrderCloseModel(BaseModel):
 class TrailingStopModel(BaseModel):
     stop_loss: float = 0
     take_profit: float = 0
+    tp_increment: int = 0
     stop_loss_percent: float = 0
     take_profit_percent: float = 0
 
@@ -630,6 +634,7 @@ class TrailingStopModel(BaseModel):
         return {
             "stop_loss": self.stop_loss,
             "take_profit": self.take_profit,
+            "tp_increment": self.tp_increment,
         }
 
 
@@ -725,6 +730,7 @@ class OrderModel(
             "fee": self.fee,
             "stop_loss": self.stop_loss,
             "take_profit": self.take_profit,
+            "tp_increment": self.tp_increment,
             "open_price": self.open_price,
             "open_datetime": self.open_datetime,
             "open_reason": self.open_reason,
@@ -767,6 +773,7 @@ class LeverageModel(OrderModel):
             "leverage": self.leverage,
             "stop_loss": self.stop_loss,
             "take_profit": self.take_profit,
+            "tp_increment": self.tp_increment,
             "open_price": self.open_price,
             "open_datetime": self.open_datetime,
             "open_reason": self.open_reason,

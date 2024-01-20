@@ -20,7 +20,7 @@ from .common import (
     TraderSymbolIntervalLimitModel,
 )
 from .handler import buffer_runtime_handler, ExchangeHandler
-from .indicator import Indicator_CCI, Indicator_ATR, Indicator_CCI_ATR
+from .indicator import Indicator_CCI_ATR
 from .trend import TrendCCI
 
 
@@ -115,7 +115,8 @@ class SignalFactory:
                 low=strategy_row["Low"],
                 close=strategy_row["Close"],
                 volume=strategy_row["Volume"],
-                atr=strategy_row[IndicatorType.ATR.value],
+                stop_loss_value=strategy_row[Const.FLD_STOP_LOSS_VALUE],
+                take_profit_value=strategy_row[Const.FLD_TAKE_PROFIT_VALUE],
                 signal=strategy_row[Const.PARAM_SIGNAL],
             )
             break
@@ -235,13 +236,6 @@ class StrategyFactory:
                 miv_value=-100,
                 max_value=100,
             ),
-            # StrategyType.CCI_14_100_TREND_UP_LEVEL: StrategyConfigModel(
-            #     strategy=StrategyType.CCI_14_100_TREND_UP_LEVEL,
-            #     name="Check Trend Up Level and CCI(14) +/- 100",
-            #     length=14,
-            #     miv_value=-100,
-            #     max_value=100,
-            # ),
             StrategyType.CCI_14_100_TRENDS_DIRECTION: StrategyConfigModel(
                 strategy=StrategyType.CCI_14_100_TRENDS_DIRECTION,
                 name="Quick positions for Trends and CCI(14) +/- 100",
@@ -273,9 +267,9 @@ class StrategyFactory:
             StrategyType.EMA_30_CROSS_EMA_100: StrategyConfigModel(
                 strategy=StrategyType.EMA_30_CROSS_EMA_100,
                 name="EMA 30 crosses EMA 100",
-                length=0,
-                miv_value=0,
-                max_value=0,
+                length=20,
+                miv_value=-100,
+                max_value=100,
             ),
         }
 
@@ -333,6 +327,12 @@ class StrategyBase:
                 f"{self.__class__.__name__}: get_strategy_data({param.model_dump()})"
             )
 
+    def _determine_stop_loss_value(self, df: pd.DataFrame):
+        pass
+
+    def _determine_take_profit_value(self, df: pd.DataFrame):
+        pass
+
 
 class Strategy_CCI(StrategyBase):
     def __init__(self, strategy_config_mdl: StrategyConfigModel):
@@ -353,12 +353,26 @@ class Strategy_CCI(StrategyBase):
 
         cci_df = self._cci.get_indicator_by_history_data(history_data_mdl)
         cci_df.insert(
-            cci_df.shape[1], Const.PARAM_SIGNAL, self._determineSignal(cci_df)
+            cci_df.shape[1], Const.PARAM_SIGNAL, self._determine_signal(cci_df)
+        )
+
+        # Determive Stop Loss Value = 2 * ATR
+        cci_df.insert(
+            cci_df.shape[1],
+            Const.FLD_STOP_LOSS_VALUE,
+            self._determine_stop_loss_value(cci_df),
+        )
+
+        # Determive Take Profit Value = 3 * ATR
+        cci_df.insert(
+            cci_df.shape[1],
+            Const.FLD_TAKE_PROFIT_VALUE,
+            self._determine_take_profit_value(cci_df),
         )
 
         return cci_df
 
-    def _determineSignal(self, cci_df):
+    def _determine_signal(self, cci_df):
         signals = []
 
         for i in range(len(cci_df)):
@@ -378,6 +392,24 @@ class Strategy_CCI(StrategyBase):
             signals.append(decision)
 
         return signals
+
+    def _determine_stop_loss_value(self, df: pd.DataFrame):
+        values = []
+
+        for i in range(len(df)):
+            value = 2 * df.iloc[i][Const.FLD_ATR]
+            values.append(value)
+
+        return values
+
+    def _determine_take_profit_value(self, df: pd.DataFrame):
+        values = []
+
+        for i in range(len(df)):
+            value = 3 * df.iloc[i][Const.FLD_ATR]
+            values.append(value)
+
+        return values
 
     def _get_signal_decision(self, current_value, previous_value):
         decision = ""
@@ -523,12 +555,26 @@ class StrategyDirectionBasedTrend_CCI(Strategy_CCI_Trend_Base):
         merged_df.insert(
             cci_df.shape[1],
             Const.PARAM_SIGNAL,
-            self._determineSignal(merged_df),
+            self._determine_signal(merged_df),
+        )
+
+        # Determive Stop Loss Value = 2 * ATR
+        merged_df.insert(
+            merged_df.shape[1],
+            Const.FLD_STOP_LOSS_VALUE,
+            self._determine_stop_loss_value(merged_df),
+        )
+
+        # Determive Take Profit Value = 3 * ATR
+        merged_df.insert(
+            merged_df.shape[1],
+            Const.FLD_TAKE_PROFIT_VALUE,
+            self._determine_take_profit_value(merged_df),
         )
 
         return merged_df
 
-    def _determineSignal(self, cci_df):
+    def _determine_signal(self, cci_df):
         signals = []
 
         for i in range(len(cci_df)):
@@ -637,12 +683,26 @@ class Strategy_CCI_100_TrendUpLevel(Strategy_CCI_Trend_Base):
         merged_df.insert(
             cci_df.shape[1],
             Const.PARAM_SIGNAL,
-            self._determineSignal(merged_df),
+            self._determine_signal(merged_df),
+        )
+
+        # Determive Stop Loss Value = 2 * ATR
+        merged_df.insert(
+            merged_df.shape[1],
+            Const.FLD_STOP_LOSS_VALUE,
+            self._determine_stop_loss_value(merged_df),
+        )
+
+        # Determive Take Profit Value = 3 * ATR
+        merged_df.insert(
+            merged_df.shape[1],
+            Const.FLD_TAKE_PROFIT_VALUE,
+            self._determine_take_profit_value(merged_df),
         )
 
         return merged_df
 
-    def _determineSignal(self, cci_df):
+    def _determine_signal(self, cci_df):
         signals = []
 
         for i in range(len(cci_df)):
@@ -720,12 +780,26 @@ class Strategy_CCI_100_TRENDS_QUICK_POSITIONS(Strategy_CCI_Trend_Base):
         merged_df.insert(
             cci_df.shape[1],
             Const.PARAM_SIGNAL,
-            self._determineSignal(merged_df),
+            self._determine_signal(merged_df),
+        )
+
+        # Determive Stop Loss Value = 2 * ATR
+        merged_df.insert(
+            merged_df.shape[1],
+            Const.FLD_STOP_LOSS_VALUE,
+            self._determine_stop_loss_value(merged_df),
+        )
+
+        # Determive Take Profit Value = 3 * ATR
+        merged_df.insert(
+            merged_df.shape[1],
+            Const.FLD_TAKE_PROFIT_VALUE,
+            self._determine_take_profit_value(merged_df),
         )
 
         return merged_df
 
-    def _determineSignal(self, cci_df):
+    def _determine_signal(self, cci_df):
         signals = []
         trend_up_level = None
 
@@ -746,13 +820,6 @@ class Strategy_CCI_100_TRENDS_QUICK_POSITIONS(Strategy_CCI_Trend_Base):
                 trend_up_level = cci_df.iloc[i, 8]
 
             decision = self._get_signal_decision(current_value, previous_value)
-
-            # if trend == Const.STRONG_TREND_UP:
-            #     if decision != Const.STRONG_BUY:
-            #         decision = ""
-            # elif trend == Const.STRONG_TREND_DOWN:
-            #     if decision != Const.STRONG_SELL:
-            #         decision = ""
 
             if trend_up_level in [Const.STRONG_TREND_UP, Const.STRONG_TREND_DOWN]:
                 decision = self._get_decision_base_trend(
@@ -807,12 +874,6 @@ class Strategy_EMA_8_CROSS_EMA_30_FILTER_CCI_14(StrategyBase):
                     "length": 30,
                     "col_names": (self.EMA_30_COLUMN_NAME),
                 },
-                # {
-                #     "kind": "macd",
-                #     "fast": 8,
-                #     "slow": 21,
-                #     "col_names": ("MACD", "MACD_H", "MACD_S"),
-                # },
             ],
         )
         # To run your "Custom Strategy"
@@ -828,11 +889,25 @@ class Strategy_EMA_8_CROSS_EMA_30_FILTER_CCI_14(StrategyBase):
             ]
         )
 
-        df.insert(df.shape[1], Const.PARAM_SIGNAL, self._determineSignal(df))
+        df.insert(df.shape[1], Const.PARAM_SIGNAL, self._determine_signal(df))
+
+        # Determive Stop Loss Value = 2 * ATR
+        df.insert(
+            df.shape[1],
+            Const.FLD_STOP_LOSS_VALUE,
+            self._determine_stop_loss_value(df),
+        )
+
+        # Determive Take Profit Value = 3 * ATR
+        df.insert(
+            df.shape[1],
+            Const.FLD_TAKE_PROFIT_VALUE,
+            self._determine_take_profit_value(df),
+        )
 
         return df
 
-    def _determineSignal(self, df):
+    def _determine_signal(self, df):
         signals = []
 
         for i in range(len(df)):
@@ -859,38 +934,27 @@ class Strategy_EMA_8_CROSS_EMA_30_FILTER_CCI_14(StrategyBase):
                 if current_cci >= self._strategy_config_mdl.miv_value:
                     decision = SignalType.NONE
 
-            # current_cci = df.iloc[i, 5]
-            # previous_cci = df.iloc[i - 1, 5]
-
-            # current_ema_8 = df.iloc[i, 7]
-            # previous_ema_8 = df.iloc[i - 1, 7]
-
-            # current_ema_30 = df.iloc[i, 8]
-            # previous_ema_30 = df.iloc[i - 1, 8]
-
-            # current_delta = current_ema_8 - current_ema_30
-            # previous_delta = previous_ema_8 - previous_ema_30
-
-            # if current_delta >= 0:
-            #     # Current - LONG
-            #     if previous_delta >= 0:
-            #         # Previous - LONG
-            #         pass
-            #     else:
-            #         # Previous - SHORT
-            #         decision = Const.STRONG_BUY
-            # else:
-            #     # SHORT
-            #     if previous_delta >= 0:
-            #         # Previous - LONG
-            #         decision = Const.STRONG_SELL
-            #     else:
-            #         # Previous - SHORT
-            #         pass
-
             signals.append(decision)
 
         return signals
+
+    def _determine_stop_loss_value(self, df: pd.DataFrame):
+        values = []
+
+        for i in range(len(df)):
+            value = 2 * df.iloc[i][Const.FLD_ATR]
+            values.append(value)
+
+        return values
+
+    def _determine_take_profit_value(self, df: pd.DataFrame):
+        values = []
+
+        for i in range(len(df)):
+            value = 3 * df.iloc[i][Const.FLD_ATR]
+            values.append(value)
+
+        return values
 
     def _get_ema_cross_signal(self, target_series, previous_series) -> SignalType:
         target_ema_8 = target_series[self.EMA_8_COLUMN_NAME]
@@ -1009,11 +1073,25 @@ class EMA_8_CROSS_EMA_30_FILTER_CCI_20(StrategyBase):
             ]
         )
 
-        df.insert(df.shape[1], Const.PARAM_SIGNAL, self._determineSignal(df))
+        df.insert(df.shape[1], Const.PARAM_SIGNAL, self._determine_signal(df))
+
+        # Determive Stop Loss Value = 2 * ATR
+        df.insert(
+            df.shape[1],
+            Const.FLD_STOP_LOSS_VALUE,
+            self._determine_stop_loss_value(df),
+        )
+
+        # Determive Take Profit Value = 3 * ATR
+        df.insert(
+            df.shape[1],
+            Const.FLD_TAKE_PROFIT_VALUE,
+            self._determine_take_profit_value(df),
+        )
 
         return df
 
-    def _determineSignal(self, df):
+    def _determine_signal(self, df):
         signals = []
 
         for i in range(len(df)):
@@ -1058,6 +1136,24 @@ class EMA_8_CROSS_EMA_30_FILTER_CCI_20(StrategyBase):
             signals.append(decision)
 
         return signals
+
+    def _determine_stop_loss_value(self, df: pd.DataFrame):
+        values = []
+
+        for i in range(len(df)):
+            value = 2 * df.iloc[i][Const.FLD_ATR]
+            values.append(value)
+
+        return values
+
+    def _determine_take_profit_value(self, df: pd.DataFrame):
+        values = []
+
+        for i in range(len(df)):
+            value = 3 * df.iloc[i][Const.FLD_ATR]
+            values.append(value)
+
+        return values
 
     def _get_trend_direction(self, ema_short, ema_long) -> TrendDirectionType:
         delta = ema_short - ema_long
@@ -1141,10 +1237,11 @@ class EMA_8_CROSS_EMA_30(StrategyBase):
     ATR_COLUMN_NAME = "ATR"
     EMA_8_COLUMN_NAME = "EMA_8"
     EMA_30_COLUMN_NAME = "EMA_30"
+    EMA_100_COLUMN_NAME = "EMA_100"
 
     def get_strategy_data(self, param: StrategyParamModel):
         super().get_strategy_data(param)
-        default_limit = 32
+        default_limit = 102
         limit = param.limit + default_limit
 
         history_data_param = HistoryDataParamModel(**param.model_dump())
@@ -1179,6 +1276,11 @@ class EMA_8_CROSS_EMA_30(StrategyBase):
                     "length": 30,
                     "col_names": (self.EMA_30_COLUMN_NAME),
                 },
+                {
+                    "kind": "ema",
+                    "length": 100,
+                    "col_names": (self.EMA_100_COLUMN_NAME),
+                },
             ],
         )
         # To run your "Custom Strategy"
@@ -1188,17 +1290,31 @@ class EMA_8_CROSS_EMA_30(StrategyBase):
         df = df.dropna(
             subset=[
                 self.CCI_COLUMN_NAME,
-                self.CCI_COLUMN_NAME,
                 self.EMA_8_COLUMN_NAME,
                 self.EMA_30_COLUMN_NAME,
+                self.EMA_100_COLUMN_NAME,
             ]
         )
 
-        df.insert(df.shape[1], Const.PARAM_SIGNAL, self._determineSignal(df))
+        df.insert(df.shape[1], Const.PARAM_SIGNAL, self._determine_signal(df))
+
+        # Determive Stop Loss Value = 2 * ATR
+        df.insert(
+            df.shape[1],
+            Const.FLD_STOP_LOSS_VALUE,
+            self._determine_stop_loss_value(df),
+        )
+
+        # Determive Take Profit Value = 3 * ATR
+        df.insert(
+            df.shape[1],
+            Const.FLD_TAKE_PROFIT_VALUE,
+            self._determine_take_profit_value(df),
+        )
 
         return df
 
-    def _determineSignal(self, df):
+    def _determine_signal(self, df):
         signals = []
 
         for i in range(len(df)):
@@ -1233,6 +1349,41 @@ class EMA_8_CROSS_EMA_30(StrategyBase):
             signals.append(decision)
 
         return signals
+
+    def _determine_stop_loss_value(self, df: pd.DataFrame):
+        values = []
+
+        for i in range(len(df)):
+            value = 0
+
+            current_bar = df.iloc[i]
+            close = current_bar[Const.FLD_CLOSE]
+            atr = current_bar[Const.FLD_ATR]
+            ema_30 = current_bar[self.EMA_30_COLUMN_NAME]
+            ema_100 = current_bar[self.EMA_100_COLUMN_NAME]
+
+            # EMA 30 + 50 %
+            # value = 1.5 * abs(ema_30 - close)
+            value = 2 * atr
+
+            values.append(value)
+
+        return values
+
+    def _determine_take_profit_value(self, df: pd.DataFrame):
+        values = []
+
+        for i in range(len(df)):
+            value = 0
+
+            current_bar = df.iloc[i]
+            stop_loss_value = current_bar[Const.FLD_STOP_LOSS_VALUE]
+
+            value = 1.5 * stop_loss_value
+
+            values.append(value)
+
+        return values
 
     def _get_trend_direction(self, ema_short, ema_long) -> TrendDirectionType:
         delta = ema_short - ema_long
@@ -1277,7 +1428,6 @@ class EMA_8_CROSS_EMA_30(StrategyBase):
 
 class EMA_30_CROSS_EMA_100(StrategyBase):
     CCI_COLUMN_NAME = "CCI"
-    ATR_COLUMN_NAME = "ATR"
     EMA_30_COLUMN_NAME = "EMA_30"
     EMA_100_COLUMN_NAME = "EMA_100"
 
@@ -1304,11 +1454,6 @@ class EMA_30_CROSS_EMA_100(StrategyBase):
                     "col_names": (self.CCI_COLUMN_NAME, "MULTIPROCESSING_OFF"),
                 },
                 {
-                    "kind": "atr",
-                    "length": 14,
-                    "col_names": (self.ATR_COLUMN_NAME),
-                },
-                {
                     "kind": "ema",
                     "length": 30,
                     "col_names": (self.EMA_30_COLUMN_NAME),
@@ -1327,21 +1472,64 @@ class EMA_30_CROSS_EMA_100(StrategyBase):
         df = df.dropna(
             subset=[
                 self.CCI_COLUMN_NAME,
-                self.CCI_COLUMN_NAME,
                 self.EMA_30_COLUMN_NAME,
                 self.EMA_100_COLUMN_NAME,
             ]
         )
 
-        df.insert(df.shape[1], Const.PARAM_SIGNAL, self._determineSignal(df))
+        df.insert(df.shape[1], Const.PARAM_SIGNAL, self._determine_signal(df))
+
+        # Determive Stop Loss Value = EMA 100
+        df.insert(
+            df.shape[1], Const.FLD_STOP_LOSS_VALUE, self._determine_stop_loss_value(df)
+        )
+
+        # Determive Take Profit Value = 3 * Stop Loss Value
+        df.insert(
+            df.shape[1],
+            Const.FLD_TAKE_PROFIT_VALUE,
+            self._determine_take_profit_value(df),
+        )
 
         return df
 
-    def _determineSignal(self, df):
+    def _determine_stop_loss_value(self, df):
+        values = []
+
+        for i in range(len(df)):
+            value = 0
+
+            current_bar = df.iloc[i]
+            close = current_bar[Const.FLD_CLOSE]
+            ema_100 = current_bar[self.EMA_100_COLUMN_NAME]
+
+            # EMA 100 + 20 %
+            value = 1.1 * abs(ema_100 - close)
+
+            values.append(value)
+
+        return values
+
+    def _determine_take_profit_value(self, df):
+        values = []
+
+        for i in range(len(df)):
+            value = 0
+
+            current_bar = df.iloc[i]
+            stop_loss_value = current_bar[Const.FLD_STOP_LOSS_VALUE]
+
+            value = 2 * stop_loss_value
+
+            values.append(value)
+
+        return values
+
+    def _determine_signal(self, df):
         signals = []
 
         for i in range(len(df)):
-            decision = ""
+            decision = SignalType.NONE
 
             if i < 1:
                 signals.append(decision)

@@ -69,6 +69,11 @@ class Const:
     FLD_IS_BUFFER = "is_buffer"
     FLD_CLOSED_BARS = "closed_bars"
     FLD_PRICE_TYPE = "price_type"
+    FLD_STOP_LOSS_VALUE = "stop_loss_value"
+    FLD_TAKE_PROFIT_VALUE = "take_profit_value"
+    FLD_CLOSE = "Close"
+    FLD_ATR = "ATR"
+    FLD_CCI = "CCI"
 
     # API fields
     API_FLD_ID = FLD_ID

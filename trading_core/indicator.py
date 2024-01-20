@@ -11,33 +11,6 @@ from .common import (
 )
 from .handler import buffer_runtime_handler
 
-# IndicatorStrategy_CCI_20_ATR_14 = ta.Strategy(
-#     name="CCI(20) and ATR(14) Strategy",
-#     description="SMA 50,200, BBANDS, RSI, MACD and Volume SMA 20",
-#     ta=[
-#         {
-#             "kind": "cci",
-#             "length": 20,
-#             "col_names": ("CCI_20"),
-#         },
-#         {
-#             "kind": "cci",
-#             "length": 50,
-#             "col_names": ("CCI_50"),
-#         },
-#         # {
-#         #     "kind": "atr",
-#         #     "length": 14,
-#         # },
-#         {
-#             "kind": "macd",
-#             "fast": 8,
-#             "slow": 21,
-#             "col_names": ("MACD", "MACD_H", "MACD_S"),
-#         },
-#     ],
-# )
-
 
 class IndicatorBase:
     """The base class for all technical indicators."""

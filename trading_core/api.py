@@ -657,8 +657,14 @@ class ByBitComApi(ExchangeApiBase):
                 ]
                 created_position_mdl.leverage = position_mdl.leverage
                 return created_position_mdl
+            else:
+                raise APIException(
+                    f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} ({self._trader_model.id}) - Error during creation a leverage position. Position haven't found for ids: {created_ids}"
+                )
         else:
-            return None
+            raise APIException(
+                f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} ({self._trader_model.id}) - Error during creation a leverage position. Place Order haven't return ids"
+            )
 
     def close_leverage(
         self, symbol: str, order_id: str = None, position_id: str = None
