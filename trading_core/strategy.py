@@ -25,12 +25,14 @@ from .trend import TrendCCI
 
 
 class SignalFactory:
-    def __init__(self) -> None:
-        self.__buffer_inst = buffer_runtime_handler.get_signal_handler()
-
     def get_signal(self, param: SignalParamModel) -> SignalModel:
         signal_mdl = self._get_signal(param)
         if signal_mdl and signal_mdl.is_compatible(signal_types=param.types):
+            if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+                logger.info(
+                    f"{self.__class__.__name__}: Signal will be used - {signal_mdl.model_dump()}"
+                )
+
             return signal_mdl
         else:
             return None
@@ -79,22 +81,32 @@ class SignalFactory:
         signal_mdl: SignalModel = None
 
         # Take signal from buffer
-        buffer_key = self._get_buffer_key(
-            trader_id=param.trader_id,
-            symbol=param.symbol,
-            interval=param.interval.value,
-            strategy=param.strategy.value,
-        )
+        if param.from_buffer:
+            buffer_handler = buffer_runtime_handler.get_signal_handler()
 
-        if self.__buffer_inst.is_data_in_buffer(key=buffer_key):
-            signal_mdl = self.__buffer_inst.get_buffer(key=buffer_key)
+            buffer_key = self._get_buffer_key(
+                trader_id=param.trader_id,
+                symbol=param.symbol,
+                interval=param.interval.value,
+                strategy=param.strategy.value,
+            )
 
-            end_date_time = ExchangeHandler.get_handler(
-                trader_id=param.trader_id
-            ).get_end_datetime(interval=param.interval, closed_bars=param.closed_bars)
+            if buffer_handler.is_data_in_buffer(key=buffer_key):
+                signal_mdl = buffer_handler.get_buffer(key=buffer_key)
 
-            if end_date_time == signal_mdl.date_time:
-                return signal_mdl
+                if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+                    logger.info(
+                        f"{self.__class__.__name__}: Check Signal from Buffer - {signal_mdl.model_dump()}"
+                    )
+
+                end_date_time = ExchangeHandler.get_handler(
+                    trader_id=param.trader_id
+                ).get_end_datetime(
+                    interval=param.interval, closed_bars=param.closed_bars
+                )
+
+                if end_date_time == signal_mdl.date_time:
+                    return signal_mdl
 
         # Calculate Signal
         strategy_df = StrategyFactory.get_strategy_data(param).tail(1)
@@ -122,7 +134,7 @@ class SignalFactory:
             break
 
         if signal_mdl:
-            self.__buffer_inst.set_buffer(key=buffer_key, data=signal_mdl)
+            buffer_handler.set_buffer(key=buffer_key, data=signal_mdl)
 
             return signal_mdl
         else:
@@ -138,12 +150,12 @@ class SignalFactory:
     ) -> tuple:
         if not symbol or not interval or not strategy:
             Exception(
-                f"{self.__class__.__name__} Buffer key is invalid: symbol: {symbol}, interval: {interval}, strategy: {strategy}"
+                f"{self.__class__.__name__}: Buffer key is invalid: symbol: {symbol}, interval: {interval}, strategy: {strategy}"
             )
         buffer_key = (trader_id, symbol, interval, strategy)
 
         if config.get_config_value(Const.CONFIG_DEBUG_LOG):
-            logger.info(f"{self.__class__.__name__} Signal buffer key - {buffer_key}")
+            logger.info(f"{self.__class__.__name__}: Get Buffer key - {buffer_key}")
 
         return buffer_key
 
@@ -1445,8 +1457,8 @@ class EMA_30_CROSS_EMA_100(StrategyBase):
 
         # Create your own Custom Strategy
         CustomStrategy = ta.Strategy(
-            name="EMA_8_CROSS_EMA_30_FILTER_CCI_14",
-            description="EMA 8 crosses EMA 30 with filter CCI(14) +/- 100",
+            name="EMA_30_CROSS_EMA_100_FILTER_CCI_20",
+            description="EMA 30 crosses EMA 100 with filter CCI(20) +/- 100",
             ta=[
                 {
                     "kind": "cci",
@@ -1479,12 +1491,12 @@ class EMA_30_CROSS_EMA_100(StrategyBase):
 
         df.insert(df.shape[1], Const.PARAM_SIGNAL, self._determine_signal(df))
 
-        # Determive Stop Loss Value = EMA 100
+        # Determive Stop Loss Value
         df.insert(
             df.shape[1], Const.FLD_STOP_LOSS_VALUE, self._determine_stop_loss_value(df)
         )
 
-        # Determive Take Profit Value = 3 * Stop Loss Value
+        # Determive Take Profit Value
         df.insert(
             df.shape[1],
             Const.FLD_TAKE_PROFIT_VALUE,
@@ -1503,8 +1515,8 @@ class EMA_30_CROSS_EMA_100(StrategyBase):
             close = current_bar[Const.FLD_CLOSE]
             ema_100 = current_bar[self.EMA_100_COLUMN_NAME]
 
-            # EMA 100 + 20 %
-            value = 1.1 * abs(ema_100 - close)
+            # EMA 100 + 15 %
+            value = 1.15 * abs(ema_100 - close)
 
             values.append(value)
 
