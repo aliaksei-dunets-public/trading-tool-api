@@ -134,7 +134,8 @@ class SignalFactory:
             break
 
         if signal_mdl:
-            buffer_handler.set_buffer(key=buffer_key, data=signal_mdl)
+            if param.from_buffer:
+                buffer_handler.set_buffer(key=buffer_key, data=signal_mdl)
 
             return signal_mdl
         else:
@@ -1445,7 +1446,7 @@ class EMA_30_CROSS_EMA_100(StrategyBase):
 
     def get_strategy_data(self, param: StrategyParamModel):
         super().get_strategy_data(param)
-        default_limit = 102
+        default_limit = 300
         limit = param.limit + default_limit
 
         history_data_param = HistoryDataParamModel(**param.model_dump())
@@ -1468,11 +1469,13 @@ class EMA_30_CROSS_EMA_100(StrategyBase):
                 {
                     "kind": "ema",
                     "length": 30,
+                    # "sma": False,
                     "col_names": (self.EMA_30_COLUMN_NAME),
                 },
                 {
                     "kind": "ema",
                     "length": 100,
+                    # "sma": False,
                     "col_names": (self.EMA_100_COLUMN_NAME),
                 },
             ],
@@ -1515,8 +1518,8 @@ class EMA_30_CROSS_EMA_100(StrategyBase):
             close = current_bar[Const.FLD_CLOSE]
             ema_100 = current_bar[self.EMA_100_COLUMN_NAME]
 
-            # EMA 100 + 15 %
-            value = 1.15 * abs(ema_100 - close)
+            # EMA 100 + 10 %
+            value = 1.1 * abs(ema_100 - close)
 
             values.append(value)
 
@@ -1573,12 +1576,6 @@ class EMA_30_CROSS_EMA_100(StrategyBase):
 
         return signals
 
-    def _get_trend_direction(self, ema_short, ema_long) -> TrendDirectionType:
-        delta = ema_short - ema_long
-        return (
-            TrendDirectionType.TREND_UP if delta > 0 else TrendDirectionType.TREND_DOWN
-        )
-
     def _get_ema_signal(self, target_series, previous_series) -> SignalType:
         decision = SignalType.NONE
 
@@ -1588,17 +1585,12 @@ class EMA_30_CROSS_EMA_100(StrategyBase):
         previous_ema_30 = previous_series[self.EMA_30_COLUMN_NAME]
         previous_ema_100 = previous_series[self.EMA_100_COLUMN_NAME]
 
-        target_ema_30_100_trend = self._get_trend_direction(
-            ema_short=target_ema_30, ema_long=target_ema_100
-        )
+        delta_target_ema_30_100 = target_ema_30 - target_ema_100
+        previous_target_ema_30_100 = previous_ema_30 - previous_ema_100
 
-        previous_ema_30_100_trend = self._get_trend_direction(
-            ema_short=previous_ema_30, ema_long=previous_ema_100
-        )
-
-        if target_ema_30_100_trend == TrendDirectionType.TREND_UP:
+        if delta_target_ema_30_100 > 0:
             # Current - LONG
-            if previous_ema_30_100_trend == TrendDirectionType.TREND_DOWN:
+            if previous_target_ema_30_100 <= 0:
                 # Previous - SHORT
                 decision = SignalType.STRONG_BUY
             else:
@@ -1606,7 +1598,7 @@ class EMA_30_CROSS_EMA_100(StrategyBase):
 
         else:
             # Current - SHORT
-            if previous_ema_30_100_trend == TrendDirectionType.TREND_UP:
+            if previous_target_ema_30_100 > 0:
                 # Previous - LONG
                 decision = SignalType.STRONG_SELL
             else:

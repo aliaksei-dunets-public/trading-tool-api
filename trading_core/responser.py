@@ -996,7 +996,6 @@ class JobScheduler:
             jitter = 5
         elif interval == IntervalType.MIN_5:
             minute = "*/5"
-            second = "30"
             jitter = 10
         elif interval == IntervalType.MIN_15:
             minute = "*/15"

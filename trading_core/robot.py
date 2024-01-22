@@ -1454,7 +1454,7 @@ class SellManager(SideManager):
         if self._session_mdl.stop_loss_rate == 0:
             # Set Stop Loss = Break-Even Price
             if break_even_price > 0:
-                stop_loss = break_even_price
+                stop_loss = round(break_even_price, 5)
 
             new_stop_loss = round(signal_mdl.close + signal_mdl.stop_loss_value, 5)
 
