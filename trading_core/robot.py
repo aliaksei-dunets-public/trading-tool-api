@@ -1072,9 +1072,9 @@ class LeverageDatabaseManager(LeverageManagerBase):
 
             # Open position exists in the Database
             if not api_position_mdl:
-                # Open position doens't exists in the Exhange Trader -> cancel the position in the Database
+                # Open position doens't exist in the Exhange Trader -> cancel the position in the Database
                 logger.info(
-                    f"{self.__class__.__name__} ({self._session_mdl.id}): Close the leverage {self._current_position.id} by the ref position id {self._current_position.position_id}"
+                    f"{self.__class__.__name__} ({self._session_mdl.id}): Close the leverage {self._current_position.id} by the ref api position {self._current_position.position_id}"
                 )
                 api_order_closed_mdl = self._exchange_handler.get_close_position(
                     symbol=self._current_position.symbol,
@@ -1085,6 +1085,44 @@ class LeverageDatabaseManager(LeverageManagerBase):
                 self.close_position(api_order_closed_mdl)
 
                 super().synchronize(manager)
+            else:
+                query = {}
+
+                if api_position_mdl.stop_loss != self._current_position.stop_loss:
+                    query[Const.DB_STOP_LOSS] = api_position_mdl.stop_loss
+
+                if api_position_mdl.take_profit != self._current_position.take_profit:
+                    query[Const.DB_TAKE_PROFIT] = api_position_mdl.take_profit
+
+                if api_position_mdl.quantity != self._current_position.quantity:
+                    query[Const.DB_QUANTITY] = api_position_mdl.quantity
+
+                if api_position_mdl.open_price != self._current_position.open_price:
+                    query[Const.DB_OPEN_PRICE] = api_position_mdl.open_price
+
+                if (
+                    api_position_mdl.open_datetime
+                    != self._current_position.open_datetime
+                ):
+                    query[Const.DB_OPEN_DATETIME] = api_position_mdl.open_datetime
+
+                if query:
+                    # Open position exists in the Exhange Trader -> update the position in the Database
+                    logger.info(
+                        f"{self.__class__.__name__} ({self._session_mdl.id}): Update the leverage {self._current_position.id} with API position"
+                    )
+
+                    self._trader_mng.transaction_mng.add_transaction(
+                        order_id=self._current_position.order_id,
+                        local_order_id=self._current_position.id,
+                        type=cmn.TransactionType.DB_SYNC_POSITION,
+                        data=query,
+                    )
+
+                    if not self._update_position(query):
+                        raise cmn.RobotException(
+                            f"DataManagerBase: _update_position() - Error during update position {self._current_position.id}"
+                        )
 
     def recalculate_position(
         self, signal_mdl: cmn.SignalModel
@@ -1350,6 +1388,18 @@ class SideManager:
     ) -> cmn.TrailingStopModel:
         pass
 
+    def _get_round_value(self, value):
+        # Convert the float to a string
+        value_str = str(value)
+
+        # Find the position of the decimal point
+        decimal_position = value_str.find(".")
+
+        # Calculate the number of decimal places
+        decimal_places = len(value_str) - decimal_position - 1
+
+        return decimal_places
+
 
 # Short Positions
 class SellManager(SideManager):
@@ -1360,11 +1410,17 @@ class SellManager(SideManager):
         close_reason = ""
         total_profit = 0
 
-        if position_mdl.stop_loss != 0 and signal_mdl.high >= position_mdl.stop_loss:
+        if (
+            self._session_mdl.session_type != cmn.SessionType.TRADING
+            and position_mdl.stop_loss != 0
+            and signal_mdl.high >= position_mdl.stop_loss
+        ):
             close_price = position_mdl.stop_loss
             close_reason = cmn.OrderReason.STOP_LOSS
         elif (
-            position_mdl.take_profit != 0 and signal_mdl.low <= position_mdl.take_profit
+            self._session_mdl.session_type != cmn.SessionType.TRADING
+            and position_mdl.take_profit != 0
+            and signal_mdl.low <= position_mdl.take_profit
         ):
             close_price = position_mdl.take_profit
             close_reason = cmn.OrderReason.TAKE_PROFIT
@@ -1402,7 +1458,9 @@ class SellManager(SideManager):
             price=price, stop_loss_value=stop_loss_value
         )
         if clalculated_stop_loss_value > 0:
-            return round(price + clalculated_stop_loss_value, 5)
+            return round(
+                price + clalculated_stop_loss_value, self._get_round_value(price)
+            )
         else:
             return 0
 
@@ -1412,7 +1470,9 @@ class SellManager(SideManager):
         )
 
         if clalculated_take_profit_value > 0:
-            return round(price - clalculated_take_profit_value, 5)
+            return round(
+                price - clalculated_take_profit_value, self._get_round_value(price)
+            )
         else:
             return 0
 
@@ -1442,9 +1502,12 @@ class SellManager(SideManager):
             if current_price_percent_from_take_profit >= 0.7 and tp_increment < 4:
                 tp_increment += 1
 
-                new_take_profit = round((take_profit - 0.25 * take_profit_value), 5)
+                new_take_profit = round(
+                    (take_profit - 0.25 * take_profit_value),
+                    self._get_round_value(take_profit),
+                )
                 # Get Break-Even Price, because the take profit will be change
-                break_even_price = position_mdl.open_price - 1.1 * self._get_fee_value(
+                break_even_price = position_mdl.open_price - 1.5 * self._get_fee_value(
                     position_mdl
                 )
 
@@ -1452,11 +1515,15 @@ class SellManager(SideManager):
                     take_profit = new_take_profit
 
         if self._session_mdl.stop_loss_rate == 0:
+            round_value = self._get_round_value(stop_loss)
+
             # Set Stop Loss = Break-Even Price
             if break_even_price > 0:
-                stop_loss = round(break_even_price, 5)
+                stop_loss = round(break_even_price, round_value)
 
-            new_stop_loss = round(signal_mdl.close + signal_mdl.stop_loss_value, 5)
+            new_stop_loss = round(
+                signal_mdl.close + signal_mdl.stop_loss_value, round_value
+            )
 
             if stop_loss > new_stop_loss:
                 stop_loss = new_stop_loss
@@ -1477,11 +1544,16 @@ class BuyManager(SideManager):
         close_reason = ""
         total_profit = 0
 
-        if position_mdl.stop_loss != 0 and signal_mdl.low <= position_mdl.stop_loss:
+        if (
+            self._session_mdl.session_type != cmn.SessionType.TRADING
+            and position_mdl.stop_loss != 0
+            and signal_mdl.low <= position_mdl.stop_loss
+        ):
             close_price = position_mdl.stop_loss
             close_reason = cmn.OrderReason.STOP_LOSS
         elif (
-            position_mdl.take_profit != 0
+            self._session_mdl.session_type != cmn.SessionType.TRADING
+            and position_mdl.take_profit != 0
             and signal_mdl.high >= position_mdl.take_profit
         ):
             close_price = position_mdl.take_profit
@@ -1520,7 +1592,9 @@ class BuyManager(SideManager):
             price=price, stop_loss_value=stop_loss_value
         )
         if calculated_stop_loss_value > 0:
-            return round(price - calculated_stop_loss_value, 5)
+            return round(
+                price - calculated_stop_loss_value, self._get_round_value(price)
+            )
         else:
             return 0
 
@@ -1529,7 +1603,9 @@ class BuyManager(SideManager):
             price=price, take_profit_value=take_profit_value
         )
         if clalculated_take_profit_value > 0:
-            return round(price + clalculated_take_profit_value, 5)
+            return round(
+                price + clalculated_take_profit_value, self._get_round_value(price)
+            )
         else:
             return 0
 
@@ -1559,9 +1635,12 @@ class BuyManager(SideManager):
             if current_price_percent_from_take_profit >= 0.7 and tp_increment < 4:
                 tp_increment += 1
 
-                new_take_profit = round((take_profit + 0.25 * take_profit_value), 5)
+                new_take_profit = round(
+                    (take_profit + 0.25 * take_profit_value),
+                    self._get_round_value(take_profit),
+                )
                 # Get Break-Even Price, because the take profit will be change
-                break_even_price = position_mdl.open_price + 1.1 * self._get_fee_value(
+                break_even_price = position_mdl.open_price + 1.5 * self._get_fee_value(
                     position_mdl
                 )
 
@@ -1569,11 +1648,15 @@ class BuyManager(SideManager):
                     take_profit = new_take_profit
 
         if self._session_mdl.stop_loss_rate == 0:
+            round_value = self._get_round_value(stop_loss)
+
             # Set Stop Loss = Break-Even Price
             if break_even_price > 0:
-                stop_loss = break_even_price
+                stop_loss = round(break_even_price, round_value)
 
-            new_stop_loss = round(signal_mdl.close - signal_mdl.stop_loss_value, 5)
+            new_stop_loss = round(
+                signal_mdl.close - signal_mdl.stop_loss_value, round_value
+            )
 
             if stop_loss < new_stop_loss:
                 stop_loss = new_stop_loss

@@ -512,17 +512,18 @@ class ByBitComApi(ExchangeApiBase):
         pass
 
     def get_open_leverages(self, symbol: str, limit: int = 5) -> list[LeverageModel]:
-        position_models = []
+        pass
+        # position_models = []
 
-        open_order_ids = self._check_open_position(symbol)
-        if open_order_ids:
-            history_order_mdls = self._get_order_history(symbol=symbol, limit=limit)
+        # open_order_ids = self._check_open_position(symbol)
+        # if open_order_ids:
+        #     history_order_mdls = self._get_order_history(symbol=symbol, limit=limit)
 
-            for position_mdl in history_order_mdls:
-                if position_mdl.order_id in open_order_ids:
-                    position_models.append(position_mdl)
+        #     for position_mdl in history_order_mdls:
+        #         if position_mdl.order_id in open_order_ids:
+        #             position_models.append(position_mdl)
 
-        return position_models
+        # return position_models
 
     def get_fee(self, symbol: str) -> float:
         params = {"category": self.CATEGORY_LINEAR, "symbol": symbol}
@@ -579,14 +580,27 @@ class ByBitComApi(ExchangeApiBase):
     def get_open_position(
         self, symbol: str, order_id: str = None, position_id: str = None
     ) -> LeverageModel:
-        open_order_exist = self._check_open_position(symbol)
-        if open_order_exist:
+        current_open_order = self._check_open_position(symbol)
+        if current_open_order:
             history_order_mdls = self._get_order_history(
                 symbol=symbol, order_id=order_id, position_id=position_id
             )
 
             if history_order_mdls:
-                return history_order_mdls[0]
+                history_order_mdl = history_order_mdls[0]
+                # Get current values from position info API
+                history_order_mdl.stop_loss = float(
+                    current_open_order[Const.API_FLD_STOP_LOSS]
+                )
+                history_order_mdl.take_profit = float(
+                    current_open_order[Const.API_FLD_TAKE_PROFIT]
+                )
+                history_order_mdl.quantity = float(
+                    current_open_order[Const.API_FLD_SIZE]
+                )
+                history_order_mdl.open_price = float(current_open_order["avgPrice"])
+
+                return history_order_mdl
 
         return None
 
@@ -894,10 +908,10 @@ class ByBitComApi(ExchangeApiBase):
         position_info = self._get_position_info(symbol=symbol)
 
         # There are some open positions is size is not equal 0
-        if position_info and position_info["size"] != "0":
-            return True
+        if position_info and position_info[Const.API_FLD_SIZE] != "0":
+            return position_info
         else:
-            return False
+            return None
 
     def _get_position_info(self, symbol: str) -> dict:
         params = {

@@ -113,6 +113,7 @@ class Const:
     API_FLD_LIST = "list"
     API_FLD_RET_CODE = "retCode"
     API_FLD_RET_MESSAGE = "retMsg"
+    API_FLD_SIZE = "size"
 
     ########################### Legacy code ####################################
 
