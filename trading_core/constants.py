@@ -72,8 +72,13 @@ class Const:
     FLD_STOP_LOSS_VALUE = "stop_loss_value"
     FLD_TAKE_PROFIT_VALUE = "take_profit_value"
     FLD_CLOSE = "Close"
+    FLD_SIGNAL = "signal"
     FLD_ATR = "ATR"
     FLD_CCI = "CCI"
+    FLD_EMA_8 = "EMA_8"
+    FLD_EMA_30 = "EMA_30"
+    FLD_EMA_100 = "EMA_100"
+    FLD_TREND = "trend"
 
     # API fields
     API_FLD_ID = FLD_ID

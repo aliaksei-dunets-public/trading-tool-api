@@ -154,6 +154,9 @@ class SessionManager:
             self._trader_mng.transaction_mng.add_transaction(
                 type=cmn.TransactionType.ERROR,
                 data={"message": f"{error}"},
+                save=True
+                if self._session_mdl.session_type != cmn.SessionType.HISTORY
+                else False,
             )
             # Set FAILED Session status
             SessionHandler.update_session(
@@ -1488,6 +1491,8 @@ class SellManager(SideManager):
         take_profit = position_mdl.take_profit
         stop_loss = position_mdl.stop_loss
         tp_increment = position_mdl.tp_increment
+        is_break_even_stop_loss = False
+        take_profit_step = 0.2
 
         # Take Profit calculation is performed only when Static Take Profit = 0
         if self._session_mdl.take_profit_rate == 0:
@@ -1499,31 +1504,36 @@ class SellManager(SideManager):
 
             # If price is 70% from take profit and TP was incremented no more than 4 times
             # -> recalculate take profit: Add 25 % for the current take profit value
-            if current_price_percent_from_take_profit >= 0.7 and tp_increment < 4:
+            if current_price_percent_from_take_profit >= 0.7 and tp_increment < 2:
                 tp_increment += 1
 
                 new_take_profit = round(
-                    (take_profit - 0.25 * take_profit_value),
+                    (take_profit - take_profit_step * take_profit_value),
                     self._get_round_value(take_profit),
-                )
-                # Get Break-Even Price, because the take profit will be change
-                break_even_price = position_mdl.open_price - 1.5 * self._get_fee_value(
-                    position_mdl
                 )
 
                 if take_profit > new_take_profit:
                     take_profit = new_take_profit
 
+                    # Only first time should be break-even stop loss
+                    if tp_increment == 1:
+                        is_break_even_stop_loss = True
+
         if self._session_mdl.stop_loss_rate == 0:
             round_value = self._get_round_value(stop_loss)
 
-            # Set Stop Loss = Break-Even Price
-            if break_even_price > 0:
-                stop_loss = round(break_even_price, round_value)
+            if is_break_even_stop_loss:
+                # Get Break-Even Price, because the take profit will be change
+                break_even_price = position_mdl.open_price - 1.5 * self._get_fee_value(
+                    position_mdl
+                )
 
-            new_stop_loss = round(
-                signal_mdl.close + signal_mdl.stop_loss_value, round_value
-            )
+                # Set Stop Loss = Break-Even Price
+                new_stop_loss = round(break_even_price, round_value)
+            else:
+                new_stop_loss = round(
+                    signal_mdl.close + signal_mdl.stop_loss_value, round_value
+                )
 
             if stop_loss > new_stop_loss:
                 stop_loss = new_stop_loss
@@ -1621,6 +1631,8 @@ class BuyManager(SideManager):
         take_profit = position_mdl.take_profit
         stop_loss = position_mdl.stop_loss
         tp_increment = position_mdl.tp_increment
+        is_break_even_stop_loss = False
+        take_profit_step = 0.2
 
         # Take Profit calculation is performed only when Static Take Profit = 0
         if self._session_mdl.take_profit_rate == 0:
@@ -1632,31 +1644,36 @@ class BuyManager(SideManager):
 
             # If price is 70% from take profit and TP was incremented no more than 4 times
             # -> recalculate take profit: Add 25 % for the current take profit value
-            if current_price_percent_from_take_profit >= 0.7 and tp_increment < 4:
+            if current_price_percent_from_take_profit >= 0.7 and tp_increment < 2:
                 tp_increment += 1
 
                 new_take_profit = round(
-                    (take_profit + 0.25 * take_profit_value),
+                    (take_profit + take_profit_step * take_profit_value),
                     self._get_round_value(take_profit),
-                )
-                # Get Break-Even Price, because the take profit will be change
-                break_even_price = position_mdl.open_price + 1.5 * self._get_fee_value(
-                    position_mdl
                 )
 
                 if take_profit < new_take_profit:
                     take_profit = new_take_profit
 
+                    # Only first time should be break-even stop loss
+                    if tp_increment == 1:
+                        is_break_even_stop_loss = True
+
         if self._session_mdl.stop_loss_rate == 0:
             round_value = self._get_round_value(stop_loss)
 
-            # Set Stop Loss = Break-Even Price
-            if break_even_price > 0:
-                stop_loss = round(break_even_price, round_value)
+            if is_break_even_stop_loss:
+                # Get Break-Even Price, because the take profit will be change
+                break_even_price = position_mdl.open_price + 1.5 * self._get_fee_value(
+                    position_mdl
+                )
 
-            new_stop_loss = round(
-                signal_mdl.close - signal_mdl.stop_loss_value, round_value
-            )
+                # Set Stop Loss = Break-Even Price
+                new_stop_loss = round(break_even_price, round_value)
+            else:
+                new_stop_loss = round(
+                    signal_mdl.close - signal_mdl.stop_loss_value, round_value
+                )
 
             if stop_loss < new_stop_loss:
                 stop_loss = new_stop_loss

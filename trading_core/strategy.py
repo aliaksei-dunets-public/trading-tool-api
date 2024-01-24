@@ -1440,17 +1440,13 @@ class EMA_8_CROSS_EMA_30(StrategyBase):
 
 
 class EMA_30_CROSS_EMA_100(StrategyBase):
-    CCI_COLUMN_NAME = "CCI"
-    EMA_30_COLUMN_NAME = "EMA_30"
-    EMA_100_COLUMN_NAME = "EMA_100"
-
     def get_strategy_data(self, param: StrategyParamModel):
         super().get_strategy_data(param)
-        default_limit = 300
-        limit = param.limit + default_limit
+        history_limit = 300
+        limit = param.limit + 2
 
         history_data_param = HistoryDataParamModel(**param.model_dump())
-        history_data_param.limit = limit
+        history_data_param.limit = limit + history_limit
 
         history_data_mdl = buffer_runtime_handler.get_history_data_handler(
             trader_id=param.trader_id
@@ -1464,19 +1460,17 @@ class EMA_30_CROSS_EMA_100(StrategyBase):
                 {
                     "kind": "cci",
                     "length": 20,
-                    "col_names": (self.CCI_COLUMN_NAME, "MULTIPROCESSING_OFF"),
+                    "col_names": (Const.FLD_CCI, "MULTIPROCESSING_OFF"),
                 },
                 {
                     "kind": "ema",
                     "length": 30,
-                    # "sma": False,
-                    "col_names": (self.EMA_30_COLUMN_NAME),
+                    "col_names": (Const.FLD_EMA_30),
                 },
                 {
                     "kind": "ema",
                     "length": 100,
-                    # "sma": False,
-                    "col_names": (self.EMA_100_COLUMN_NAME),
+                    "col_names": (Const.FLD_EMA_100),
                 },
             ],
         )
@@ -1484,15 +1478,31 @@ class EMA_30_CROSS_EMA_100(StrategyBase):
         df = pd.DataFrame(history_data_mdl.data)
         df.ta.strategy(CustomStrategy)
 
+        # Remove initial values from DF
         df = df.dropna(
             subset=[
-                self.CCI_COLUMN_NAME,
-                self.EMA_30_COLUMN_NAME,
-                self.EMA_100_COLUMN_NAME,
+                Const.FLD_CCI,
+                Const.FLD_EMA_30,
+                Const.FLD_EMA_100,
             ]
         )
 
-        df.insert(df.shape[1], Const.PARAM_SIGNAL, self._determine_signal(df))
+        # Get Trend data
+        trend_param = TraderSymbolIntervalLimitModel(**param.model_dump())
+        trend_df = TrendCCI().calculate_trends(trend_param)
+
+        df = pd.merge(
+            df,
+            trend_df[[Const.FLD_TREND]],
+            how="left",
+            left_on=Const.COLUMN_DATETIME,
+            right_on=Const.COLUMN_DATETIME,
+        )
+
+        # Calculate Strategy data only for requested limit + 3
+        df = df.tail(limit)
+
+        df.insert(df.shape[1], Const.FLD_SIGNAL, self._determine_signal(df))
 
         # Determive Stop Loss Value
         df.insert(
@@ -1508,20 +1518,40 @@ class EMA_30_CROSS_EMA_100(StrategyBase):
 
         return df
 
+    def _get_ema_delta(self, short_ema: float, long_ema: float) -> float:
+        return short_ema - long_ema
+
     def _determine_stop_loss_value(self, df):
         values = []
+        lv_ema_100_shift = 0.002
 
         for i in range(len(df)):
-            value = 0
+            stop_loss_value = 0
 
             current_bar = df.iloc[i]
-            close = current_bar[Const.FLD_CLOSE]
-            ema_100 = current_bar[self.EMA_100_COLUMN_NAME]
+            current_close = current_bar[Const.FLD_CLOSE]
+            current_ema_30 = current_bar[Const.FLD_EMA_30]
+            current_ema_100 = current_bar[Const.FLD_EMA_100]
 
-            # EMA 100 + 10 %
-            value = 1.1 * abs(ema_100 - close)
+            # Stop Loss calculation
+            if current_ema_100 > current_ema_30:
+                # SHORT
+                # SL Price = EMA 100 + 0.5%
+                stop_loss_price = (1 + lv_ema_100_shift) * current_ema_100
+                if stop_loss_price > current_close:
+                    stop_loss_value = stop_loss_price - current_close
+                else:
+                    stop_loss_value = lv_ema_100_shift * current_ema_100
+            else:
+                # LONG
+                # SL Price = EMA 100 - 0.5%
+                stop_loss_price = (1 - lv_ema_100_shift) * current_ema_100
+                if stop_loss_price < current_close:
+                    stop_loss_value = current_close - stop_loss_price
+                else:
+                    stop_loss_value = lv_ema_100_shift * current_ema_100
 
-            values.append(value)
+            values.append(stop_loss_value)
 
         return values
 
@@ -1529,14 +1559,14 @@ class EMA_30_CROSS_EMA_100(StrategyBase):
         values = []
 
         for i in range(len(df)):
-            value = 0
+            take_profit_value = 0
 
             current_bar = df.iloc[i]
             stop_loss_value = current_bar[Const.FLD_STOP_LOSS_VALUE]
 
-            value = 2 * stop_loss_value
+            take_profit_value = 2 * stop_loss_value
 
-            values.append(value)
+            values.append(take_profit_value)
 
         return values
 
@@ -1551,7 +1581,8 @@ class EMA_30_CROSS_EMA_100(StrategyBase):
                 continue
 
             current_bar = df.iloc[i]
-            current_cci = current_bar[self.CCI_COLUMN_NAME]
+            current_cci = current_bar[Const.FLD_CCI]
+            current_trend = current_bar[Const.FLD_TREND]
 
             previous_bar = df.iloc[i - 1]
 
@@ -1561,11 +1592,13 @@ class EMA_30_CROSS_EMA_100(StrategyBase):
 
             if (
                 decision == SignalType.STRONG_BUY
+                and current_trend == TrendDirectionType.STRONG_TREND_UP
                 and current_cci >= self._strategy_config_mdl.max_value
             ):
                 pass
             elif (
                 decision == SignalType.STRONG_SELL
+                and current_trend == TrendDirectionType.STRONG_TREND_DOWN
                 and current_cci <= self._strategy_config_mdl.miv_value
             ):
                 pass
@@ -1577,31 +1610,30 @@ class EMA_30_CROSS_EMA_100(StrategyBase):
         return signals
 
     def _get_ema_signal(self, target_series, previous_series) -> SignalType:
-        decision = SignalType.NONE
+        signal = SignalType.NONE
 
-        target_ema_30 = target_series[self.EMA_30_COLUMN_NAME]
-        target_ema_100 = target_series[self.EMA_100_COLUMN_NAME]
+        target_ema_30 = target_series[Const.FLD_EMA_30]
+        target_ema_100 = target_series[Const.FLD_EMA_100]
 
-        previous_ema_30 = previous_series[self.EMA_30_COLUMN_NAME]
-        previous_ema_100 = previous_series[self.EMA_100_COLUMN_NAME]
+        previous_ema_30 = previous_series[Const.FLD_EMA_30]
+        previous_ema_100 = previous_series[Const.FLD_EMA_100]
 
-        delta_target_ema_30_100 = target_ema_30 - target_ema_100
-        previous_target_ema_30_100 = previous_ema_30 - previous_ema_100
+        delta_target_ema_30_100 = self._get_ema_delta(
+            short_ema=target_ema_30, long_ema=target_ema_100
+        )
+        delta_previous_ema_30_100 = self._get_ema_delta(
+            short_ema=previous_ema_30, long_ema=previous_ema_100
+        )
 
         if delta_target_ema_30_100 > 0:
             # Current - LONG
-            if previous_target_ema_30_100 <= 0:
+            if delta_previous_ema_30_100 <= 0:
                 # Previous - SHORT
-                decision = SignalType.STRONG_BUY
-            else:
-                decision = SignalType.NONE
-
+                signal = SignalType.STRONG_BUY
         else:
             # Current - SHORT
-            if previous_target_ema_30_100 > 0:
+            if delta_previous_ema_30_100 >= 0:
                 # Previous - LONG
-                decision = SignalType.STRONG_SELL
-            else:
-                decision = SignalType.NONE
+                signal = SignalType.STRONG_SELL
 
-        return decision
+        return signal
