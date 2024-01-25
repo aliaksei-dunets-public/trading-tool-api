@@ -1311,7 +1311,8 @@ class DzengiComApi(ExchangeApiBase):
             for row in json_api_response["symbols"]:
                 if (
                     row["quoteAsset"] == "USD"
-                    and row["assetType"] in ["CRYPTOCURRENCY", "EQUITY", "COMMODITY"]
+                    and row["assetType"]
+                    in ["CRYPTOCURRENCY", "EQUITY", "COMMODITY", "CURRENCY"]
                     and "REGULAR" in row["marketModes"]
                 ):
                     status_converted = (
