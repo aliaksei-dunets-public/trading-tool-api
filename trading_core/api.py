@@ -368,6 +368,12 @@ class ExchangeApiBase:
     def _get_url(self, path: str) -> str:
         return self.get_api_endpoints() + path
 
+    def get_float_from_dict(self, name: str, dictionary: dict):
+        if dictionary and name in dictionary and dictionary[name] != "":
+            return float(dictionary[name])
+        else:
+            return 0
+
 
 class ByBitComApi(ExchangeApiBase):
     # Public API Endpoints
@@ -589,16 +595,18 @@ class ByBitComApi(ExchangeApiBase):
             if history_order_mdls:
                 history_order_mdl = history_order_mdls[0]
                 # Get current values from position info API
-                history_order_mdl.stop_loss = float(
-                    current_open_order[Const.API_FLD_STOP_LOSS]
+                history_order_mdl.stop_loss = self.get_float_from_dict(
+                    name=Const.API_FLD_STOP_LOSS, dictionary=current_open_order
                 )
-                history_order_mdl.take_profit = float(
-                    current_open_order[Const.API_FLD_TAKE_PROFIT]
+                history_order_mdl.take_profit = self.get_float_from_dict(
+                    name=Const.API_FLD_TAKE_PROFIT, dictionary=current_open_order
                 )
-                history_order_mdl.quantity = float(
-                    current_open_order[Const.API_FLD_SIZE]
+                history_order_mdl.quantity = self.get_float_from_dict(
+                    name=Const.API_FLD_SIZE, dictionary=current_open_order
                 )
-                history_order_mdl.open_price = float(current_open_order["avgPrice"])
+                history_order_mdl.open_price = self.get_float_from_dict(
+                    name="avgPrice", dictionary=current_open_order
+                )
 
                 return history_order_mdl
 
@@ -861,20 +869,23 @@ class ByBitComApi(ExchangeApiBase):
                 Const.DB_STATUS: OrderStatus.opened,
                 Const.DB_SIDE: self._map_side(api_side=position[Const.API_FLD_SIDE]),
                 Const.DB_TYPE: OrderType.market,
-                Const.DB_OPEN_PRICE: position["avgPrice"],
-                Const.DB_OPEN_DATETIME: self.getDatetimeByUnixTimeMs(
-                    float(position["createdTime"])
+                Const.DB_OPEN_PRICE: self.get_float_from_dict(
+                    name="avgPrice", dictionary=position
                 ),
-                Const.DB_QUANTITY: position["qty"],
-                Const.DB_FEE: -1 * float(position["cumExecFee"]),
-                Const.DB_STOP_LOSS: float(position[Const.API_FLD_STOP_LOSS])
-                if Const.API_FLD_STOP_LOSS in position
-                and position[Const.API_FLD_STOP_LOSS] != ""
-                else 0,
-                Const.DB_TAKE_PROFIT: float(position[Const.API_FLD_TAKE_PROFIT])
-                if Const.API_FLD_TAKE_PROFIT in position
-                and position[Const.API_FLD_TAKE_PROFIT] != ""
-                else 0,
+                Const.DB_OPEN_DATETIME: self.getDatetimeByUnixTimeMs(
+                    self.get_float_from_dict(name="createdTime", dictionary=position)
+                ),
+                Const.DB_QUANTITY: self.get_float_from_dict(
+                    name="qty", dictionary=position
+                ),
+                Const.DB_FEE: -1
+                * self.get_float_from_dict(name="cumExecFee", dictionary=position),
+                Const.DB_STOP_LOSS: self.get_float_from_dict(
+                    name=Const.API_FLD_STOP_LOSS, dictionary=position
+                ),
+                Const.DB_TAKE_PROFIT: self.get_float_from_dict(
+                    name=Const.API_FLD_TAKE_PROFIT, dictionary=position
+                ),
                 Const.DB_CLOSE_REASON: closed_reason,
             }
             position_models.append(LeverageModel(**position_data))
@@ -1027,11 +1038,11 @@ class ByBitComApi(ExchangeApiBase):
             Const.DB_STATUS: OrderStatus.closed,
             Const.DB_CLOSE_ORDER_ID: position[Const.API_FLD_ORDER_ID],
             Const.DB_CLOSE_DATETIME: self.getDatetimeByUnixTimeMs(
-                float(position["updatedTime"])
+                self.get_float_from_dict(name="updatedTime", dictionary=position)
             ),
-            Const.DB_CLOSE_PRICE: position["avgExitPrice"],
+            Const.DB_CLOSE_PRICE: self.get_float_from_dict( name="avgExitPrice", dictionary=position),
             Const.DB_CLOSE_REASON: OrderReason.TRADER,
-            Const.DB_TOTAL_PROFIT: position["closedPnl"],
+            Const.DB_TOTAL_PROFIT: self.get_float_from_dict( name="closedPnl", dictionary=position),
             Const.DB_FEE: 0,
         }
 
