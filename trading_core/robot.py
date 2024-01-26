@@ -1427,7 +1427,7 @@ class SellManager(SideManager):
         ):
             close_price = position_mdl.take_profit
             close_reason = cmn.OrderReason.TAKE_PROFIT
-        elif signal_mdl.signal in [
+        elif not self._session_mdl.is_trailing_stop and signal_mdl.signal in [
             cmn.SignalType.STRONG_BUY,
             cmn.SignalType.BUY,
         ]:
@@ -1568,7 +1568,7 @@ class BuyManager(SideManager):
         ):
             close_price = position_mdl.take_profit
             close_reason = cmn.OrderReason.TAKE_PROFIT
-        elif signal_mdl.signal in [
+        elif not self._session_mdl.is_trailing_stop and signal_mdl.signal in [
             cmn.SignalType.STRONG_SELL,
             cmn.SignalType.SELL,
         ]:
