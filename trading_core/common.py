@@ -35,22 +35,13 @@ class IndicatorType(str, Enum):
 
 
 class StrategyType(str, Enum):
-    CCI_14_TREND_100 = "CCI_14_TREND_100"
-    CCI_20_TREND_100 = "CCI_20_TREND_100"
-    CCI_50_TREND_0 = "CCI_50_TREND_0"
-
-    EMA_8_CROSS_EMA_30_FILTER_EMA_100 = "EMA_8_CROSS_EMA_30_FILTER_EMA_100"
-
-    CCI_14_BASED_TREND_100 = "CCI_14_BASED_TREND_100"
-    CCI_20_BASED_TREND_100 = "CCI_20_BASED_TREND_100"
-    CCI_20_100_TREND_UP_LEVEL = "CCI_20_100_TREND_UP_LEVEL"
-    CCI_14_100_TREND_UP_LEVEL = "CCI_14_100_TREND_UP_LEVEL"
-    CCI_14_100_TRENDS_DIRECTION = "CCI_14_100_TRENDS_DIRECTION"
-
-    EMA_8_CROSS_EMA_30_FILTER_CCI_14 = "EMA_8_CROSS_EMA_30_FILTER_CCI_14"
-    EMA_8_CROSS_EMA_30_FILTER_CCI_20 = "EMA_8_CROSS_EMA_30_FILTER_CCI_20"
-    EMA_8_CROSS_EMA_30 = "EMA_8_CROSS_EMA_30"
+    CCI_14_CROSS_100 = "CCI_14_CROSS_100"
+    CCI_20_CROSS_100 = "CCI_20_CROSS_100"
+    CCI_50_CROSS_0 = "CCI_50_CROSS_0"
     EMA_30_CROSS_EMA_100 = "EMA_30_CROSS_EMA_100"
+    EMA_8_CROSS_EMA_30_FILTER_CCI_14 = "EMA_8_CROSS_EMA_30_FILTER_CCI_14"
+    EMA_8_CROSS_EMA_30_FILTER_EMA_100 = "EMA_8_CROSS_EMA_30_FILTER_EMA_100"
+    EMA_30_CROSS_EMA_100_FILTER_CCI_20 = "EMA_30_CROSS_EMA_100_FILTER_CCI_20"
 
 
 class Importance(str, Enum):
@@ -281,9 +272,11 @@ class IntervalModel(IntervalIdModel):
 
 class StrategyConfigModel(StrategyIdModel):
     name: str
-    length: int = 14
-    miv_value: float
-    max_value: float
+    length: int = 0
+    display_rows: int = 2
+    history_limit: int
+    miv_value: float = 0
+    max_value: float = 0
 
 
 class HistoryDataModel(SymbolIntervalLimitModel):
