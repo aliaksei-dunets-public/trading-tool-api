@@ -41,7 +41,7 @@ class StrategyType(str, Enum):
     EMA_30_CROSS_EMA_100 = "EMA_30_CROSS_EMA_100"
     EMA_8_CROSS_EMA_30_FILTER_CCI_14 = "EMA_8_CROSS_EMA_30_FILTER_CCI_14"
     EMA_8_CROSS_EMA_30_FILTER_EMA_100 = "EMA_8_CROSS_EMA_30_FILTER_EMA_100"
-    EMA_30_CROSS_EMA_100_FILTER_CCI_20 = "EMA_30_CROSS_EMA_100_FILTER_CCI_20"
+    EMA_30_CROSS_EMA_100_FILTER_CCI_50 = "EMA_30_CROSS_EMA_100_FILTER_CCI_50"
 
 
 class Importance(str, Enum):
@@ -272,6 +272,7 @@ class IntervalModel(IntervalIdModel):
 
 class StrategyConfigModel(StrategyIdModel):
     name: str
+    is_close_by_signal: bool = True
     length: int = 0
     display_rows: int = 2
     history_limit: int
@@ -323,6 +324,7 @@ class SymbolModel(SymbolIdModel):
 
 
 class SignalModel(CandelBarModel, StrategyParamModel):
+    is_close_by_signal: bool = True
     stop_loss_value: float = None
     take_profit_value: float = None
     signal: SignalType = SignalType.NONE

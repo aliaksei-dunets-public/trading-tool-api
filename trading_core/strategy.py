@@ -182,8 +182,8 @@ class StrategyFactory:
         elif strategy == StrategyType.EMA_30_CROSS_EMA_100:
             strategy_instance = EMA_30_CROSS_EMA_100(strategy_config_mdl)
 
-        elif strategy == StrategyType.EMA_30_CROSS_EMA_100_FILTER_CCI_20:
-            strategy_instance = EMA_30_CROSS_EMA_100_FILTER_CCI_20(strategy_config_mdl)
+        elif strategy == StrategyType.EMA_30_CROSS_EMA_100_FILTER_CCI_50:
+            strategy_instance = EMA_30_CROSS_EMA_100_FILTER_CCI_50(strategy_config_mdl)
 
         elif strategy == StrategyType.EMA_8_CROSS_EMA_30_FILTER_EMA_100:
             strategy_instance = EMA_8_CROSS_EMA_30_FILTER_EMA_100(strategy_config_mdl)
@@ -231,14 +231,15 @@ class StrategyFactory:
             StrategyType.EMA_8_CROSS_EMA_30_FILTER_CCI_14: StrategyConfigModel(
                 strategy=StrategyType.EMA_8_CROSS_EMA_30_FILTER_CCI_14,
                 name="5. EMA(8) cross EMA(30) Filter CCI(14) +/- 100",
+                is_close_by_signal=False,
                 history_limit=100,
                 length=14,
                 miv_value=-100,
                 max_value=100,
             ),
-            StrategyType.EMA_30_CROSS_EMA_100_FILTER_CCI_20: StrategyConfigModel(
-                strategy=StrategyType.EMA_30_CROSS_EMA_100_FILTER_CCI_20,
-                name="6. EMA(30) cross EMA(100) Filter CCI(20) +/- 100 and Trend CCI(50)",
+            StrategyType.EMA_30_CROSS_EMA_100_FILTER_CCI_50: StrategyConfigModel(
+                strategy=StrategyType.EMA_30_CROSS_EMA_100_FILTER_CCI_50,
+                name="6. EMA(30) cross EMA(100) Filter CCI(50)",
                 history_limit=300,
             ),
             StrategyType.EMA_8_CROSS_EMA_30_FILTER_EMA_100: StrategyConfigModel(
@@ -871,7 +872,7 @@ class EMA_30_CROSS_EMA_100(Strategy_EMA_Base):
         return signal
 
 
-class EMA_30_CROSS_EMA_100_FILTER_CCI_20(Strategy_EMA_Base):
+class EMA_30_CROSS_EMA_100_FILTER_CCI_50(Strategy_EMA_Base):
     def get_strategy_data(self, param: StrategyParamModel):
         super().get_strategy_data(param)
 
@@ -887,12 +888,12 @@ class EMA_30_CROSS_EMA_100_FILTER_CCI_20(Strategy_EMA_Base):
 
         # Create your own Custom Strategy
         CustomStrategy = ta.Strategy(
-            name="EMA_30_CROSS_EMA_100_FILTER_CCI_20",
+            name="EMA_30_CROSS_EMA_100_FILTER_CCI_50",
             description="EMA 30 cross EMA 100 with filter CCI(20) +/- 100 and Trend CCi(50)",
             ta=[
                 {
                     "kind": "cci",
-                    "length": 20,
+                    "length": 50,
                     "col_names": (Const.FLD_CCI, "MULTIPROCESSING_OFF"),
                 },
                 {
@@ -920,20 +921,8 @@ class EMA_30_CROSS_EMA_100_FILTER_CCI_20(Strategy_EMA_Base):
             ]
         )
 
-        # Get Trend data
-        trend_param = TraderSymbolIntervalLimitModel(**param.model_dump())
-        trend_df = TrendCCI().calculate_trends(trend_param)
-
-        df = pd.merge(
-            df,
-            trend_df[[Const.FLD_TREND]],
-            how="left",
-            left_on=Const.COLUMN_DATETIME,
-            right_on=Const.COLUMN_DATETIME,
-        )
-
-        # Calculate Strategy data only for requested limit + 3
-        df = df.tail(limit)
+        # Exclude rest data from calculation
+        df = df.tail(limit + 10)
 
         df.insert(df.shape[1], Const.FLD_SIGNAL, self._determine_signal(df))
 
@@ -949,11 +938,14 @@ class EMA_30_CROSS_EMA_100_FILTER_CCI_20(Strategy_EMA_Base):
             self._determine_take_profit_value(df),
         )
 
+        # Calculate Strategy data only for requested limit + 3
+        df = df.tail(limit)
+
         return df
 
     def _determine_stop_loss_value(self, df):
         values = []
-        lv_ema_100_shift = 0.002
+        lv_ema_100_shift = 0.01
 
         for i in range(len(df)):
             stop_loss_value = 0
@@ -994,7 +986,7 @@ class EMA_30_CROSS_EMA_100_FILTER_CCI_20(Strategy_EMA_Base):
             current_bar = df.iloc[i]
             stop_loss_value = current_bar[Const.FLD_STOP_LOSS_VALUE]
 
-            take_profit_value = 2 * stop_loss_value
+            take_profit_value = stop_loss_value
 
             values.append(take_profit_value)
 
@@ -1003,16 +995,27 @@ class EMA_30_CROSS_EMA_100_FILTER_CCI_20(Strategy_EMA_Base):
     def _determine_signal(self, df):
         signals = []
 
+        LIMIT = 10
+        trend_up_counter = 0
+        trend_down_counter = 0
+
         for i in range(len(df)):
             decision = SignalType.NONE
 
-            if i < 1:
-                signals.append(decision)
-                continue
-
             current_bar = df.iloc[i]
             current_cci = current_bar[Const.FLD_CCI]
-            current_trend = current_bar[Const.FLD_TREND]
+
+            # Calculate counter of trend bars
+            if current_cci > 0:
+                trend_up_counter += 1
+                trend_down_counter = 0
+            else:
+                trend_down_counter += 1
+                trend_up_counter = 0
+
+            if i < 10:
+                signals.append(decision)
+                continue
 
             previous_bar = df.iloc[i - 1]
 
@@ -1020,18 +1023,16 @@ class EMA_30_CROSS_EMA_100_FILTER_CCI_20(Strategy_EMA_Base):
                 target_series=current_bar, previous_series=previous_bar
             )
 
-            if (
-                decision == SignalType.STRONG_BUY
-                and current_trend == TrendDirectionType.STRONG_TREND_UP
-                and current_cci >= self._strategy_config_mdl.max_value
-            ):
-                pass
-            elif (
-                decision == SignalType.STRONG_SELL
-                and current_trend == TrendDirectionType.STRONG_TREND_DOWN
-                and current_cci <= self._strategy_config_mdl.miv_value
-            ):
-                pass
+            if decision == SignalType.STRONG_BUY:
+                if trend_up_counter >= LIMIT:
+                    pass
+                else:
+                    decision = SignalType.BUY
+            elif decision == SignalType.STRONG_SELL:
+                if trend_down_counter >= LIMIT:
+                    pass
+                else:
+                    decision = SignalType.SELL
             else:
                 decision = SignalType.NONE
 
@@ -1139,7 +1140,7 @@ class EMA_8_CROSS_EMA_30_FILTER_EMA_100(Strategy_EMA_Base):
 
     def _determine_stop_loss_value(self, df):
         values = []
-        lv_ema_100_shift = 0.03
+        lv_ema_100_shift = 0.002
 
         for i in range(len(df)):
             stop_loss_value = 0
@@ -1180,7 +1181,7 @@ class EMA_8_CROSS_EMA_30_FILTER_EMA_100(Strategy_EMA_Base):
             current_bar = df.iloc[i]
             stop_loss_value = current_bar[Const.FLD_STOP_LOSS_VALUE]
 
-            take_profit_value = 3 * stop_loss_value
+            take_profit_value = 2 * stop_loss_value
 
             values.append(take_profit_value)
 
@@ -1218,35 +1219,6 @@ class EMA_8_CROSS_EMA_30_FILTER_EMA_100(Strategy_EMA_Base):
                 long_ema=previous_ema_100,
             )
 
-            #     if medium_long_trend == TrendDirectionType.TREND_UP:
-            #     # LONG:
-            #     # 30 upper 100
-            #     if short_medium_trend == TrendDirectionType.TREND_UP:
-            #         # 8 upper 30 - this scenario is for open LONG position, when previous bar has TREND_UP
-            #         return TrendDirectionType.STRONG_TREND_UP
-            #     else:
-            #         # 8 lower 30
-            #         if short_long_trend == TrendDirectionType.TREND_UP:
-            #             # 8 upper 100 - this scenario detects corrections
-            #             return TrendDirectionType.TREND_UP
-            #         else:
-            #             # 8 lower 100 - this scenario is for close LONG position, when previous bar has TREND_UP or STRONG_TREND_UP
-            #             return TrendDirectionType.TREND_DOWN
-            # else:
-            #     # SHORT
-            #     # 30 lower 100
-            #     if short_medium_trend == TrendDirectionType.TREND_DOWN:
-            #         # 8 lower 30 - this scenario is for open SHORT position, when previous bar has TREND_DOWN
-            #         return TrendDirectionType.STRONG_TREND_DOWN
-            #     else:
-            #         # 8 upper 30
-            #         if short_long_trend == TrendDirectionType.TREND_DOWN:
-            #             # 8 lower 100 - this scenario detects corrections
-            #             return TrendDirectionType.TREND_DOWN
-            #         else:
-            #             # 8 upper 100 - this scenario is for close SHORT position, when previous bar has TREND_DOWN or STRONG_TREND_DOWN
-            #             return TrendDirectionType.TREND_UP
-
             if current_trend == TrendDirectionType.STRONG_TREND_UP:
                 if previous_trend == TrendDirectionType.TREND_UP:
                     # 8 upper 30 - this scenario is for open LONG position, when previous bar has TREND_UP
@@ -1254,15 +1226,15 @@ class EMA_8_CROSS_EMA_30_FILTER_EMA_100(Strategy_EMA_Base):
                 else:
                     signal = SignalType.NONE
 
-            elif current_trend == TrendDirectionType.TREND_UP:
-                if previous_trend in [
-                    TrendDirectionType.STRONG_TREND_DOWN,
-                    TrendDirectionType.TREND_DOWN,
-                ]:
-                    # 8 upper 100 - this scenario is for close SHORT position, when previous bar has TREND_DOWN or STRONG_TREND_DOWN
-                    signal = SignalType.BUY
-                else:
-                    signal = SignalType.NONE
+            # elif current_trend == TrendDirectionType.TREND_UP:
+            # if previous_trend in [
+            #     TrendDirectionType.STRONG_TREND_DOWN,
+            #     TrendDirectionType.TREND_DOWN,
+            # ]:
+            #     # 8 upper 100 - this scenario is for close SHORT position, when previous bar has TREND_DOWN or STRONG_TREND_DOWN
+            #     signal = SignalType.BUY
+            # else:
+            #     signal = SignalType.NONE
 
             elif current_trend == TrendDirectionType.STRONG_TREND_DOWN:
                 if previous_trend == TrendDirectionType.TREND_DOWN:
@@ -1271,15 +1243,15 @@ class EMA_8_CROSS_EMA_30_FILTER_EMA_100(Strategy_EMA_Base):
                 else:
                     signal = SignalType.NONE
 
-            elif current_trend == TrendDirectionType.TREND_DOWN:
-                if previous_trend in [
-                    TrendDirectionType.STRONG_TREND_UP,
-                    TrendDirectionType.TREND_UP,
-                ]:
-                    # 8 upper 100 - this scenario is for close SHORT position, when previous bar has TREND_DOWN or STRONG_TREND_DOWN
-                    signal = SignalType.SELL
-                else:
-                    signal = SignalType.NONE
+            # elif current_trend == TrendDirectionType.TREND_DOWN:
+            #     if previous_trend in [
+            #         TrendDirectionType.STRONG_TREND_UP,
+            #         TrendDirectionType.TREND_UP,
+            #     ]:
+            #         # 8 upper 100 - this scenario is for close SHORT position, when previous bar has TREND_DOWN or STRONG_TREND_DOWN
+            #         signal = SignalType.SELL
+            #     else:
+            #         signal = SignalType.NONE
 
             else:
                 signal = SignalType.NONE

@@ -1427,7 +1427,7 @@ class SellManager(SideManager):
         ):
             close_price = position_mdl.take_profit
             close_reason = cmn.OrderReason.TAKE_PROFIT
-        elif not self._session_mdl.is_trailing_stop and signal_mdl.signal in [
+        elif signal_mdl.is_close_by_signal and signal_mdl.signal in [
             cmn.SignalType.STRONG_BUY,
             cmn.SignalType.BUY,
         ]:
@@ -1492,12 +1492,12 @@ class SellManager(SideManager):
         stop_loss = position_mdl.stop_loss
         tp_increment = position_mdl.tp_increment
         is_break_even_stop_loss = False
-        take_profit_step = 0.2
+        take_profit_step = 0.5
 
         # Take Profit calculation is performed only when Static Take Profit = 0
         if self._session_mdl.take_profit_rate == 0:
             take_profit_value = position_mdl.open_price - position_mdl.take_profit
-            current_value = position_mdl.open_price - signal_mdl.close
+            current_value = position_mdl.open_price - signal_mdl.low
 
             # Canlculate percent of current price from take profit price
             current_price_percent_from_take_profit = current_value / take_profit_value
@@ -1512,7 +1512,7 @@ class SellManager(SideManager):
                     self._get_round_value(take_profit),
                 )
 
-                if take_profit > new_take_profit:
+                if take_profit >= new_take_profit:
                     take_profit = new_take_profit
 
                     # Only first time should be break-even stop loss
@@ -1524,7 +1524,7 @@ class SellManager(SideManager):
 
             if is_break_even_stop_loss:
                 # Get Break-Even Price, because the take profit will be change
-                break_even_price = position_mdl.open_price - 1.5 * self._get_fee_value(
+                break_even_price = position_mdl.open_price - 2 * self._get_fee_value(
                     position_mdl
                 )
 
@@ -1568,7 +1568,7 @@ class BuyManager(SideManager):
         ):
             close_price = position_mdl.take_profit
             close_reason = cmn.OrderReason.TAKE_PROFIT
-        elif not self._session_mdl.is_trailing_stop and signal_mdl.signal in [
+        elif signal_mdl.is_close_by_signal and signal_mdl.signal in [
             cmn.SignalType.STRONG_SELL,
             cmn.SignalType.SELL,
         ]:
@@ -1632,12 +1632,12 @@ class BuyManager(SideManager):
         stop_loss = position_mdl.stop_loss
         tp_increment = position_mdl.tp_increment
         is_break_even_stop_loss = False
-        take_profit_step = 0.2
+        take_profit_step = 0.5
 
         # Take Profit calculation is performed only when Static Take Profit = 0
         if self._session_mdl.take_profit_rate == 0:
             take_profit_value = position_mdl.take_profit - position_mdl.open_price
-            current_value = signal_mdl.close - position_mdl.open_price
+            current_value = signal_mdl.high - position_mdl.open_price
 
             # Canlculate percent of current price from take profit price
             current_price_percent_from_take_profit = current_value / take_profit_value
@@ -1652,7 +1652,7 @@ class BuyManager(SideManager):
                     self._get_round_value(take_profit),
                 )
 
-                if take_profit < new_take_profit:
+                if take_profit <= new_take_profit:
                     take_profit = new_take_profit
 
                     # Only first time should be break-even stop loss
@@ -1664,7 +1664,7 @@ class BuyManager(SideManager):
 
             if is_break_even_stop_loss:
                 # Get Break-Even Price, because the take profit will be change
-                break_even_price = position_mdl.open_price + 1.5 * self._get_fee_value(
+                break_even_price = position_mdl.open_price + 2 * self._get_fee_value(
                     position_mdl
                 )
 

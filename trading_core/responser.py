@@ -557,27 +557,30 @@ class ResponserWeb(ResponserBase):
                     f"There are not enough funds in the account to create this session. Increase the balance or reduce the initial balance of the session."
                 )
 
-            # Check duplicates of entries
-            existing_sessions = SessionHandler.get_sessions(
-                user_id=session_mdl.user_id,
-                trader_id=session_mdl.trader_id,
-                symbol=session_mdl.symbol,
-                session_type=SessionType.TRADING,
-            )
-            if existing_sessions:
-                raise Exception(
-                    f"There are a duplicate of session for symbol {session_mdl.symbol}"
-                )
-
         session = SessionHandler.create_session(session_mdl)
 
         balance_mdl.session_id = session.id
-        balance = BalanceHandler.create_balance(balance_mdl)
+        BalanceHandler.create_balance(balance_mdl)
 
         return session
 
     @decorator_json
     def activate_session(self, session_id: str) -> json:
+        session_mdl = SessionHandler.get_session(id=session_id)
+
+        # Check duplicates of active session
+        existing_sessions = SessionHandler.get_sessions(
+            user_id=session_mdl.user_id,
+            trader_id=session_mdl.trader_id,
+            symbol=session_mdl.symbol,
+            session_type=SessionType.TRADING,
+            status=SessionStatus.active,
+        )
+        if existing_sessions:
+            raise Exception(
+                f"Only one session for symbol {session_mdl.symbol} can be active"
+            )
+
         if SessionHandler.update_session(
             id=session_id, query={"status": SessionStatus.active}
         ):
