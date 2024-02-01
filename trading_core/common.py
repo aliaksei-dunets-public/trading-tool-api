@@ -42,6 +42,9 @@ class StrategyType(str, Enum):
     EMA_8_CROSS_EMA_30_FILTER_CCI_14 = "EMA_8_CROSS_EMA_30_FILTER_CCI_14"
     EMA_8_CROSS_EMA_30_FILTER_EMA_100 = "EMA_8_CROSS_EMA_30_FILTER_EMA_100"
     EMA_30_CROSS_EMA_100_FILTER_CCI_50 = "EMA_30_CROSS_EMA_100_FILTER_CCI_50"
+    EMA_50_CROSS_EMA_100_FILTER_UP_LEVEL_TREND = (
+        "EMA_50_CROSS_EMA_100_FILTER_UP_LEVEL_TREND"
+    )
 
 
 class Importance(str, Enum):
@@ -278,6 +281,9 @@ class StrategyConfigModel(StrategyIdModel):
     history_limit: int
     miv_value: float = 0
     max_value: float = 0
+    ema_short: int = 0
+    ema_medium: int = 0
+    ema_long: int = 0
 
 
 class HistoryDataModel(SymbolIntervalLimitModel):

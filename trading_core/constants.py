@@ -75,10 +75,20 @@ class Const:
     FLD_SIGNAL = "signal"
     FLD_ATR = "ATR"
     FLD_CCI = "CCI"
+    FLD_EMA_SHORT = "EMA_SHORT"
+    FLD_EMA_MEDIUM = "EMA_MEDIUM"
+    FLD_EMA_LONG = "EMA_LONG"
     FLD_EMA_8 = "EMA_8"
     FLD_EMA_30 = "EMA_30"
+    FLD_EMA_50 = "EMA_50"
     FLD_EMA_100 = "EMA_100"
     FLD_TREND = "trend"
+    FLD_TREND_UP_LEVEL = "trend_up_level"
+    FLD_BB_LOWER = "BB_LOWR"
+    FLD_BB_MID = "BB_MID"
+    FLD_BB_UPPER = "BB_UPPER"
+    FLD_BB_BANDWIDTH = "BB_BANDWIDTH"
+    FLD_BB_PERCENT = "BB_PERCENT"
 
     # API fields
     API_FLD_ID = FLD_ID
