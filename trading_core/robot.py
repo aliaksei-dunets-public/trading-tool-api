@@ -1297,6 +1297,10 @@ class LeverageLocalDataManager(LeverageManagerBase):
 
 
 class SideManager:
+    TRAILING_TP_MOVE_LIMIT = 0.7
+    TRAILING_TP_MOVE_STEP = 0.25
+    TRAILING_TP_INCREMENT_LIMIT = 4
+
     def __init__(self, session_mdl: cmn.SessionModel):
         self._session_mdl: cmn.SessionModel = session_mdl
 
@@ -1492,7 +1496,6 @@ class SellManager(SideManager):
         stop_loss = position_mdl.stop_loss
         tp_increment = position_mdl.tp_increment
         is_break_even_stop_loss = False
-        take_profit_step = 0.5
 
         # Take Profit calculation is performed only when Static Take Profit = 0
         if self._session_mdl.take_profit_rate == 0:
@@ -1504,11 +1507,14 @@ class SellManager(SideManager):
 
             # If price is 70% from take profit and TP was incremented no more than 4 times
             # -> recalculate take profit: Add 25 % for the current take profit value
-            if current_price_percent_from_take_profit >= 0.7 and tp_increment < 2:
+            if (
+                current_price_percent_from_take_profit >= self.TRAILING_TP_MOVE_LIMIT
+                and tp_increment < self.TRAILING_TP_INCREMENT_LIMIT
+            ):
                 tp_increment += 1
 
                 new_take_profit = round(
-                    (take_profit - take_profit_step * take_profit_value),
+                    (take_profit - self.TRAILING_TP_MOVE_STEP * take_profit_value),
                     self._get_round_value(take_profit),
                 )
 
@@ -1632,7 +1638,6 @@ class BuyManager(SideManager):
         stop_loss = position_mdl.stop_loss
         tp_increment = position_mdl.tp_increment
         is_break_even_stop_loss = False
-        take_profit_step = 0.5
 
         # Take Profit calculation is performed only when Static Take Profit = 0
         if self._session_mdl.take_profit_rate == 0:
@@ -1644,11 +1649,14 @@ class BuyManager(SideManager):
 
             # If price is 70% from take profit and TP was incremented no more than 4 times
             # -> recalculate take profit: Add 25 % for the current take profit value
-            if current_price_percent_from_take_profit >= 0.7 and tp_increment < 2:
+            if (
+                current_price_percent_from_take_profit >= self.TRAILING_TP_MOVE_LIMIT
+                and tp_increment < self.TRAILING_TP_INCREMENT_LIMIT
+            ):
                 tp_increment += 1
 
                 new_take_profit = round(
-                    (take_profit + take_profit_step * take_profit_value),
+                    (take_profit + self.TRAILING_TP_MOVE_STEP * take_profit_value),
                     self._get_round_value(take_profit),
                 )
 
