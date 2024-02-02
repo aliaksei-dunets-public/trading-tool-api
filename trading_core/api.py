@@ -269,7 +269,7 @@ class ExchangeApiBase:
             )
 
         else:
-            raise Exception(
+            raise APIException(
                 f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} ({self._trader_model.id}) - In the get_end_datetime Interval: {interval} is not determined"
             )
 
@@ -363,7 +363,7 @@ class ExchangeApiBase:
             logger.error(
                 f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} ({self._trader_model.id}) - __get_api_klines({url_params}) -> {response.text}"
             )
-            raise Exception(response.text)
+            raise APIException(response.text)
 
     def _get_url(self, path: str) -> str:
         return self.get_api_endpoints() + path
@@ -978,7 +978,7 @@ class ByBitComApi(ExchangeApiBase):
 
                     # Validate Response format and Code/Message
                     self._validate_response(json_api_response)
-                except Exception as error:
+                except APIException as error:
                     logger.warning(
                         f"{self.__class__.__name__}: During creation of a position - {error}"
                     )
@@ -1040,9 +1040,13 @@ class ByBitComApi(ExchangeApiBase):
             Const.DB_CLOSE_DATETIME: self.getDatetimeByUnixTimeMs(
                 self.get_float_from_dict(name="updatedTime", dictionary=position)
             ),
-            Const.DB_CLOSE_PRICE: self.get_float_from_dict( name="avgExitPrice", dictionary=position),
+            Const.DB_CLOSE_PRICE: self.get_float_from_dict(
+                name="avgExitPrice", dictionary=position
+            ),
             Const.DB_CLOSE_REASON: OrderReason.TRADER,
-            Const.DB_TOTAL_PROFIT: self.get_float_from_dict( name="closedPnl", dictionary=position),
+            Const.DB_TOTAL_PROFIT: self.get_float_from_dict(
+                name="closedPnl", dictionary=position
+            ),
             Const.DB_FEE: 0,
         }
 
@@ -1362,7 +1366,7 @@ class DzengiComApi(ExchangeApiBase):
             logger.error(
                 f"ExchangeApiBase: {self._trader_model.exchange_id.value} - getSymbols -> {response.text}"
             )
-            raise Exception(response.text)
+            raise APIException(response.text)
 
     def get_history_data(
         self, history_data_param: HistoryDataParamModel, **kwargs
@@ -1977,7 +1981,7 @@ class DzengiComApi(ExchangeApiBase):
             logger.error(
                 f"ExchangeApiBase: {self._trader_model.exchange_id.value} - GET /{path} -> {response.status_code}: {response.text}"
             )
-            raise Exception(
+            raise APIException(
                 f"ExchangeApiBase: {self._trader_model.exchange_id.value} - GET /{path} -> {response.status_code}: {response.text}"
             )
 
@@ -1998,7 +2002,7 @@ class DzengiComApi(ExchangeApiBase):
         if response.status_code == 200:
             return response.json()
         else:
-            raise Exception(
+            raise APIException(
                 f"ExchangeApiBase: {self._trader_model.exchange_id.value} - POST /{path} -> {response.status_code}: {response.text}"
             )
 
@@ -2019,7 +2023,7 @@ class DzengiComApi(ExchangeApiBase):
         if response.status_code == 200:
             return response.json()
         else:
-            raise Exception(
+            raise APIException(
                 f"ExchangeApiBase: {self._trader_model.exchange_id.value} - DELETE /{path} -> {response.status_code}: {response.text}"
             )
 

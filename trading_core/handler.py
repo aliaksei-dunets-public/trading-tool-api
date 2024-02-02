@@ -718,6 +718,14 @@ class LeverageHandler:
         return LeverageModel(**entry)
 
     @staticmethod
+    def has_open_leverages(session_id: str) -> bool:
+        query = {Const.DB_SESSION_ID: session_id, Const.DB_STATUS: OrderStatus.opened}
+
+        count = MongoLeverage().get_count(query)
+
+        return count > 0
+
+    @staticmethod
     def get_leverages(session_id: str = None, status: OrderStatus = None):
         query = {}
         result = []
@@ -769,7 +777,9 @@ class TransactionHandler:
 
     @staticmethod
     def get_transactions(
-        user_id: str = None, session_id: str = None, local_order_id: str = None
+        user_id: str = None,
+        session_id: str = None,
+        local_order_id: str = None,
     ):
         query = {}
         if user_id:

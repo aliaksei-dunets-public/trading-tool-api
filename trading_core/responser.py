@@ -42,6 +42,7 @@ from trading_core.common import (
     SessionStatus,
     OrderOpenModel,
     OrderSideType,
+    OrderStatus,
 )
 from trading_core.strategy import StrategyFactory, SignalFactory
 from trading_core.handler import (
@@ -519,12 +520,18 @@ class ResponserWeb(ResponserBase):
         sessions_mdl = SessionHandler.get_sessions_by_email(user_email)
 
         for session_mdl in sessions_mdl:
+            session = session_mdl.model_dump()
+
             balance_mdl = BalanceHandler.get_balance_4_session(
                 session_id=session_mdl.id
             )
 
-            session = session_mdl.model_dump()
             session["balance"] = balance_mdl.model_dump()
+
+            if session_mdl.status == SessionStatus.active:
+                session["has_open_order"] = LeverageHandler.has_open_leverages(
+                    session_id=session_mdl.id
+                )
 
             sessions.append(session)
 

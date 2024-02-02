@@ -119,6 +119,13 @@ class MongoBase:
             )
         return list(self._collection.find(query))
 
+    def get_count(self, query: dict = {}) -> int:
+        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+            logger.info(
+                f"{self.__class__.__name__}: {self._collection.name} - count_documents({query})"
+            )
+        return self._collection.count_documents(query)
+
     def aggregate(self, query: dict = {}) -> list:
         if not query:
             raise Exception(f"DB: aggregate - Query is empty")
