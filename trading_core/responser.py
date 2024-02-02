@@ -42,14 +42,12 @@ from trading_core.common import (
     SessionStatus,
     OrderOpenModel,
     OrderSideType,
-    OrderStatus,
 )
 from trading_core.strategy import StrategyFactory, SignalFactory
 from trading_core.handler import (
     UserHandler,
     ChannelHandler,
     AlertHandler,
-    TraderHandler,
     SessionHandler,
     BalanceHandler,
     OrderHandler,
@@ -480,30 +478,34 @@ class ResponserWeb(ResponserBase):
 
     @decorator_json
     def get_trader(self, id: str) -> json:
-        return TraderHandler.get_trader(id)
+        return buffer_runtime_handler.get_trader_handler().get_trader(id)
 
     @decorator_json
     def get_traders(self, user_email: str = None, status: int = None) -> json:
-        return TraderHandler.get_traders_by_email(user_email=user_email, status=status)
+        return buffer_runtime_handler.get_trader_handler().get_traders_by_email(
+            user_email=user_email, status=status
+        )
 
     @decorator_json
     def create_trader(self, trader_model: TraderModel) -> json:
-        return TraderHandler.create_trader(trader_model)
+        return buffer_runtime_handler.get_trader_handler().create_trader(trader_model)
 
     @decorator_json
     def update_trader(self, id: str, query: dict) -> json:
-        return TraderHandler.update_trader(id=id, query=query)
+        return buffer_runtime_handler.get_trader_handler().update_trader(
+            id=id, query=query
+        )
 
     @decorator_json
     def delete_trader(self, id: str) -> json:
-        if TraderHandler.delete_trader(id=id):
+        if buffer_runtime_handler.get_trader_handler().delete_trader(id=id):
             return {"message": f"Trader {id} has been deleted"}
         else:
             raise Exception(f"Error during deletion of the trader id: {id}")
 
     @decorator_json
     def check_trader_status(self, id: str) -> str:
-        return TraderHandler.check_status(id)
+        return buffer_runtime_handler.get_trader_handler().check_status(id)
 
     @decorator_json
     def get_session(self, id: str) -> json:

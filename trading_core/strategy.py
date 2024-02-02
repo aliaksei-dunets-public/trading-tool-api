@@ -1322,9 +1322,14 @@ class EMA_50_CROSS_EMA_100_FILTER_UP_LEVEL_TREND(Strategy_EMA_Base):
                 #     ),
                 # },
                 {
+                    "kind": "atr",
+                    "length": 14,
+                    "col_names": (Const.FLD_ATR, "MULTIPROCESSING_OFF"),
+                },
+                {
                     "kind": "ema",
                     "length": 50,
-                    "col_names": (Const.FLD_EMA_SHORT, "MULTIPROCESSING_OFF"),
+                    "col_names": (Const.FLD_EMA_SHORT),
                 },
                 {
                     "kind": "ema",
@@ -1419,6 +1424,7 @@ class EMA_50_CROSS_EMA_100_FILTER_UP_LEVEL_TREND(Strategy_EMA_Base):
             current_close = current_bar[Const.FLD_CLOSE]
             up_level_trend = current_bar[Const.FLD_TREND_UP_LEVEL]
             current_ema_long_up_level = current_bar[self.FLD_EMA_LONG_UP_LEVEL]
+            atr_value = current_bar[Const.FLD_ATR]
 
             # Stop Loss calculation
             if up_level_trend in [
@@ -1428,18 +1434,19 @@ class EMA_50_CROSS_EMA_100_FILTER_UP_LEVEL_TREND(Strategy_EMA_Base):
                 # SHORT
                 # SL Price = EMA 100 + 0.5%
                 stop_loss_price = (1 + lv_ema_shift) * current_ema_long_up_level
-                if stop_loss_price > current_close:
+                if stop_loss_price > current_close + atr_value:
                     stop_loss_value = stop_loss_price - current_close
                 else:
-                    stop_loss_value = lv_ema_shift * current_ema_long_up_level
+                    stop_loss_value = 2 * atr_value
+
             else:
                 # LONG
                 # SL Price = EMA 100 - 0.5%
                 stop_loss_price = (1 - lv_ema_shift) * current_ema_long_up_level
-                if stop_loss_price < current_close:
+                if stop_loss_price < current_close - atr_value:
                     stop_loss_value = current_close - stop_loss_price
                 else:
-                    stop_loss_value = lv_ema_shift * current_ema_long_up_level
+                    stop_loss_value = 2 * atr_value
 
             values.append(stop_loss_value)
 

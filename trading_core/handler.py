@@ -289,8 +289,24 @@ class UserHandler:
 
 
 class TraderHandler:
-    @staticmethod
-    def check_status(id: str) -> dict:
+    def __init__(self):
+        self.__buffer_traders: BufferSingleDictionary = BufferSingleDictionary()
+
+    def get_buffer(self) -> BufferSingleDictionary:
+        return self.__buffer_traders
+
+    def get_trader(self, id: str) -> TraderModel:
+        trader_mdl = None
+
+        if self.__buffer_traders.is_data_in_buffer(id):
+            trader_mdl = self.__buffer_traders.get_buffer(key=id)
+        else:
+            # Get Trader and Update buffer
+            trader_mdl = self._fetch_trader(id)
+
+        return trader_mdl
+
+    def check_status(self, id: str) -> dict:
         trader_status = TraderStatus.NEW
         exchange_handler = ExchangeHandler.get_handler(trader_id=id)
         trader_mdl = exchange_handler.get_trader_model()
@@ -312,34 +328,36 @@ class TraderHandler:
         else:
             trader_status = TraderStatus.FAILED
 
-        TraderHandler.update_trader(
-            id=trader_mdl.id, query={"status": trader_status.value}
-        )
+        self.update_trader(id=trader_mdl.id, query={"status": trader_status.value})
         return {"status": trader_status.value}
 
-    @staticmethod
-    def create_trader(trader: TraderModel):
+    def create_trader(self, trader: TraderModel):
         if trader.api_key:
             trader.api_key = trader.encrypt_key(key=trader.api_key)
         if trader.api_secret:
             trader.api_secret = trader.encrypt_key(key=trader.api_secret)
 
         id = MongoTrader().insert_one(trader.to_mongodb_doc())
-        return TraderHandler.get_trader(id)
 
-    @staticmethod
-    def update_trader(id: str, query: dict):
-        trader_mdl = TraderHandler.get_trader(id)
+        # Get Trader and Update buffer
+        return self._fetch_trader(id)
+
+    def update_trader(self, id: str, query: dict):
+        trader_mdl = self.get_trader(id)
 
         if "api_key" in query and query["api_key"]:
             query["api_key"] = trader_mdl.encrypt_key(key=query["api_key"])
         if "api_secret" in query and query["api_secret"]:
             query["api_secret"] = trader_mdl.encrypt_key(key=query["api_secret"])
 
-        return MongoTrader().update_one(id=id, query=query)
+        result = MongoTrader().update_one(id=id, query=query)
 
-    @staticmethod
-    def delete_trader(id: str):
+        # Get Trader and Update buffer
+        self._fetch_trader(id)
+
+        return result
+
+    def delete_trader(self, id: str):
         # Remove Trader's Sessions, Balances, Orders, Leverages
         sessions = SessionHandler.get_sessions(trader_id=id)
         for session_mdl in sessions:
@@ -350,47 +368,39 @@ class TraderHandler:
         # Remove Trader
         trader_deletion = MongoTrader().delete_one(id=id)
 
+        # Remove trader from buffer
+        self.__buffer_traders.remove_from_buffer(key=id)
+
         return trader_deletion
 
-    @staticmethod
-    def get_trader(id: str) -> TraderModel:
-        entry = MongoTrader().get_one(id)
-        if not entry:
-            raise Exception(f"Trader {id} doesn't exists")
-        return TraderModel(**entry)
-
-    @staticmethod
-    def get_default_user_trader(user_id: str) -> TraderModel:
-        trader_model_list = TraderHandler._read_traders(user_id=user_id, default=True)
+    def get_default_user_trader(self, user_id: str) -> TraderModel:
+        trader_model_list = self._read_traders(user_id=user_id, default=True)
         if not trader_model_list:
             raise Exception(f"User {user_id} doesn't have default trader")
         return trader_model_list[0]
 
-    @staticmethod
-    def get_default_trader(exchange_id: ExchangeId) -> TraderModel:
-        trader_model_list = TraderHandler._read_traders(exchange_id=exchange_id)
+    def get_default_trader(self, exchange_id: ExchangeId) -> TraderModel:
+        trader_model_list = self._read_traders(exchange_id=exchange_id)
         if not trader_model_list:
             raise Exception(f"Exchange Id {exchange_id} doesn't maintained")
         return trader_model_list[0]
 
-    @staticmethod
-    def get_traders(user_id: str = None) -> list[TraderModel]:
-        return TraderHandler._read_traders(user_id=user_id)
+    def get_traders(self, user_id: str = None) -> list[TraderModel]:
+        return self._read_traders(user_id=user_id)
 
-    @staticmethod
     def get_traders_by_email(
-        user_email: str = None, status: int = None
+        self, user_email: str = None, status: int = None
     ) -> list[TraderModel]:
         user_mdl = buffer_runtime_handler.get_user_handler().get_user_by_email(
             email=user_email
         )
         if user_mdl.technical_user:
-            return TraderHandler._read_traders()
+            return self._read_traders()
         else:
-            return TraderHandler._read_traders(user_id=user_mdl.id, status=status)
+            return self._read_traders(user_id=user_mdl.id, status=status)
 
-    @staticmethod
-    def _read_traders(**kwargs) -> list[TraderModel]:
+    def _read_traders(self, **kwargs) -> list[TraderModel]:
+        result = []
         query = {**kwargs}
         status = kwargs.get(Const.DB_STATUS)
         if Const.DB_STATUS in query:
@@ -400,8 +410,22 @@ class TraderHandler:
             query[Const.DB_STATUS] = {"$gte": int(status)}
 
         entries_db = MongoTrader().get_many(query)
-        result = [TraderModel(**entry) for entry in entries_db]
+
+        for entry in entries_db:
+            trader_mdl = TraderModel(**entry)
+            self.__buffer_traders.set_buffer(key=trader_mdl.id, data=trader_mdl)
+            result.append(trader_mdl)
+
         return result
+
+    def _fetch_trader(self, id: str) -> TraderModel:
+        entry = MongoTrader().get_one(id)
+        if not entry:
+            raise Exception(f"Trader {id} doesn't exists")
+
+        trader_mdl = TraderModel(**entry)
+        self.__buffer_traders.set_buffer(key=id, data=trader_mdl)
+        return trader_mdl
 
 
 class ChannelHandler:
@@ -798,7 +822,9 @@ class TransactionHandler:
 class ExchangeHandler:
     def __init__(self, trader_id: str):
         self._api: ExchangeApiBase = None
-        self.__trader_model: TraderModel = TraderHandler.get_trader(trader_id)
+        self.__trader_model: TraderModel = (
+            buffer_runtime_handler.get_trader_handler().get_trader(trader_id)
+        )
 
         if not self.__trader_model.exchange_id:
             raise Exception(f"ExchangeHandler: Exchange Id is missed")
@@ -821,11 +847,11 @@ class ExchangeHandler:
         if trader_id:
             return ExchangeHandler(trader_id)
         elif user_id:
-            trader = TraderHandler.get_default_user_trader(user_id=user_id)
+            trader = buffer_runtime_handler.get_trader_handler().get_default_user_trader(user_id=user_id)
             trader_id = trader.id
         else:
             technical_user = UserHandler.get_technical_user()
-            trader = TraderHandler.get_default_user_trader(user_id=technical_user.id)
+            trader = buffer_runtime_handler.get_trader_handler().get_default_user_trader(user_id=technical_user.id)
             trader_id = trader.id
 
         return ExchangeHandler(trader.id)
@@ -1271,6 +1297,7 @@ class BufferRuntimeHandlers:
             class_.__signal_handler = BufferSingleDictionary()
             class_.__interval_handler = {}
             class_.__user_handler = UserHandler()
+            class_.__trader_handler = TraderHandler()
             class_.__job_handler = BufferSingleDictionary()
         return class_._instance
 
@@ -1306,6 +1333,9 @@ class BufferRuntimeHandlers:
     def get_user_handler(self):
         return self.__user_handler
 
+    def get_trader_handler(self):
+        return self.__trader_handler
+
     def get_interval_handler(
         self, trader_id: str = None, user_id: str = None
     ) -> IntervalHandler:
@@ -1328,6 +1358,7 @@ class BufferRuntimeHandlers:
         self.__signal_handler.clear_buffer()
         self.__interval_handler = {}
         self.__user_handler.get_buffer().clear_buffer()
+        self.__trader_handler.get_buffer().clear_buffer()
 
 
 buffer_runtime_handler = BufferRuntimeHandlers()
