@@ -1415,7 +1415,7 @@ class EMA_50_CROSS_EMA_100_FILTER_UP_LEVEL_TREND(Strategy_EMA_Base):
 
     def _determine_stop_loss_value(self, df):
         values = []
-        lv_ema_shift = 0.0001
+        lv_ema_shift = 0.0009
 
         for i in range(len(df)):
             stop_loss_value = 0
@@ -1425,6 +1425,7 @@ class EMA_50_CROSS_EMA_100_FILTER_UP_LEVEL_TREND(Strategy_EMA_Base):
             up_level_trend = current_bar[Const.FLD_TREND_UP_LEVEL]
             current_ema_long_up_level = current_bar[self.FLD_EMA_LONG_UP_LEVEL]
             atr_value = current_bar[Const.FLD_ATR]
+            atr_coefficient = 3
 
             # Stop Loss calculation
             if up_level_trend in [
@@ -1437,7 +1438,7 @@ class EMA_50_CROSS_EMA_100_FILTER_UP_LEVEL_TREND(Strategy_EMA_Base):
                 if stop_loss_price > current_close + atr_value:
                     stop_loss_value = stop_loss_price - current_close
                 else:
-                    stop_loss_value = 2 * atr_value
+                    stop_loss_value = atr_coefficient * atr_value
 
             else:
                 # LONG
@@ -1446,7 +1447,7 @@ class EMA_50_CROSS_EMA_100_FILTER_UP_LEVEL_TREND(Strategy_EMA_Base):
                 if stop_loss_price < current_close - atr_value:
                     stop_loss_value = current_close - stop_loss_price
                 else:
-                    stop_loss_value = 2 * atr_value
+                    stop_loss_value = atr_coefficient * atr_value
 
             values.append(stop_loss_value)
 
@@ -1488,17 +1489,18 @@ class EMA_50_CROSS_EMA_100_FILTER_UP_LEVEL_TREND(Strategy_EMA_Base):
 
             if current_trend == TrendDirectionType.TREND_UP and trend_up_level in [
                 TrendDirectionType.STRONG_TREND_UP,
+                TrendDirectionType.TREND_UP,
             ]:
                 if previous_trend == TrendDirectionType.TREND_DOWN:
                     signal = SignalType.STRONG_BUY
 
             elif current_trend == TrendDirectionType.TREND_DOWN and trend_up_level in [
                 TrendDirectionType.STRONG_TREND_DOWN,
+                TrendDirectionType.TREND_DOWN,
             ]:
                 if previous_trend == TrendDirectionType.TREND_UP:
                     signal = SignalType.STRONG_SELL
-                else:
-                    signal = SignalType.NONE
+
             elif signal_up_level == SignalType.STRONG_BUY:
                 signal = SignalType.BUY
             elif signal_up_level == SignalType.STRONG_SELL:
