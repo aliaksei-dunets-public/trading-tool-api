@@ -24,6 +24,7 @@ class Const:
     DB_LOCAL_ORDER_ID = "local_order_id"
     DB_POSITION_ID = "position_id"
     DB_TRADER_ID = "trader_id"
+    DB_EXCHANGE_ID = "exchange_id"
     DB_SYMBOL = "symbol"
     DB_NAME = "name"
     DB_STATUS = "status"

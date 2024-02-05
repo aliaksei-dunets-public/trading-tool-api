@@ -535,6 +535,11 @@ class ResponserWeb(ResponserBase):
                     session_id=session_mdl.id
                 )
 
+            trader_mdl = buffer_runtime_handler.get_trader_handler().get_trader(
+                id=session_mdl.trader_id
+            )
+            session[Const.DB_EXCHANGE_ID] = trader_mdl.exchange_id
+
             sessions.append(session)
 
         return sessions
