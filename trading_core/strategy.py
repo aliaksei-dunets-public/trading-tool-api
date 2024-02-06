@@ -1461,8 +1461,11 @@ class EMA_50_CROSS_EMA_100_FILTER_UP_LEVEL_TREND(Strategy_EMA_Base):
 
             current_bar = df.iloc[i]
             stop_loss_value = current_bar[Const.FLD_STOP_LOSS_VALUE]
+            atr_value = 10 * current_bar[Const.FLD_ATR]
 
-            take_profit_value = 2 * stop_loss_value
+            take_profit_value = (
+                stop_loss_value if stop_loss_value > atr_value else atr_value
+            )
 
             values.append(take_profit_value)
 
