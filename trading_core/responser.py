@@ -299,6 +299,18 @@ class ResponserBase:
 
 class ResponserWeb(ResponserBase):
     @decorator_json
+    def get_config(self) -> json:
+        return config.get_config_values()
+
+    @decorator_json
+    def update_config(self, config_payload: dict) -> json:
+        result = config.update_config(config_payload)
+        if result:
+            return {"message": f"Config has been updated"}
+        else:
+            raise Exception(f"Error during update of the config")
+
+    @decorator_json
     def get_symbol_list(*args, **kwargs) -> json:
         symbol_handler = buffer_runtime_handler.get_symbol_handler(
             trader_id=kwargs.get(Const.DB_TRADER_ID)

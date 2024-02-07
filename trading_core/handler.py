@@ -90,9 +90,6 @@ class BufferBaseHandler:
 class BufferSingleDictionary(BufferBaseHandler):
     def get_buffer(self, key: str) -> dict:
         if self.is_data_in_buffer(key):
-            if config.get_config_value(Const.CONFIG_DEBUG_LOG):
-                logger.info(f"{self.__class__.__name__}: get_buffer({key})")
-
             return self._buffer[key]
         else:
             None
@@ -210,8 +207,12 @@ class UserHandler:
         if not self.__buffer_users.is_data_in_buffer(email):
             user_mdl = self._get_user_by_email(email)
             self.__buffer_users.set_buffer(email, user_mdl)
+            return user_mdl
+        else:
+            if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+                logger.info(f"{self.__class__.__name__}: get_buffer({email})")
 
-        return self.__buffer_users.get_buffer(email)
+            return self.__buffer_users.get_buffer(email)
 
     @staticmethod
     def create_user(user: UserModel) -> UserModel:
@@ -299,6 +300,8 @@ class TraderHandler:
         trader_mdl = None
 
         if self.__buffer_traders.is_data_in_buffer(id):
+            if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+                logger.info(f"{self.__class__.__name__}: get_buffer({id})")
             trader_mdl = self.__buffer_traders.get_buffer(key=id)
         else:
             # Get Trader and Update buffer
@@ -847,11 +850,19 @@ class ExchangeHandler:
         if trader_id:
             return ExchangeHandler(trader_id)
         elif user_id:
-            trader = buffer_runtime_handler.get_trader_handler().get_default_user_trader(user_id=user_id)
+            trader = (
+                buffer_runtime_handler.get_trader_handler().get_default_user_trader(
+                    user_id=user_id
+                )
+            )
             trader_id = trader.id
         else:
             technical_user = UserHandler.get_technical_user()
-            trader = buffer_runtime_handler.get_trader_handler().get_default_user_trader(user_id=technical_user.id)
+            trader = (
+                buffer_runtime_handler.get_trader_handler().get_default_user_trader(
+                    user_id=technical_user.id
+                )
+            )
             trader_id = trader.id
 
         return ExchangeHandler(trader.id)
@@ -1166,6 +1177,8 @@ class SymbolHandler(BaseOnExchangeHandler):
             return True
 
         if self._buffer_timeframes.is_data_in_buffer(trading_time):
+            if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+                logger.info(f"{self.__class__.__name__}: get_buffer({trading_time})")
             timeframe = self._buffer_timeframes.get_buffer(trading_time)
         else:
             # Send a request to an API to get symbols

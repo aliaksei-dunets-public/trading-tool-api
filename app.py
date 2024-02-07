@@ -41,6 +41,18 @@ job_func_initialise_runtime_data()
 JobScheduler()
 
 
+######################### Trader ###########################
+@app.route("/config", methods=["GET"])
+def get_config():
+    return responser.get_config()
+
+
+@app.route("/config", methods=["PUT"])
+def update_config_value():
+    property_value = request.get_json()
+    return responser.update_config(property_value)
+
+
 ######################### User #############################
 @app.route("/user/<id>", methods=["GET"])
 def get_user(id):
