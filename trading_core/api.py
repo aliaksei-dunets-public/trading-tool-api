@@ -35,17 +35,13 @@ from .constants import Const
 
 import logging
 
-# # Set up logging
-# logging.basicConfig(
-#     level=logging.INFO,
-#     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-#     handlers=[logging.StreamHandler()],
-# )
-
 logger = logging.getLogger("api")
 
 
 class ExchangeApiBase:
+
+    BATCH_SIZE = 1000
+
     def __init__(self, trader_model: TraderModel):
         self._trader_model = trader_model
 
@@ -70,7 +66,64 @@ class ExchangeApiBase:
     def get_history_data(
         self, history_data_param: HistoryDataParamModel, **kwargs
     ) -> HistoryDataModel:
-        pass
+        df: pd.DataFrame = pd.DataFrame()
+
+        limit = history_data_param.limit
+
+        # Determine the number of full batches
+        full_batches = limit // self.BATCH_SIZE
+
+        # Boolean importing parameters closed_bars in order to get only closed bar for the current moment
+        # If closed_bars indicator is True -> calculated endTime for the API
+        local_datetime = datetime.now()
+        closed_datetime = self.get_end_datetime(
+            interval=history_data_param.interval,
+            original_datetime=local_datetime,
+            closed_bars=history_data_param.closed_bars,
+        )
+
+        # Execute full batches
+        for _ in range(full_batches):
+            history_data_param.set_limit(self.BATCH_SIZE)
+            batch_history_data = self._get_history_dataframe(
+                history_data_param=history_data_param,
+                end=self.getUnixTimeMsByDatetime(closed_datetime),
+            )
+
+            if not batch_history_data.empty:
+                df = pd.concat([df, batch_history_data])
+
+            df = df.sort_index()
+
+            # Get the latest date of the batch
+            last_datetime = df.index[
+                0
+            ].to_pydatetime()  # pd.to_datetime(df.head(1).index.values[0])
+
+            closed_datetime = self.get_next_batch_end_datetime(
+                end_datetime=last_datetime, interval=history_data_param.interval
+            )
+
+        # Execute the remaining elements
+        rest_of_limit = limit % self.BATCH_SIZE
+        if rest_of_limit > 0:
+            history_data_param.set_limit(rest_of_limit)
+            batch_history_data = self._get_history_dataframe(
+                history_data_param=history_data_param,
+                end=self.getUnixTimeMsByDatetime(closed_datetime),
+            )
+
+            df = pd.concat([df, batch_history_data])
+
+        # Create an instance of HistoryDataModel
+        obj_history_data = HistoryDataModel(
+            symbol=history_data_param.symbol,
+            interval=history_data_param.interval,
+            limit=limit,
+            data=df.sort_index(),
+        )
+
+        return obj_history_data
 
     def get_open_orders(self, symbol: str) -> list[OrderModel]:
         pass
@@ -273,7 +326,7 @@ class ExchangeApiBase:
                 f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} ({self._trader_model.id}) - In the get_end_datetime Interval: {interval} is not determined"
             )
 
-        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+        if config.get_config_value(Const.CONF_PROPERTY_API_LOG):
             other_attributes = ", ".join(
                 f"{key}={value}" for key, value in kwargs.items()
             )
@@ -301,6 +354,32 @@ class ExchangeApiBase:
             interval=interval, original_datetime=local_datetime, closed_bars=True
         )
         return self.getUnixTimeMsByDatetime(offset_datetime)
+
+    def get_next_batch_end_datetime(
+        self, end_datetime: datetime, interval: IntervalType, batch_size: int = 1000
+    ):
+        next_datetime_delta = None
+
+        if interval == IntervalType.MIN_1:
+            next_datetime_delta = timedelta(minutes=1)
+        elif interval == IntervalType.MIN_5:
+            next_datetime_delta = timedelta(minutes=5)
+        elif interval == IntervalType.MIN_15:
+            next_datetime_delta = timedelta(minutes=15)
+        elif interval == IntervalType.MIN_30:
+            next_datetime_delta = timedelta(minutes=30)
+        elif interval == IntervalType.HOUR_1:
+            next_datetime_delta = timedelta(hours=1)
+        elif interval == IntervalType.HOUR_4:
+            next_datetime_delta = timedelta(hours=4)
+        elif interval == IntervalType.DAY_1:
+            next_datetime_delta = timedelta(days=1)
+        elif interval == IntervalType.WEEK_1:
+            next_datetime_delta = timedelta(days=7)
+        else:
+            return end_datetime
+
+        return end_datetime - next_datetime_delta
 
     @staticmethod
     def getUnixTimeMsByDatetime(original_datetime: datetime) -> int:
@@ -365,6 +444,11 @@ class ExchangeApiBase:
             )
             raise APIException(response.text)
 
+    def _get_history_dataframe(
+        self, history_data_param: HistoryDataParamModel, start=None, end=None, **kwargs
+    ) -> HistoryDataModel:
+        pass
+
     def _get_url(self, path: str) -> str:
         return self.get_api_endpoints() + path
 
@@ -401,7 +485,7 @@ class ByBitComApi(ExchangeApiBase):
         return "https://api.bybit.com/v5/"
 
     def ping_server(self, **kwargs) -> bool:
-        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+        if config.get_config_value(Const.CONF_PROPERTY_API_LOG):
             logger.info(
                 f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} ({self._trader_model.id}) - ping_server({kwargs})"
             )
@@ -432,51 +516,6 @@ class ByBitComApi(ExchangeApiBase):
         # symbols_spot = self._get_symbols(category="spot")
         return symbols_leverages
 
-    def get_history_data(
-        self, history_data_param: HistoryDataParamModel, **kwargs
-    ) -> HistoryDataModel:
-        # Prepare URL parameters
-        url_params = {
-            Const.API_FLD_CATEGORY: self.CATEGORY_LINEAR,
-            Const.API_FLD_SYMBOL: history_data_param.symbol,
-            Const.API_FLD_INTERVAL: self._map_interval(
-                interval=history_data_param.interval
-            ),
-            Const.API_FLD_LIMIT: history_data_param.limit,
-        }
-
-        # Boolean importing parameters closed_bars in order to get only closed bar for the current moment
-        # If closed_bars indicator is True -> calculated endTime for the API
-        if history_data_param.closed_bars:
-            url_params[Const.API_FLD_END] = self.getOffseUnixTimeMsByInterval(
-                history_data_param.interval
-            )
-
-        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
-            logger.info(
-                f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} ({self._trader_model.id}) - get_history_data({url_params})"
-            )
-
-        json_api_response = self._get_api_http_session().get_kline(**url_params)
-
-        # Validate Response format and Code/Message
-        self._validate_response(response=json_api_response, response_log=False)
-
-        klines_data = json_api_response["result"]["list"]
-
-        # Convert API response to the DataFrame with columns: 'Datetime', 'Open', 'High', 'Low', 'Close', 'Volume'
-        df = self._convertResponseToDataFrame(klines_data)
-
-        # Create an instance of HistoryDataModel
-        obj_history_data = HistoryDataModel(
-            symbol=history_data_param.symbol,
-            interval=history_data_param.interval,
-            limit=history_data_param.limit,
-            data=df,
-        )
-
-        return obj_history_data
-
     def get_leverage_settings(self, symbol: str):
         return [1, 2, 5, 10, 20, 50]
 
@@ -493,7 +532,7 @@ class ByBitComApi(ExchangeApiBase):
             "coin": "USDT",
         }
 
-        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+        if config.get_config_value(Const.CONF_PROPERTY_API_LOG):
             logger.info(
                 f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} ({self._trader_model.id}) - get_accounts({params})"
             )
@@ -534,7 +573,7 @@ class ByBitComApi(ExchangeApiBase):
     def get_fee(self, symbol: str) -> float:
         params = {"category": self.CATEGORY_LINEAR, "symbol": symbol}
 
-        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+        if config.get_config_value(Const.CONF_PROPERTY_API_LOG):
             logger.info(
                 f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} ({self._trader_model.id}) - get_fee_rates({params})"
             )
@@ -571,7 +610,7 @@ class ByBitComApi(ExchangeApiBase):
             "slTriggerBy": "MarkPrice",
         }
 
-        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+        if config.get_config_value(Const.CONF_PROPERTY_API_LOG):
             logger.info(
                 f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} ({self._trader_model.id}) - set_trading_stop({params})"
             )
@@ -662,7 +701,7 @@ class ByBitComApi(ExchangeApiBase):
         created_ids = self._place_order(position_mdl=position_mdl)
 
         if created_ids:
-            if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+            if config.get_config_value(Const.CONF_PROPERTY_API_LOG):
                 logger.info(
                     f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} ({self._trader_model.id}) - Position has been created with ids: {created_ids}"
                 )
@@ -706,7 +745,7 @@ class ByBitComApi(ExchangeApiBase):
 
         closed_position_ids = self._place_order(position_mdl=openned_posision_mdl)
 
-        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+        if config.get_config_value(Const.CONF_PROPERTY_API_LOG):
             logger.info(
                 f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} ({self._trader_model.id}) - Position has been closed with ids: {closed_position_ids}"
             )
@@ -762,7 +801,7 @@ class ByBitComApi(ExchangeApiBase):
             "status": "Trading",
         }
 
-        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+        if config.get_config_value(Const.CONF_PROPERTY_API_LOG):
             logger.info(
                 f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} ({self._trader_model.id}) - getSymbols({params})"
             )
@@ -794,14 +833,16 @@ class ByBitComApi(ExchangeApiBase):
                     "symbol": row["symbol"],
                     "name": row["symbol"],
                     "status": status_converted,
-                    "type": SymbolType.leverage
-                    if category == self.CATEGORY_LINEAR
-                    else SymbolType.spot,
+                    "type": (
+                        SymbolType.leverage
+                        if category == self.CATEGORY_LINEAR
+                        else SymbolType.spot
+                    ),
                     "trading_time": "",
                     "currency": row["quoteCoin"],
-                    "quote_precision": len(quantity_step.split(".")[1])
-                    if "." in quantity_step
-                    else 0,
+                    "quote_precision": (
+                        len(quantity_step.split(".")[1]) if "." in quantity_step else 0
+                    ),
                     # "trading_fee": 0,
                 }
 
@@ -812,6 +853,35 @@ class ByBitComApi(ExchangeApiBase):
                 continue
 
         return symbols
+
+    def _get_history_dataframe(
+        self, history_data_param: HistoryDataParamModel, start=None, end=None, **kwargs
+    ) -> HistoryDataModel:
+        # Prepare URL parameters
+        url_params = {
+            Const.API_FLD_CATEGORY: self.CATEGORY_LINEAR,
+            Const.API_FLD_SYMBOL: history_data_param.symbol,
+            Const.API_FLD_INTERVAL: self._map_interval(
+                interval=history_data_param.interval
+            ),
+            Const.API_FLD_LIMIT: history_data_param.limit,
+            Const.API_FLD_END: end,
+        }
+
+        if config.get_config_value(Const.CONF_PROPERTY_API_LOG):
+            logger.info(
+                f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} ({self._trader_model.id}) - get_history_data({url_params})"
+            )
+
+        json_api_response = self._get_api_http_session().get_kline(**url_params)
+
+        # Validate Response format and Code/Message
+        self._validate_response(response=json_api_response, response_log=False)
+
+        klines_data = json_api_response["result"]["list"]
+
+        # Convert API response to the DataFrame with columns: 'Datetime', 'Open', 'High', 'Low', 'Close', 'Volume'
+        return self._convertResponseToDataFrame(klines_data)
 
     def _get_order_history(
         self,
@@ -835,7 +905,7 @@ class ByBitComApi(ExchangeApiBase):
         if position_id:
             params[Const.API_FLD_ORDER_LINK_ID] = position_id
 
-        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+        if config.get_config_value(Const.CONF_PROPERTY_API_LOG):
             logger.info(
                 f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} ({self._trader_model.id}) - get_order_history({params})"
             )
@@ -930,7 +1000,7 @@ class ByBitComApi(ExchangeApiBase):
             "symbol": symbol,
         }
 
-        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+        if config.get_config_value(Const.CONF_PROPERTY_API_LOG):
             logger.info(
                 f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} ({self._trader_model.id}) - get_positions({params})"
             )
@@ -967,7 +1037,7 @@ class ByBitComApi(ExchangeApiBase):
                         "sellLeverage": str(position_mdl.leverage),
                     }
 
-                    if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+                    if config.get_config_value(Const.CONF_PROPERTY_API_LOG):
                         logger.info(
                             f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} ({self._trader_model.id}) - set_leverage({set_leverage_params})"
                         )
@@ -997,7 +1067,7 @@ class ByBitComApi(ExchangeApiBase):
             "stopLoss": position_mdl.stop_loss,
         }
 
-        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+        if config.get_config_value(Const.CONF_PROPERTY_API_LOG):
             logger.info(
                 f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} ({self._trader_model.id}) - place_order({place_order_params})"
             )
@@ -1014,7 +1084,7 @@ class ByBitComApi(ExchangeApiBase):
     def _get_closed_pnl(self, symbol: str, limit: int = 1) -> dict:
         params = {"category": self.CATEGORY_LINEAR, "symbol": symbol, "limit": limit}
 
-        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+        if config.get_config_value(Const.CONF_PROPERTY_API_LOG):
             logger.info(
                 f"{self.__class__.__name__}: {self._trader_model.exchange_id.value} ({self._trader_model.id}) - get_closed_pnl({params})"
             )
@@ -1139,7 +1209,7 @@ class ByBitComApi(ExchangeApiBase):
             if code == 0:
                 if response_log:
                     message_text = f"{message_text}: {response}"
-                    if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+                    if config.get_config_value(Const.CONF_PROPERTY_API_LOG):
                         logger.info(message_text)
                 return
             else:
@@ -1149,7 +1219,7 @@ class ByBitComApi(ExchangeApiBase):
         else:
             message_text = f"{message_text}Incorrect API response format"
 
-        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+        if config.get_config_value(Const.CONF_PROPERTY_API_LOG):
             logger.error(message_text)
         raise APIException(message_text)
 
@@ -1312,7 +1382,7 @@ class DzengiComApi(ExchangeApiBase):
     def get_symbols(self, **kwargs) -> dict[SymbolModel]:
         symbols = {}
 
-        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+        if config.get_config_value(Const.CONF_PROPERTY_API_LOG):
             logger.info(
                 f"ExchangeApiBase: {self._trader_model.exchange_id.value} - getSymbols()"
             )
@@ -1368,49 +1438,6 @@ class DzengiComApi(ExchangeApiBase):
             )
             raise APIException(response.text)
 
-    def get_history_data(
-        self, history_data_param: HistoryDataParamModel, **kwargs
-    ) -> HistoryDataModel:
-        # Prepare URL parameters
-        url_params = {
-            Const.API_FLD_SYMBOL: history_data_param.symbol,
-            Const.API_FLD_INTERVAL: self._map_interval(
-                interval=history_data_param.interval
-            ),
-            Const.API_FLD_LIMIT: history_data_param.limit,
-        }
-
-        # If closed_bars indicator is True -> calculated endTime for the API
-        if history_data_param.closed_bars:
-            url_params[Const.API_FLD_END_TIME] = self.getOffseUnixTimeMsByInterval(
-                history_data_param.interval
-            )
-            url_params[Const.API_FLD_LIMIT] = url_params[Const.API_FLD_LIMIT] + 1
-
-        # Importing parameters price_type: bid, ask
-        price_type = kwargs.get(Const.FLD_PRICE_TYPE, self.PRICE_TYPE_BID)
-        url_params[Const.API_FLD_PRICE_TYPE] = price_type
-
-        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
-            logger.info(
-                f"ExchangeApiBase: {self._trader_model.exchange_id.value} - get_history_data({url_params})"
-            )
-
-        json_api_response = self._get_api_klines(url_params)
-
-        # Convert API response to the DataFrame with columns: 'Datetime', 'Open', 'High', 'Low', 'Close', 'Volume'
-        df = self.convertResponseToDataFrame(json_api_response)
-
-        # Create an instance of HistoryDataModel
-        obj_history_data = HistoryDataModel(
-            symbol=history_data_param.symbol,
-            interval=history_data_param.interval,
-            limit=history_data_param.limit,
-            data=df,
-        )
-
-        return obj_history_data
-
     def create_order(self, position_mdl: OrderModel) -> OrderModel:
         pass
 
@@ -1423,9 +1450,9 @@ class DzengiComApi(ExchangeApiBase):
             quantity=position_mdl.quantity,
             leverage=position_mdl.leverage,
             stop_loss=position_mdl.stop_loss if position_mdl.stop_loss > 0 else None,
-            take_profit=position_mdl.take_profit
-            if position_mdl.take_profit > 0
-            else None,
+            take_profit=(
+                position_mdl.take_profit if position_mdl.take_profit > 0 else None
+            ),
         )
 
         order_id = created_position[Const.API_FLD_ORDER_ID]
@@ -1592,12 +1619,16 @@ class DzengiComApi(ExchangeApiBase):
                 ),
                 Const.DB_QUANTITY: quantity,
                 Const.DB_FEE: position[Const.API_FLD_FEE],
-                Const.DB_STOP_LOSS: position[Const.API_FLD_STOP_LOSS]
-                if Const.API_FLD_STOP_LOSS in position
-                else 0,
-                Const.DB_TAKE_PROFIT: position[Const.API_FLD_TAKE_PROFIT]
-                if Const.API_FLD_TAKE_PROFIT in position
-                else 0,
+                Const.DB_STOP_LOSS: (
+                    position[Const.API_FLD_STOP_LOSS]
+                    if Const.API_FLD_STOP_LOSS in position
+                    else 0
+                ),
+                Const.DB_TAKE_PROFIT: (
+                    position[Const.API_FLD_TAKE_PROFIT]
+                    if Const.API_FLD_TAKE_PROFIT in position
+                    else 0
+                ),
             }
             position_models.append(LeverageModel(**position_data))
 
@@ -1703,6 +1734,9 @@ class DzengiComApi(ExchangeApiBase):
 
         COLUMN_DATETIME_FLOAT = "DatetimeFloat"
 
+        if not api_response:
+            return pd.DataFrame()
+
         df = pd.DataFrame(
             api_response,
             columns=[
@@ -1787,6 +1821,33 @@ class DzengiComApi(ExchangeApiBase):
                         return True
 
         return False
+
+    def _get_history_dataframe(
+        self, history_data_param: HistoryDataParamModel, start=None, end=None, **kwargs
+    ) -> HistoryDataModel:
+        # Prepare URL parameters
+        url_params = {
+            Const.API_FLD_SYMBOL: history_data_param.symbol,
+            Const.API_FLD_INTERVAL: self._map_interval(
+                interval=history_data_param.interval
+            ),
+            Const.API_FLD_LIMIT: history_data_param.limit,
+            Const.API_FLD_END_TIME: end,
+        }
+
+        # Importing parameters price_type: bid, ask
+        price_type = kwargs.get(Const.FLD_PRICE_TYPE, self.PRICE_TYPE_BID)
+        url_params[Const.API_FLD_PRICE_TYPE] = price_type
+
+        if config.get_config_value(Const.CONF_PROPERTY_API_LOG):
+            logger.info(
+                f"ExchangeApiBase: {self._trader_model.exchange_id.value} - get_history_data({url_params})"
+            )
+
+        json_api_response = self._get_api_klines(url_params)
+
+        # Convert API response to the DataFrame with columns: 'Datetime', 'Open', 'High', 'Low', 'Close', 'Volume'
+        return self.convertResponseToDataFrame(json_api_response)
 
     def _create_position(
         self,
@@ -1962,7 +2023,7 @@ class DzengiComApi(ExchangeApiBase):
         return {**kwargs, self.HEADER_API_KEY_NAME: api_key}
 
     def _get(self, path, **kwargs):
-        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+        if config.get_config_value(Const.CONF_PROPERTY_API_LOG):
             logger.info(
                 f"ExchangeApiBase: {self._trader_model.exchange_id.value} - GET /{path}({kwargs})"
             )
@@ -1986,7 +2047,7 @@ class DzengiComApi(ExchangeApiBase):
             )
 
     def _post(self, path, **kwargs):
-        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+        if config.get_config_value(Const.CONF_PROPERTY_API_LOG):
             logger.info(
                 f"ExchangeApiBase: {self._trader_model.exchange_id.value} - POST /{path}({kwargs})"
             )
@@ -2007,7 +2068,7 @@ class DzengiComApi(ExchangeApiBase):
             )
 
     def _delete(self, path, **kwargs):
-        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+        if config.get_config_value(Const.CONF_PROPERTY_API_LOG):
             logger.info(
                 f"ExchangeApiBase: {self._trader_model.exchange_id.value} - DELETE /{path}"
             )

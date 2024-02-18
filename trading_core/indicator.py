@@ -44,7 +44,7 @@ class IndicatorBase:
         """
         Get the indicator for a specific historical data object.
         """
-        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+        if config.get_config_value(Const.CONF_PROPERTY_CORE_LOG):
             logger.info(
                 f"{self.__class__.__name__}: get_indicator_by_history_data({history_data_mdl.print_model()})"
             )

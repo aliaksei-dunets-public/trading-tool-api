@@ -31,7 +31,6 @@ class Config:
             class_._config_ini = configparser.ConfigParser()
             class_._init_config_ini(class_)
 
-            # class_.__config_data = {Const.CONFIG_DEBUG_LOG: True}
         return class_._instance
 
     def _init_config_ini(self):

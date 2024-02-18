@@ -86,7 +86,7 @@ def decorator_json(func) -> str:
 
 
 def job_func_initialise_runtime_data():
-    if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+    if config.get_config_value(Const.CONF_PROPERTY_RESPONSER_LOG):
         logger.info(f"JOB: {Const.JOB_TYPE_INIT} - Refresh runtime buffer")
 
     buffer_runtime_handler.clear_buffer()
@@ -94,7 +94,7 @@ def job_func_initialise_runtime_data():
 
 
 def job_func_send_bot_notification(interval):
-    if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+    if config.get_config_value(Const.CONF_PROPERTY_RESPONSER_LOG):
         logger.info(f"JOB: {Const.JOB_TYPE_BOT} is triggered for interval - {interval}")
 
     responser = ResponserBot()
@@ -114,7 +114,7 @@ def job_func_send_bot_notification(interval):
 
 
 def job_func_send_email_notification(interval):
-    if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+    if config.get_config_value(Const.CONF_PROPERTY_RESPONSER_LOG):
         logger.info(
             f"JOB: {Const.JOB_TYPE_EMAIL} is triggered for interval - {interval}"
         )
@@ -131,7 +131,7 @@ def job_func_send_email_notification(interval):
 
 
 def job_func_trading_robot(interval):
-    if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+    if config.get_config_value(Const.CONF_PROPERTY_RESPONSER_LOG):
         logger.info(
             f"JOB: {Const.JOB_TYPE_ROBOT} is triggered for interval - {interval}"
         )
@@ -1005,7 +1005,7 @@ class JobScheduler:
         # Add job to the runtime buffer
         buffer_runtime_handler.get_job_handler().set_buffer(key=job.id, data=job)
 
-        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+        if config.get_config_value(Const.CONF_PROPERTY_RESPONSER_LOG):
             logger.info(
                 f"JOB: {job_type} is scheduled for interval: {interval} at {job.next_run_time}"
             )
@@ -1092,7 +1092,7 @@ class NotificationEmail(NotificationBase):
 
                 # Send the email
                 server.sendmail(sender_email, receiver_email, msg.as_string())
-                if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+                if config.get_config_value(Const.CONF_PROPERTY_RESPONSER_LOG):
                     logger.info(
                         f"NOTIFICATION: EMAIL - Sent successfully to {receiver_email}."
                     )
@@ -1128,7 +1128,7 @@ class NotificationBot(NotificationBase):
             }
             response = requests.post(bot_url, data=params)
             if response.ok:
-                if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+                if config.get_config_value(Const.CONF_PROPERTY_RESPONSER_LOG):
                     logger.info(
                         f"NOTIFICATION: BOT - Sent successfully to chat bot: {channel_id}"
                     )

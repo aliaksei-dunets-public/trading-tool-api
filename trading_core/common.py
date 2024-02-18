@@ -212,6 +212,10 @@ class SymbolIntervalStrategyModel(SymbolIntervalModel, StrategyIdModel):
 class SymbolIntervalLimitModel(SymbolIntervalModel):
     limit: int = 0
 
+    def set_limit(self, value: int):
+        if value:
+            self.limit = value
+
 
 class SymbolIntervalStrategyLimitModel(SymbolIntervalLimitModel, StrategyIdModel):
     pass

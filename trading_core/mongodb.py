@@ -38,7 +38,7 @@ class MongoBase:
             query[Const.DB_CREATED_AT] = datetime.utcnow()
             query[Const.DB_CHANGED_AT] = datetime.utcnow()
 
-        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+        if config.get_config_value(Const.CONF_PROPERTY_MONGODB_LOG):
             logger.info(
                 f"{self.__class__.__name__}: {self._collection.name} - insert_one({query})"
             )
@@ -54,7 +54,7 @@ class MongoBase:
                 entry[Const.DB_CREATED_AT] = datetime.utcnow()
                 entry[Const.DB_CHANGED_AT] = datetime.utcnow()
 
-            if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+            if config.get_config_value(Const.CONF_PROPERTY_MONGODB_LOG):
                 logger.info(
                     f"{self.__class__.__name__}: {self._collection.name} - insert_many({entry})"
                 )
@@ -63,21 +63,21 @@ class MongoBase:
             return result.inserted_ids
 
     def update_one(self, id: str, query: dict) -> bool:
-        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+        if config.get_config_value(Const.CONF_PROPERTY_MONGODB_LOG):
             logger.info(
                 f"{self.__class__.__name__}: {self._collection.name} - update_one({query}) for id: {id}"
             )
         return self.__update_one(id=id, query=query)
 
     def upsert_one(self, id: str, query: dict) -> bool:
-        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+        if config.get_config_value(Const.CONF_PROPERTY_MONGODB_LOG):
             logger.info(
                 f"{self.__class__.__name__}: {self._collection.name} - upsert_one({query}) for id: {id}"
             )
         return self.__update_one(id=id, query=query, upsert=True)
 
     def delete_one(self, id: str) -> bool:
-        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+        if config.get_config_value(Const.CONF_PROPERTY_MONGODB_LOG):
             logger.info(
                 f"{self.__class__.__name__}: {self._collection.name} - delete_one({id})"
             )
@@ -87,7 +87,7 @@ class MongoBase:
     def delete_many(self, query: dict) -> bool:
         if not query:
             raise Exception(f"DB: delete_many - Query is empty")
-        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+        if config.get_config_value(Const.CONF_PROPERTY_MONGODB_LOG):
             logger.info(
                 f"{self.__class__.__name__}: {self._collection.name} - delete_many({query})"
             )
@@ -95,7 +95,7 @@ class MongoBase:
         return result.deleted_count > 0
 
     def get_one(self, id: str) -> dict:
-        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+        if config.get_config_value(Const.CONF_PROPERTY_MONGODB_LOG):
             logger.info(
                 f"{self.__class__.__name__}: {self._collection.name} - get_one({id})"
             )
@@ -105,7 +105,7 @@ class MongoBase:
     def get_one_by_filter(self, query: dict) -> dict:
         if not query:
             raise Exception(f"DB: get_one_by_filter - Query is empty")
-        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+        if config.get_config_value(Const.CONF_PROPERTY_MONGODB_LOG):
             logger.info(
                 f"{self.__class__.__name__}: {self._collection.name} - get_one_by_filter({query})"
             )
@@ -113,14 +113,14 @@ class MongoBase:
         return result
 
     def get_many(self, query: dict = {}) -> list:
-        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+        if config.get_config_value(Const.CONF_PROPERTY_MONGODB_LOG):
             logger.info(
                 f"{self.__class__.__name__}: {self._collection.name} - get_many({query})"
             )
         return list(self._collection.find(query))
 
     def get_count(self, query: dict = {}) -> int:
-        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+        if config.get_config_value(Const.CONF_PROPERTY_MONGODB_LOG):
             logger.info(
                 f"{self.__class__.__name__}: {self._collection.name} - count_documents({query})"
             )
@@ -129,7 +129,7 @@ class MongoBase:
     def aggregate(self, query: dict = {}) -> list:
         if not query:
             raise Exception(f"DB: aggregate - Query is empty")
-        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+        if config.get_config_value(Const.CONF_PROPERTY_MONGODB_LOG):
             logger.info(
                 f"{self.__class__.__name__}: {self._collection.name} - aggregate({query})"
             )

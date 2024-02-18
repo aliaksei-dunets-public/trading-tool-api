@@ -3,7 +3,7 @@ from datetime import datetime
 from bson import ObjectId
 import logging
 
-from .core import Const
+from .core import Const, config
 import trading_core.common as cmn
 from .strategy import StrategyFactory, SignalFactory
 from .handler import (
@@ -52,16 +52,17 @@ class TransactionManager:
     def add_transaction_model(self, transaction_mdl: cmn.TransactionModel):
         if transaction_mdl:
             self.__transaction_models.append(transaction_mdl)
-
-            logger.info(
-                f"{self.__class__.__name__} ({self.__session_mdl.id}):  - Add transaction {transaction_mdl.type} for {transaction_mdl.date_time}"
-            )
+            if config.get_config_value(Const.CONF_PROPERTY_ROBOT_LOG):
+                logger.info(
+                    f"{self.__class__.__name__} ({self.__session_mdl.id}):  - Add transaction {transaction_mdl.type} for {transaction_mdl.date_time}"
+                )
 
     def create_transaction(self, transaction_mdl: cmn.TransactionModel):
         TransactionHandler().create_transaction(transaction_mdl)
-        logger.info(
-            f"{self.__class__.__name__} ({self.__session_mdl.id}):  - The transaction {transaction_mdl.type} for {transaction_mdl.date_time} have been saved"
-        )
+        if config.get_config_value(Const.CONF_PROPERTY_ROBOT_LOG):
+            logger.info(
+                f"{self.__class__.__name__} ({self.__session_mdl.id}):  - The transaction {transaction_mdl.type} for {transaction_mdl.date_time} have been saved"
+            )
 
     def get_transactions(self) -> list:
         return self.__transaction_models
@@ -73,9 +74,10 @@ class TransactionManager:
             # Clear transactions buffer
             self.__transaction_models = []
 
-            logger.info(
-                f"{self.__class__.__name__} ({self.__session_mdl.id}):  - The transactions have been saved"
-            )
+            if config.get_config_value(Const.CONF_PROPERTY_ROBOT_LOG):
+                logger.info(
+                    f"{self.__class__.__name__} ({self.__session_mdl.id}):  - The transactions have been saved"
+                )
 
 
 class BalanceManager:
@@ -99,26 +101,29 @@ class BalanceManager:
         self.__balance_mdl.total_fee += fee
         self.__change_indicator = True
 
-        logger.info(
-            f"{self.__class__.__name__} ({self.__balance_mdl.session_id}):  - Add Fee = {fee}"
-        )
+        if config.get_config_value(Const.CONF_PROPERTY_ROBOT_LOG):
+            logger.info(
+                f"{self.__class__.__name__} ({self.__balance_mdl.session_id}):  - Add Fee = {fee}"
+            )
 
     def add_total_profit(self, total_profit: float):
         self.__balance_mdl.total_profit += total_profit
         self.__change_indicator = True
 
-        logger.info(
-            f"{self.__class__.__name__} ({self.__balance_mdl.session_id}):  - Add Total Profit = {total_profit}"
-        )
+        if config.get_config_value(Const.CONF_PROPERTY_ROBOT_LOG):
+            logger.info(
+                f"{self.__class__.__name__} ({self.__balance_mdl.session_id}):  - Add Total Profit = {total_profit}"
+            )
 
     def recalculate_balance(self, total_profit: float):
         self.add_total_profit(total_profit)
         self.__balance_mdl.total_balance += total_profit
         self.__change_indicator = True
 
-        logger.info(
-            f"{self.__class__.__name__} ({self.__balance_mdl.session_id}):  - Recalculate the balance with Total Profit = {total_profit}"
-        )
+        if config.get_config_value(Const.CONF_PROPERTY_ROBOT_LOG):
+            logger.info(
+                f"{self.__class__.__name__} ({self.__balance_mdl.session_id}):  - Recalculate the balance with Total Profit = {total_profit}"
+            )
 
     def save_balance(self):
         if self.__change_indicator:
@@ -131,9 +136,10 @@ class BalanceManager:
 
             self.__change_indicator = False
 
-            logger.info(
-                f"{self.__class__.__name__} ({self.__balance_mdl.session_id}):  - The balance has been saved"
-            )
+            if config.get_config_value(Const.CONF_PROPERTY_ROBOT_LOG):
+                logger.info(
+                    f"{self.__class__.__name__} ({self.__balance_mdl.session_id}):  - The balance has been saved"
+                )
 
 
 class SessionManager:
@@ -142,9 +148,10 @@ class SessionManager:
         self._trader_mng: TraderBase = TraderManager.get_manager(self._session_mdl)
 
     def run(self, **kwargs):
-        logger.info(
-            f"{self.__class__.__name__} ({self._session_mdl.id}):  - The Session Run has started"
-        )
+        if config.get_config_value(Const.CONF_PROPERTY_ROBOT_LOG):
+            logger.info(
+                f"{self.__class__.__name__} ({self._session_mdl.id}):  - The Session Run has started"
+            )
 
         try:
             self._trader_mng.run(**kwargs)
@@ -154,9 +161,11 @@ class SessionManager:
             self._trader_mng.transaction_mng.add_transaction(
                 type=cmn.TransactionType.ERROR,
                 data={"message": f"{error}"},
-                save=True
-                if self._session_mdl.session_type != cmn.SessionType.HISTORY
-                else False,
+                save=(
+                    True
+                    if self._session_mdl.session_type != cmn.SessionType.HISTORY
+                    else False
+                ),
             )
             # Set FAILED Session status
             SessionHandler.update_session(
@@ -178,15 +187,17 @@ class SessionManager:
         return self._trader_mng.balance_mng
 
     def open_position(self, open_mdl: cmn.OrderOpenModel):
-        logger.info(
-            f"{self.__class__.__name__} ({self._session_mdl.id}):  - The session has triggered to open a position"
-        )
+        if config.get_config_value(Const.CONF_PROPERTY_ROBOT_LOG):
+            logger.info(
+                f"{self.__class__.__name__} ({self._session_mdl.id}):  - The session has triggered to open a position"
+            )
         return self._trader_mng.open_position(open_mdl)
 
     def close_position(self) -> bool:
-        logger.info(
-            f"{self.__class__.__name__} ({self._session_mdl.id}):  - The session has triggered to close positions"
-        )
+        if config.get_config_value(Const.CONF_PROPERTY_ROBOT_LOG):
+            logger.info(
+                f"{self.__class__.__name__} ({self._session_mdl.id}):  - The session has triggered to close positions"
+            )
         return self._trader_mng.close_position()
 
 
@@ -224,9 +235,10 @@ class TraderBase:
         return positions
 
     def run(self):
-        logger.info(
-            f"{self.__class__.__name__} ({self.session_mdl.id}):  - The Trader Run has started"
-        )
+        if config.get_config_value(Const.CONF_PROPERTY_ROBOT_LOG):
+            logger.info(
+                f"{self.__class__.__name__} ({self.session_mdl.id}):  - The Trader Run has started"
+            )
 
         signal_param = cmn.SignalParamModel(
             trader_id=self.session_mdl.trader_id,
@@ -245,18 +257,22 @@ class TraderBase:
         self.save()
 
     def open_position(self, open_mdl: cmn.OrderOpenModel) -> cmn.OrderOpenModel:
-        logger.info(
-            f"{self.__class__.__name__} ({self.session_mdl.id}): The Trader is openning a position"
-        )
+        if config.get_config_value(Const.CONF_PROPERTY_ROBOT_LOG):
+            logger.info(
+                f"{self.__class__.__name__} ({self.session_mdl.id}): The Trader is openning a position"
+            )
+
         if not self.data_mng.has_open_position():
             open_mdl = self._get_current_open_order_model(open_mdl)
             position = self.data_mng.open_position(open_mdl)
             return position
 
     def close_position(self) -> bool:
-        logger.info(
-            f"{self.__class__.__name__} ({self.session_mdl.id}): The Trader is closing the positions"
-        )
+        if config.get_config_value(Const.CONF_PROPERTY_ROBOT_LOG):
+            logger.info(
+                f"{self.__class__.__name__} ({self.session_mdl.id}): The Trader is closing the positions"
+            )
+
         if self.data_mng.has_open_position():
             self.data_mng.close_position()
             self.save()
@@ -271,9 +287,10 @@ class TraderBase:
         self.balance_mng.save_balance()
 
     def _process_signal(self, signal_mdl: cmn.SignalModel):
-        logger.info(
-            f"{self.__class__.__name__} ({self.session_mdl.id}): The Trader is processing the signal - {signal_mdl.model_dump()}"
-        )
+        if config.get_config_value(Const.CONF_PROPERTY_ROBOT_LOG):
+            logger.info(
+                f"{self.__class__.__name__} ({self.session_mdl.id}): The Trader is processing the signal - {signal_mdl.model_dump()}"
+            )
 
         # Open position exists -> check if required it to close
         if self.data_mng.has_open_position():
@@ -289,15 +306,17 @@ class TraderBase:
                 self._decide_to_open_position(signal_mdl)
 
     def _decide_to_open_position(self, signal_mdl: cmn.SignalModel):
-        logger.info(
-            f"{self.__class__.__name__} ({self.session_mdl.id}): The Trader is openning a position by the signal"
-        )
+        if config.get_config_value(Const.CONF_PROPERTY_ROBOT_LOG):
+            logger.info(
+                f"{self.__class__.__name__} ({self.session_mdl.id}): The Trader is openning a position by the signal"
+            )
         self.data_mng.open_position_by_signal(signal_mdl)
 
     def _decide_to_close_position(self, signal_mdl: cmn.SignalModel):
-        logger.info(
-            f"{self.__class__.__name__} ({self.session_mdl.id}): The Trader is closing the positions by the signal"
-        )
+        if config.get_config_value(Const.CONF_PROPERTY_ROBOT_LOG):
+            logger.info(
+                f"{self.__class__.__name__} ({self.session_mdl.id}): The Trader is closing the positions by the signal"
+            )
         self.data_mng.close_position_by_signal(signal_mdl)
 
     def _recalculate_position(self, signal_mdl: cmn.SignalModel):
@@ -305,9 +324,10 @@ class TraderBase:
             self.data_mng.recalculate_position(signal_mdl)
 
     def _get_current_open_order_model(self, open_mdl: cmn.OrderOpenModel):
-        logger.info(
-            f"{self.__class__.__name__} ({self.session_mdl.id}): The Trader is fetching cxurrent price, SL and TP values"
-        )
+        if config.get_config_value(Const.CONF_PROPERTY_ROBOT_LOG):
+            logger.info(
+                f"{self.__class__.__name__} ({self.session_mdl.id}): The Trader is fetching cxurrent price, SL and TP values"
+            )
 
         signal_param = cmn.SignalParamModel(
             trader_id=self.session_mdl.trader_id,
@@ -345,9 +365,10 @@ class TraderManager(TraderBase):
         self.data_mng.synchronize(manager=self.api_mng)
 
     def open_position(self, open_mdl: cmn.OrderOpenModel) -> cmn.OrderOpenModel:
-        logger.info(
-            f"{self.__class__.__name__} ({self.session_mdl.id}): The Trader is openning a position"
-        )
+        if config.get_config_value(Const.CONF_PROPERTY_ROBOT_LOG):
+            logger.info(
+                f"{self.__class__.__name__} ({self.session_mdl.id}): The Trader is openning a position"
+            )
 
         if not self.data_mng.has_open_position():
             open_mdl = self._get_current_open_order_model(open_mdl)
@@ -356,9 +377,11 @@ class TraderManager(TraderBase):
             return data_mng_position
 
     def close_position(self) -> bool:
-        logger.info(
-            f"{self.__class__.__name__} ({self.session_mdl.id}): The Trader is closing the positions"
-        )
+        if config.get_config_value(Const.CONF_PROPERTY_ROBOT_LOG):
+            logger.info(
+                f"{self.__class__.__name__} ({self.session_mdl.id}): The Trader is closing the positions"
+            )
+
         api_order_close_mdl = None
 
         if self.api_mng.has_open_position():
@@ -378,17 +401,21 @@ class TraderManager(TraderBase):
             )
 
     def _decide_to_open_position(self, signal_mdl: cmn.SignalModel):
-        logger.info(
-            f"{self.__class__.__name__} ({self.session_mdl.id}): The Trader is openning a position by the signal"
-        )
+        if config.get_config_value(Const.CONF_PROPERTY_ROBOT_LOG):
+            logger.info(
+                f"{self.__class__.__name__} ({self.session_mdl.id}): The Trader is openning a position by the signal"
+            )
+
         api_mng_position = self.api_mng.open_position_by_signal(signal_mdl)
         data_mng_position = self.data_mng.open_position_by_ref(api_mng_position)
         return data_mng_position
 
     def _decide_to_close_position(self, signal_mdl: cmn.SignalModel):
-        logger.info(
-            f"{self.__class__.__name__} ({self.session_mdl.id}): The Trader is closing the positions by the signal"
-        )
+        if config.get_config_value(Const.CONF_PROPERTY_ROBOT_LOG):
+            logger.info(
+                f"{self.__class__.__name__} ({self.session_mdl.id}): The Trader is closing the positions by the signal"
+            )
+
         api_order_close_mdl = self.api_mng.close_position_by_signal(signal_mdl)
         self.data_mng.close_position(order_close_mdl=api_order_close_mdl)
 
@@ -425,9 +452,10 @@ class HistorySimulatorManager(TraderBase):
         )
 
     def run(self, **kwargs):
-        logger.info(
-            f"{self.__class__.__name__} ({self.session_mdl.id}): History Simulation has started"
-        )
+        if config.get_config_value(Const.CONF_PROPERTY_ROBOT_LOG):
+            logger.info(
+                f"{self.__class__.__name__} ({self.session_mdl.id}): History Simulation has started"
+            )
 
         strategy_param = cmn.StrategyParamModel(
             trader_id=self.session_mdl.trader_id,
@@ -479,7 +507,7 @@ class DataManagerBase:
 
         self._side_mng: SideManager = None
 
-        self._open_positions: dict(cmn.OrderModel) = None
+        self._open_positions: dict(cmn.OrderModel) = None  # type: ignore
         self._current_position: cmn.OrderModel = None
 
         self._init_open_positions()
@@ -541,16 +569,18 @@ class DataManagerBase:
             position_mdl=created_position_mdl
         )
 
-        logger.info(
-            f"{self.__class__.__name__} ({self._session_mdl.id}): Position {created_position_mdl.id} for {created_position_mdl.open_datetime} has been openned"
-        )
+        if config.get_config_value(Const.CONF_PROPERTY_ROBOT_LOG):
+            logger.info(
+                f"{self.__class__.__name__} ({self._session_mdl.id}): Position {created_position_mdl.id} for {created_position_mdl.open_datetime} has been openned"
+            )
 
         return created_position_mdl
 
     def open_position_by_signal(self, signal_mdl: cmn.SignalModel) -> cmn.OrderModel:
-        logger.info(
-            f"{self.__class__.__name__} ({self._session_mdl.id}): The Manager is openning a position by signal"
-        )
+        if config.get_config_value(Const.CONF_PROPERTY_ROBOT_LOG):
+            logger.info(
+                f"{self.__class__.__name__} ({self._session_mdl.id}): The Manager is openning a position by signal"
+            )
 
         # Get Side type by Signal
         side_type = SideManager.get_side_type_by_signal(signal_type=signal_mdl.signal)
@@ -569,9 +599,10 @@ class DataManagerBase:
         return self.open_position(open_mdl)
 
     def open_position_by_ref(self, position_mdl: cmn.OrderModel) -> cmn.OrderModel:
-        logger.info(
-            f"{self.__class__.__name__} ({self._session_mdl.id}): The Manager is openning reference Order ID {position_mdl.order_id}"
-        )
+        if config.get_config_value(Const.CONF_PROPERTY_ROBOT_LOG):
+            logger.info(
+                f"{self.__class__.__name__} ({self._session_mdl.id}): The Manager is openning reference Order ID {position_mdl.order_id}"
+            )
         # Persit an openning position
         created_position_mdl = self._open_position(position_mdl)
         # Post processing of the position
@@ -579,9 +610,10 @@ class DataManagerBase:
             position_mdl=created_position_mdl
         )
 
-        logger.info(
-            f"{self.__class__.__name__} ({self._session_mdl.id}): Position {created_position_mdl.id} for {created_position_mdl.open_datetime} has been opened"
-        )
+        if config.get_config_value(Const.CONF_PROPERTY_ROBOT_LOG):
+            logger.info(
+                f"{self.__class__.__name__} ({self._session_mdl.id}): Position {created_position_mdl.id} for {created_position_mdl.open_datetime} has been opened"
+            )
 
         return created_position_mdl
 
@@ -611,27 +643,31 @@ class DataManagerBase:
 
             order_close_mdl = cmn.OrderCloseModel(**close_details_data)
 
-        logger.info(
-            f"{self.__class__.__name__} ({self._session_mdl.id}): Position close options - {order_close_mdl.model_dump()}"
-        )
+        if config.get_config_value(Const.CONF_PROPERTY_ROBOT_LOG):
+            logger.info(
+                f"{self.__class__.__name__} ({self._session_mdl.id}): Position close options - {order_close_mdl.model_dump()}"
+            )
 
         order_close_mdl = self._prepare_close_position(order_close_mdl)
         if order_close_mdl:
             order_close_mdl = self._close_position(order_close_mdl)
             self._after_close_position(order_close_mdl=order_close_mdl)
 
-            logger.info(
-                f"{self.__class__.__name__} ({self._session_mdl.id}): Position {id} for {order_close_mdl.close_datetime} has been closed"
-            )
+            if config.get_config_value(Const.CONF_PROPERTY_ROBOT_LOG):
+                logger.info(
+                    f"{self.__class__.__name__} ({self._session_mdl.id}): Position {id} for {order_close_mdl.close_datetime} has been closed"
+                )
 
         return order_close_mdl
 
     def close_position_by_signal(
         self, signal_mdl: cmn.SignalModel
     ) -> cmn.OrderCloseModel:
-        logger.info(
-            f"{self.__class__.__name__} ({self._session_mdl.id}): The manager are closing the position {self._current_position.id} by the signal"
-        )
+        if config.get_config_value(Const.CONF_PROPERTY_ROBOT_LOG):
+            logger.info(
+                f"{self.__class__.__name__} ({self._session_mdl.id}): The manager are closing the position {self._current_position.id} by the signal"
+            )
+
         order_close_mdl = self._side_mng.get_close_details_by_signal(
             position_mdl=self._current_position,
             signal_mdl=signal_mdl,
@@ -643,9 +679,10 @@ class DataManagerBase:
     def recalculate_position(
         self, signal_mdl: cmn.SignalModel
     ) -> cmn.TrailingStopModel:
-        logger.info(
-            f"{self.__class__.__name__} ({self._session_mdl.id}): Recalculate the position (order_id: {self._current_position.order_id}) by the signal"
-        )
+        if config.get_config_value(Const.CONF_PROPERTY_ROBOT_LOG):
+            logger.info(
+                f"{self.__class__.__name__} ({self._session_mdl.id}): Recalculate the position (order_id: {self._current_position.order_id}) by the signal"
+            )
 
         # Calculate Trailing Stop
         if self._session_mdl.is_trailing_stop:
@@ -653,9 +690,10 @@ class DataManagerBase:
                 position_mdl=self._current_position, signal_mdl=signal_mdl
             )
             if trailing_stop_mdl:
-                logger.info(
-                    f"{self.__class__.__name__} ({self._session_mdl.id}): Set Stop Loss = {trailing_stop_mdl.stop_loss} and Take Profit = {trailing_stop_mdl.take_profit} for {signal_mdl.date_time}"
-                )
+                if config.get_config_value(Const.CONF_PROPERTY_ROBOT_LOG):
+                    logger.info(
+                        f"{self.__class__.__name__} ({self._session_mdl.id}): Set Stop Loss = {trailing_stop_mdl.stop_loss} and Take Profit = {trailing_stop_mdl.take_profit} for {signal_mdl.date_time}"
+                    )
                 return trailing_stop_mdl
 
         return None
@@ -785,9 +823,11 @@ class DataManagerBase:
     def _set_current_postion(self, position_mdl: cmn.OrderModel = None):
         if position_mdl:
             self._current_position = position_mdl
-            logger.info(
-                f"{self.__class__.__name__} ({self._session_mdl.id}): Set the position {position_mdl.id} (Position ID: {position_mdl.position_id}) as openned"
-            )
+
+            if config.get_config_value(Const.CONF_PROPERTY_ROBOT_LOG):
+                logger.info(
+                    f"{self.__class__.__name__} ({self._session_mdl.id}): Set the position {position_mdl.id} (Position ID: {position_mdl.position_id}) as openned"
+                )
         else:
             self._current_position = None
 
@@ -905,9 +945,9 @@ class LeverageManagerBase(DataManagerBase):
     def _get_open_position_template(self, open_mdl: cmn.OrderOpenModel) -> dict:
         position_template = super()._get_open_position_template(open_mdl)
         position_template[Const.DB_POSITION_ID] = "000002"
-        position_template[
-            Const.DB_ACCOUNT_ID
-        ] = self._trader_mng.balance_mng.get_account_id()
+        position_template[Const.DB_ACCOUNT_ID] = (
+            self._trader_mng.balance_mng.get_account_id()
+        )
         position_template[Const.DB_LEVERAGE] = self._session_mdl.leverage
         return position_template
 
@@ -915,9 +955,10 @@ class LeverageManagerBase(DataManagerBase):
         super()._prepare_open_position(open_mdl)
         position_data = self._get_open_position_template(open_mdl)
 
-        logger.info(
-            f"{self.__class__.__name__} ({self._session_mdl.id}): An position template for openning - {position_data}"
-        )
+        if config.get_config_value(Const.CONF_PROPERTY_ROBOT_LOG):
+            logger.info(
+                f"{self.__class__.__name__} ({self._session_mdl.id}): An position template for openning - {position_data}"
+            )
 
         return cmn.LeverageModel(**position_data)
 
@@ -947,9 +988,10 @@ class LeverageApiManager(LeverageManagerBase):
         # Persit an openning position
         created_position_mdl = self._open_position(position_mdl)
 
-        logger.info(
-            f"{self.__class__.__name__} ({self._session_mdl.id}): Position ID {created_position_mdl.position_id} for {created_position_mdl.open_datetime} has been opened"
-        )
+        if config.get_config_value(Const.CONF_PROPERTY_ROBOT_LOG):
+            logger.info(
+                f"{self.__class__.__name__} ({self._session_mdl.id}): Position ID {created_position_mdl.position_id} for {created_position_mdl.open_datetime} has been opened"
+            )
 
         return created_position_mdl
 
@@ -985,9 +1027,11 @@ class LeverageApiManager(LeverageManagerBase):
         trailing_stop_mdl: cmn.TrailingStopModel = None,
     ) -> cmn.TrailingStopModel:
         if trailing_stop_mdl:
-            logger.info(
-                f"{self.__class__.__name__} ({self._session_mdl.id}): Recalculate the position (order_id: {self._current_position.order_id}) by the reference"
-            )
+
+            if config.get_config_value(Const.CONF_PROPERTY_ROBOT_LOG):
+                logger.info(
+                    f"{self.__class__.__name__} ({self._session_mdl.id}): Recalculate the position (order_id: {self._current_position.order_id}) by the reference"
+                )
 
             try:
                 self._exchange_handler.update_trading_stop(
@@ -1021,9 +1065,12 @@ class LeverageApiManager(LeverageManagerBase):
         pass
 
     def _open_position(self, position_mdl: cmn.LeverageModel) -> cmn.LeverageModel:
-        logger.info(
-            f"{self.__class__.__name__} ({self._session_mdl.id}): An position template for openning via API - {position_mdl.model_dump()}"
-        )
+
+        if config.get_config_value(Const.CONF_PROPERTY_ROBOT_LOG):
+            logger.info(
+                f"{self.__class__.__name__} ({self._session_mdl.id}): An position template for openning via API - {position_mdl.model_dump()}"
+            )
+
         created_position_mdl = self._exchange_handler.create_leverage(position_mdl)
 
         self._trader_mng.transaction_mng.add_transaction(
@@ -1076,9 +1123,11 @@ class LeverageDatabaseManager(LeverageManagerBase):
             # Open position exists in the Database
             if not api_position_mdl:
                 # Open position doens't exist in the Exhange Trader -> cancel the position in the Database
-                logger.info(
-                    f"{self.__class__.__name__} ({self._session_mdl.id}): Close the leverage {self._current_position.id} by the ref api position {self._current_position.position_id}"
-                )
+                if config.get_config_value(Const.CONF_PROPERTY_ROBOT_LOG):
+                    logger.info(
+                        f"{self.__class__.__name__} ({self._session_mdl.id}): Close the leverage {self._current_position.id} by the ref api position {self._current_position.position_id}"
+                    )
+
                 api_order_closed_mdl = self._exchange_handler.get_close_position(
                     symbol=self._current_position.symbol,
                     order_id=self._current_position.order_id,
@@ -1111,9 +1160,10 @@ class LeverageDatabaseManager(LeverageManagerBase):
 
                 if query:
                     # Open position exists in the Exhange Trader -> update the position in the Database
-                    logger.info(
-                        f"{self.__class__.__name__} ({self._session_mdl.id}): Update the leverage {self._current_position.id} with API position"
-                    )
+                    if config.get_config_value(Const.CONF_PROPERTY_ROBOT_LOG):
+                        logger.info(
+                            f"{self.__class__.__name__} ({self._session_mdl.id}): Update the leverage {self._current_position.id} with API position"
+                        )
 
                     self._trader_mng.transaction_mng.add_transaction(
                         order_id=self._current_position.order_id,
@@ -1168,9 +1218,11 @@ class LeverageDatabaseManager(LeverageManagerBase):
         self._current_position.calculate_low_price(signal_mdl.low)
 
     def _open_position(self, position_mdl: cmn.LeverageModel):
-        logger.info(
-            f"{self.__class__.__name__} ({self._session_mdl.id}): An position template for openning in the DB - {position_mdl.model_dump()}"
-        )
+        if config.get_config_value(Const.CONF_PROPERTY_ROBOT_LOG):
+            logger.info(
+                f"{self.__class__.__name__} ({self._session_mdl.id}): An position template for openning in the DB - {position_mdl.model_dump()}"
+            )
+
         created_position_mdl = LeverageHandler.create_leverage(position_mdl)
         created_position_mdl.calculate_stop_loss_percent()
         created_position_mdl.calculate_take_profit_percent()
@@ -1185,9 +1237,11 @@ class LeverageDatabaseManager(LeverageManagerBase):
         return created_position_mdl
 
     def _update_position(self, query: dict) -> bool:
-        logger.info(
-            f"{self.__class__.__name__} ({self._session_mdl.id}): Update the leverage {self._current_position.id} in the DB"
-        )
+        if config.get_config_value(Const.CONF_PROPERTY_ROBOT_LOG):
+            logger.info(
+                f"{self.__class__.__name__} ({self._session_mdl.id}): Update the leverage {self._current_position.id} in the DB"
+            )
+
         result = LeverageHandler.update_leverage(
             id=self._current_position.id, query=query
         )
@@ -1197,9 +1251,11 @@ class LeverageDatabaseManager(LeverageManagerBase):
     def _close_position(
         self, order_close_mdl: cmn.OrderCloseModel
     ) -> cmn.OrderCloseModel:
-        logger.info(
-            f"{self.__class__.__name__} ({self._session_mdl.id}): Update/Close the leverage {self._current_position.id} in the DB"
-        )
+        if config.get_config_value(Const.CONF_PROPERTY_ROBOT_LOG):
+            logger.info(
+                f"{self.__class__.__name__} ({self._session_mdl.id}): Update/Close the leverage {self._current_position.id} in the DB"
+            )
+
         LeverageHandler.update_leverage(
             id=self._current_position.id, query=order_close_mdl.to_mongodb_doc()
         )
@@ -1218,7 +1274,7 @@ class LeverageLocalDataManager(LeverageManagerBase):
     def __init__(self, session_mdl: cmn.SessionModel):
         super().__init__(session_mdl)
 
-        self._local_positions: dict(cmn.LeverageModel) = {}
+        self._local_positions: dict(cmn.LeverageModel) = {}  # type: ignore
 
     def get_positions(self) -> list[cmn.LeverageModel]:
         return [pos_mdl for pos_mdl in self._local_positions.values()]
@@ -1299,7 +1355,7 @@ class LeverageLocalDataManager(LeverageManagerBase):
 class SideManager:
     TRAILING_TP_MOVE_LIMIT = 0.7
     TRAILING_TP_MOVE_STEP = 0.25
-    TRAILING_TP_INCREMENT_LIMIT = 4
+    TRAILING_TP_INCREMENT_LIMIT = 2
 
     def __init__(self, session_mdl: cmn.SessionModel):
         self._session_mdl: cmn.SessionModel = session_mdl
@@ -1522,15 +1578,15 @@ class SellManager(SideManager):
                     take_profit = new_take_profit
 
                     # Only first time should be break-even stop loss
-                    if tp_increment == 1:
-                        is_break_even_stop_loss = True
+                    # if tp_increment == 1:
+                    #     is_break_even_stop_loss = True
 
         if self._session_mdl.stop_loss_rate == 0:
             round_value = self._get_round_value(stop_loss)
 
             if is_break_even_stop_loss:
                 # Get Break-Even Price, because the take profit will be change
-                break_even_price = position_mdl.open_price - 2 * self._get_fee_value(
+                break_even_price = position_mdl.open_price - 3 * self._get_fee_value(
                     position_mdl
                 )
 
@@ -1664,15 +1720,15 @@ class BuyManager(SideManager):
                     take_profit = new_take_profit
 
                     # Only first time should be break-even stop loss
-                    if tp_increment == 1:
-                        is_break_even_stop_loss = True
+                    # if tp_increment == 1:
+                    # is_break_even_stop_loss = True
 
         if self._session_mdl.stop_loss_rate == 0:
             round_value = self._get_round_value(stop_loss)
 
             if is_break_even_stop_loss:
                 # Get Break-Even Price, because the take profit will be change
-                break_even_price = position_mdl.open_price + 2 * self._get_fee_value(
+                break_even_price = position_mdl.open_price + 3 * self._get_fee_value(
                     position_mdl
                 )
 
@@ -1699,16 +1755,19 @@ class Robot:
         return SessionManager(session_mdl)
 
     def run_session(self, session_id: str):
-        logger.info(f"{self.__class__.__name__} ({session_id}): Robot has started.")
+        if config.get_config_value(Const.CONF_PROPERTY_ROBOT_LOG):
+            logger.info(f"{self.__class__.__name__} ({session_id}): Robot has started.")
+
         session_mdl = self._get_session_mdl(session_id)
         self._run(session_mdl)
 
     def run_job(self, interval: str) -> dict:
         errors = {}
 
-        logger.info(
-            f"{self.__class__.__name__}: Robot has started for the interval {interval}"
-        )
+        if config.get_config_value(Const.CONF_PROPERTY_ROBOT_LOG):
+            logger.info(
+                f"{self.__class__.__name__}: Robot has started for the interval {interval}"
+            )
 
         active_sessions = SessionHandler.get_sessions(
             interval=interval, status=cmn.SessionStatus.active
@@ -1739,9 +1798,10 @@ class Robot:
     ) -> list[SessionManager]:
         session_managers = []
 
-        logger.info(
-            f"{self.__class__.__name__}: Robot has started a History Simulation"
-        )
+        if config.get_config_value(Const.CONF_PROPERTY_ROBOT_LOG):
+            logger.info(
+                f"{self.__class__.__name__}: Robot has started a History Simulation"
+            )
 
         for interval in intervals:
             for strategy in strategies:
@@ -1767,7 +1827,7 @@ class Robot:
                     session_managers.append(session_mng)
 
                 except Exception as error:
-                    logger.info(
+                    logger.error(
                         f"{self.__class__.__name__}: History simulation has been failed - {error} - for session: {session_data}"
                     )
 

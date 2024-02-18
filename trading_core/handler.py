@@ -65,7 +65,7 @@ class BufferBaseHandler:
         self._buffer = {}
 
     def get_buffer(self, **kwargs) -> dict:
-        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+        if config.get_config_value(Const.CONF_PROPERTY_HANDLER_LOG):
             logger.info(f"{self.__class__.__name__}: get_buffer({kwargs})")
 
         return self._buffer
@@ -75,13 +75,13 @@ class BufferBaseHandler:
 
     def set_buffer(self, buffer: dict):
         if buffer:
-            if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+            if config.get_config_value(Const.CONF_PROPERTY_HANDLER_LOG):
                 logger.info(f"{self.__class__.__name__}: set_buffer()")
 
             self._buffer = buffer
 
     def clear_buffer(self):
-        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+        if config.get_config_value(Const.CONF_PROPERTY_HANDLER_LOG):
             logger.info(f"{self.__class__.__name__}: clear_buffer()")
 
         self._buffer.clear()
@@ -98,12 +98,12 @@ class BufferSingleDictionary(BufferBaseHandler):
         return key in self._buffer
 
     def set_buffer(self, key: str, data: dict):
-        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+        if config.get_config_value(Const.CONF_PROPERTY_HANDLER_LOG):
             logger.info(f"{self.__class__.__name__}: set_buffer({key})")
         self._buffer[key] = data
 
     def remove_from_buffer(self, key: str):
-        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+        if config.get_config_value(Const.CONF_PROPERTY_HANDLER_LOG):
             logger.info(f"{self.__class__.__name__}: remove_from_buffer({key})")
         self._buffer.pop(key)
 
@@ -132,7 +132,7 @@ class BufferHistoryDataHandler(BufferBaseHandler):
             symbol=symbol, interval=interval, limit=limit, data=df_required
         )
 
-        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+        if config.get_config_value(Const.CONF_PROPERTY_HANDLER_LOG):
             logger.info(
                 f"{self.__class__.__name__}: get_buffer({history_data_param.model_dump()})"
             )
@@ -152,7 +152,7 @@ class BufferHistoryDataHandler(BufferBaseHandler):
                 interval=buffer.interval,
             )
 
-            if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+            if config.get_config_value(Const.CONF_PROPERTY_HANDLER_LOG):
                 logger.info(f"{self.__class__.__name__}: set_buffer({buffer_key})")
 
             self._buffer[buffer_key] = buffer
@@ -209,7 +209,7 @@ class UserHandler:
             self.__buffer_users.set_buffer(email, user_mdl)
             return user_mdl
         else:
-            if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+            if config.get_config_value(Const.CONF_PROPERTY_HANDLER_LOG):
                 logger.info(f"{self.__class__.__name__}: get_buffer({email})")
 
             return self.__buffer_users.get_buffer(email)
@@ -300,7 +300,7 @@ class TraderHandler:
         trader_mdl = None
 
         if self.__buffer_traders.is_data_in_buffer(id):
-            if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+            if config.get_config_value(Const.CONF_PROPERTY_HANDLER_LOG):
                 logger.info(f"{self.__class__.__name__}: get_buffer({id})")
             trader_mdl = self.__buffer_traders.get_buffer(key=id)
         else:
@@ -1177,7 +1177,7 @@ class SymbolHandler(BaseOnExchangeHandler):
             return True
 
         if self._buffer_timeframes.is_data_in_buffer(trading_time):
-            if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+            if config.get_config_value(Const.CONF_PROPERTY_HANDLER_LOG):
                 logger.info(f"{self.__class__.__name__}: get_buffer({trading_time})")
             timeframe = self._buffer_timeframes.get_buffer(trading_time)
         else:

@@ -26,7 +26,7 @@ class SignalFactory:
     def get_signal(self, param: SignalParamModel) -> SignalModel:
         signal_mdl = self._get_signal(param)
         if signal_mdl and signal_mdl.is_compatible(signal_types=param.types):
-            if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+            if config.get_config_value(Const.CONF_PROPERTY_CORE_LOG):
                 logger.info(
                     f"{self.__class__.__name__}: Signal will be used - {signal_mdl.model_dump()}"
                 )
@@ -73,7 +73,7 @@ class SignalFactory:
         return self.get_signals(params=signal_params)
 
     def _get_signal(self, param: SignalParamModel) -> SignalModel:
-        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+        if config.get_config_value(Const.CONF_PROPERTY_CORE_LOG):
             logger.info(f"{self.__class__.__name__}: get_signal({param.model_dump()})")
 
         signal_mdl: SignalModel = None
@@ -92,7 +92,7 @@ class SignalFactory:
             if buffer_handler.is_data_in_buffer(key=buffer_key):
                 signal_mdl = buffer_handler.get_buffer(key=buffer_key)
 
-                if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+                if config.get_config_value(Const.CONF_PROPERTY_CORE_LOG):
                     logger.info(
                         f"{self.__class__.__name__}: Check Signal from Buffer - {signal_mdl.model_dump()}"
                     )
@@ -153,7 +153,7 @@ class SignalFactory:
             )
         buffer_key = (trader_id, symbol, interval, strategy)
 
-        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+        if config.get_config_value(Const.CONF_PROPERTY_CORE_LOG):
             logger.info(f"{self.__class__.__name__}: Get Buffer key - {buffer_key}")
 
         return buffer_key
@@ -319,7 +319,7 @@ class StrategyBase:
         return self._strategy_config_mdl
 
     def get_strategy_data(self, param: StrategyParamModel) -> pd.DataFrame:
-        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+        if config.get_config_value(Const.CONF_PROPERTY_CORE_LOG):
             logger.info(
                 f"{self.__class__.__name__}: get_strategy_data({param.model_dump()})"
             )
@@ -1143,9 +1143,14 @@ class EMA_8_CROSS_EMA_30_FILTER_EMA_100(Strategy_EMA_Base):
             description="EMA 30 cross EMA 30 with filter EMA 100",
             ta=[
                 {
+                    "kind": "atr",
+                    "length": 14,
+                    "col_names": (Const.FLD_ATR, "MULTIPROCESSING_OFF"),
+                },
+                {
                     "kind": "ema",
                     "length": 8,
-                    "col_names": (Const.FLD_EMA_SHORT, "MULTIPROCESSING_OFF"),
+                    "col_names": (Const.FLD_EMA_SHORT),
                 },
                 {
                     "kind": "ema",
@@ -1287,9 +1292,26 @@ class EMA_8_CROSS_EMA_30_FILTER_EMA_100(Strategy_EMA_Base):
 
 
 class EMA_50_CROSS_EMA_100_FILTER_UP_LEVEL_TREND(Strategy_EMA_Base):
+    """
+    SL = EMA_100_UP_LEVEL +/- ATR_UP_LEVEL
+    TP = 2 * SL
+
+    Close signal: EMA_100 / EMA_100_UP_LEVEL
+
+    Open signal: EMA_50 / EMA_100
+
+    When EMA_30_UP_LEVEL / EMA_100_UP_LEVEL
+
+    Robot:
+    TP increment = 4
+    TP step = 15 % (0.15)
+    TP limit = 70 % (0.7)
+    """
+
     SUFFIX_UP_LEVEL = "_up_level"
     FLD_EMA_LONG_UP_LEVEL = Const.FLD_EMA_LONG + SUFFIX_UP_LEVEL
     FLD_SIGNAL_UP_LEVEL = Const.FLD_SIGNAL + SUFFIX_UP_LEVEL
+    FLD_ATR_UP_LEVEL = Const.FLD_ATR + SUFFIX_UP_LEVEL
 
     def get_strategy_data(self, param: StrategyParamModel):
         super().get_strategy_data(param)
@@ -1378,6 +1400,7 @@ class EMA_50_CROSS_EMA_100_FILTER_UP_LEVEL_TREND(Strategy_EMA_Base):
                         Const.FLD_TREND,
                         Const.FLD_EMA_LONG,
                         Const.FLD_SIGNAL,
+                        Const.FLD_ATR,
                     ]
                 ],
                 left_on=Const.COLUMN_DATETIME,
@@ -1415,7 +1438,6 @@ class EMA_50_CROSS_EMA_100_FILTER_UP_LEVEL_TREND(Strategy_EMA_Base):
 
     def _determine_stop_loss_value(self, df):
         values = []
-        lv_ema_shift = 0.0009
 
         for i in range(len(df)):
             stop_loss_value = 0
@@ -1424,8 +1446,7 @@ class EMA_50_CROSS_EMA_100_FILTER_UP_LEVEL_TREND(Strategy_EMA_Base):
             current_close = current_bar[Const.FLD_CLOSE]
             up_level_trend = current_bar[Const.FLD_TREND_UP_LEVEL]
             current_ema_long_up_level = current_bar[self.FLD_EMA_LONG_UP_LEVEL]
-            atr_value = current_bar[Const.FLD_ATR]
-            atr_coefficient = 3
+            up_level_atr_value = current_bar[self.FLD_ATR_UP_LEVEL]
 
             # Stop Loss calculation
             if up_level_trend in [
@@ -1433,21 +1454,13 @@ class EMA_50_CROSS_EMA_100_FILTER_UP_LEVEL_TREND(Strategy_EMA_Base):
                 TrendDirectionType.STRONG_TREND_DOWN,
             ]:
                 # SHORT
-                # SL Price = EMA 100 + 0.5%
-                stop_loss_price = (1 + lv_ema_shift) * current_ema_long_up_level
-                if stop_loss_price > current_close + atr_value:
-                    stop_loss_value = stop_loss_price - current_close
-                else:
-                    stop_loss_value = atr_coefficient * atr_value
+                stop_loss_price = current_ema_long_up_level + up_level_atr_value
+                stop_loss_value = stop_loss_price - current_close
 
             else:
                 # LONG
-                # SL Price = EMA 100 - 0.5%
-                stop_loss_price = (1 - lv_ema_shift) * current_ema_long_up_level
-                if stop_loss_price < current_close - atr_value:
-                    stop_loss_value = current_close - stop_loss_price
-                else:
-                    stop_loss_value = atr_coefficient * atr_value
+                stop_loss_price = current_ema_long_up_level - up_level_atr_value
+                stop_loss_value = current_close - stop_loss_price
 
             values.append(stop_loss_value)
 
@@ -1461,11 +1474,8 @@ class EMA_50_CROSS_EMA_100_FILTER_UP_LEVEL_TREND(Strategy_EMA_Base):
 
             current_bar = df.iloc[i]
             stop_loss_value = current_bar[Const.FLD_STOP_LOSS_VALUE]
-            atr_value = 10 * current_bar[Const.FLD_ATR]
 
-            take_profit_value = (
-                stop_loss_value if stop_loss_value > atr_value else atr_value
-            )
+            take_profit_value = stop_loss_value
 
             values.append(take_profit_value)
 

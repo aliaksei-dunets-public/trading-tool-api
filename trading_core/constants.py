@@ -172,9 +172,6 @@ class Const:
     DB_AVG_MAX_PERCENT_PROFIT = "avg_max_percent_profit"
     DB_AVG_MIN_PERCENT_LOSS = "avg_min_percent_loss"
 
-    # Config properties
-    CONFIG_DEBUG_LOG = "DEBUG_LOG"
-
     # Signal Values
     STRONG_BUY = "Strong Buy"
     BUY = "Buy"

@@ -2,18 +2,26 @@ from trading_core.handler import ExchangeHandler
 import trading_core.common as cmn
 import pandas_ta as ta
 import pandas as pd
+from datetime import datetime, timedelta
 
 handler = ExchangeHandler.get_handler(trader_id="658dab8b3b0719ad3f9b53dd")
 symbol = "LDOUSDT"
 
-# closes = handler.get_close_leverages(symbol=symbol, limit=5)
-# print(closes)
-
-print(
-    handler.get_close_position(
-        symbol=symbol, order_id="8b13e11d-4bd1-4255-9c65-600d3416d23f"
-    )
+params = cmn.HistoryDataParamModel(
+    symbol=symbol, interval=cmn.IntervalType.MIN_5, limit=1200
 )
+
+history_data = handler.get_history_data(history_data_param=params, start="", end="")
+
+print(history_data.data)
+
+# local_datetime = datetime.now()
+# closd_datetime = handler.get_end_datetime(interval=params.interval)
+
+# offset_date_time = local_datetime - timedelta(minutes=525600)
+
+# print(closd_datetime)
+# print(offset_date_time)
 
 # params = cmn.HistoryDataParamModel(
 #     symbol=symbol, interval=cmn.IntervalType.MIN_5, limit=500

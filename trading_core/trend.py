@@ -25,7 +25,7 @@ class TrendBase:
 
 class TrendCCI(TrendBase):
     def calculate_trends(self, param: TraderSymbolIntervalLimitModel):
-        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+        if config.get_config_value(Const.CONF_PROPERTY_CORE_LOG):
             logger.info(
                 f"{self.__class__.__name__}: calculate_trends({param.model_dump()})"
             )
@@ -63,7 +63,7 @@ class TrendCCI(TrendBase):
         return trends
 
     def detect_trend(self, param: TraderSymbolIntervalLimitModel):
-        if config.get_config_value(Const.CONFIG_DEBUG_LOG):
+        if config.get_config_value(Const.CONF_PROPERTY_CORE_LOG):
             logger.info(
                 f"{self.__class__.__name__}: detect_trend({param.model_dump()})"
             )
