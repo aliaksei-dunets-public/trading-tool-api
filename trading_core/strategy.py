@@ -15,7 +15,6 @@ from .common import (
     HistoryDataParamModel,
     StrategyParamModel,
     SignalParamModel,
-    TraderSymbolIntervalLimitModel,
 )
 from .handler import buffer_runtime_handler, ExchangeHandler
 from .indicator import Indicator_CCI_ATR
@@ -77,6 +76,12 @@ class SignalFactory:
             logger.info(f"{self.__class__.__name__}: get_signal({param.model_dump()})")
 
         signal_mdl: SignalModel = None
+
+        # Check traiding time and skip closed symbols
+        if not buffer_runtime_handler.get_symbol_handler(
+            trader_id=param.trader_id
+        ).is_trading_available(interval=param.interval, symbol=param.symbol):
+            return None
 
         # Take signal from buffer
         if param.from_buffer:
