@@ -45,6 +45,9 @@ class StrategyType(str, Enum):
     EMA_50_CROSS_EMA_100_FILTER_UP_LEVEL_TREND = (
         "EMA_50_CROSS_EMA_100_FILTER_UP_LEVEL_TREND"
     )
+    EMA_50_CROSS_EMA_100_FILTER_UP_LEVEL_TREND_TP = (
+        "EMA_50_CROSS_EMA_100_FILTER_UP_LEVEL_TREND_TP"
+    )
 
 
 class Importance(str, Enum):
@@ -132,6 +135,11 @@ class TrendDirectionType(str, Enum):
     TREND_DOWN = "DownTrend"
     STRONG_TREND_UP = "StrongUpTrend"
     STRONG_TREND_DOWN = "StrongDownTrend"
+
+
+class RiskType(str, Enum):
+    DEFAULT = "Default"
+    SL_BOUND_TO_TP = "SL_BOUND_TO_TP"
 
 
 class SymbolStatus(str, Enum):
@@ -277,9 +285,16 @@ class IntervalModel(IntervalIdModel):
     importance: Importance
 
 
-class StrategyConfigModel(StrategyIdModel):
+class StrategyModel(StrategyIdModel):
     name: str
     is_close_by_signal: bool = True
+    risk_type: RiskType = RiskType.DEFAULT
+    tp_move_limit: float = 0.7
+    tp_move_step: float = 0.25
+    tp_increment_limit: int = 2
+
+
+class StrategyConfigModel(StrategyModel):
     length: int = 0
     display_rows: int = 2
     history_limit: int
@@ -334,7 +349,6 @@ class SymbolModel(SymbolIdModel):
 
 
 class SignalModel(CandelBarModel, StrategyParamModel):
-    is_close_by_signal: bool = True
     stop_loss_value: float = None
     take_profit_value: float = None
     signal: SignalType = SignalType.NONE

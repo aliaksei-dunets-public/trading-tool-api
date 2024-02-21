@@ -10,11 +10,13 @@ from .common import (
     StrategyType,
     SignalType,
     TrendDirectionType,
+    StrategyModel,
     StrategyConfigModel,
     SignalModel,
     HistoryDataParamModel,
     StrategyParamModel,
     SignalParamModel,
+    RiskType,
 )
 from .handler import buffer_runtime_handler, ExchangeHandler
 from .indicator import Indicator_CCI_ATR
@@ -193,8 +195,15 @@ class StrategyFactory:
         elif strategy == StrategyType.EMA_8_CROSS_EMA_30_FILTER_EMA_100:
             strategy_instance = EMA_8_CROSS_EMA_30_FILTER_EMA_100(strategy_config_mdl)
 
-        elif strategy == StrategyType.EMA_50_CROSS_EMA_100_FILTER_UP_LEVEL_TREND:
+        elif strategy in [StrategyType.EMA_50_CROSS_EMA_100_FILTER_UP_LEVEL_TREND]:
             strategy_instance = EMA_50_CROSS_EMA_100_FILTER_UP_LEVEL_TREND(
+                strategy_config_mdl
+            )
+
+        elif strategy in [
+            StrategyType.EMA_50_CROSS_EMA_100_FILTER_UP_LEVEL_TREND_TP,
+        ]:
+            strategy_instance = EMA_50_CROSS_EMA_100_FILTER_UP_LEVEL_TREND_TP(
                 strategy_config_mdl
             )
 
@@ -220,6 +229,11 @@ class StrategyFactory:
             StrategyType.CCI_20_CROSS_100: StrategyConfigModel(
                 strategy=StrategyType.CCI_20_CROSS_100,
                 name="2. CCI(20) cross +/- 100",
+                is_close_by_signal=True,
+                risk_type=RiskType.DEFAULT,
+                tp_move_limit=0.7,
+                tp_move_step=0.25,
+                tp_increment_limit=0,
                 history_limit=22,
                 length=20,
                 miv_value=-100,
@@ -273,6 +287,17 @@ class StrategyFactory:
                 ema_short=50,
                 ema_long=100,
             ),
+            StrategyType.EMA_50_CROSS_EMA_100_FILTER_UP_LEVEL_TREND_TP: StrategyConfigModel(
+                strategy=StrategyType.EMA_50_CROSS_EMA_100_FILTER_UP_LEVEL_TREND_TP,
+                name="9. SL bound to TP - EMA(50) cross EMA(100) Filter Up Level Trend",
+                risk_type=RiskType.SL_BOUND_TO_TP,
+                tp_move_limit=0.7,
+                tp_move_step=0.25,
+                tp_increment_limit=2,
+                history_limit=300,
+                ema_short=50,
+                ema_long=100,
+            ),
         }
 
     @staticmethod
@@ -281,6 +306,12 @@ class StrategyFactory:
             strategy_mdl
             for strategy_mdl in StrategyFactory.get_strategy_config_dict_vh().values()
         ]
+
+    @staticmethod
+    def get_strategy_model(strategy: StrategyType) -> StrategyModel:
+        strategy_config = StrategyFactory.get_strategy_config(strategy)
+
+        return StrategyModel(**strategy_config.model_dump())
 
     @staticmethod
     def get_strategy_config(strategy: StrategyType) -> StrategyConfigModel:
@@ -1478,6 +1509,7 @@ class EMA_50_CROSS_EMA_100_FILTER_UP_LEVEL_TREND(Strategy_EMA_Base):
             take_profit_value = 0
 
             current_bar = df.iloc[i]
+            # up_level_atr_value = current_bar[self.FLD_ATR_UP_LEVEL]
             stop_loss_value = current_bar[Const.FLD_STOP_LOSS_VALUE]
 
             take_profit_value = stop_loss_value
@@ -1529,3 +1561,53 @@ class EMA_50_CROSS_EMA_100_FILTER_UP_LEVEL_TREND(Strategy_EMA_Base):
             signals.append(signal)
 
         return signals
+
+
+class EMA_50_CROSS_EMA_100_FILTER_UP_LEVEL_TREND_TP(
+    EMA_50_CROSS_EMA_100_FILTER_UP_LEVEL_TREND
+):
+    def _determine_stop_loss_value(self, df):
+        values = []
+
+        for i in range(len(df)):
+            stop_loss_value = 0
+
+            current_bar = df.iloc[i]
+            current_close = current_bar[Const.FLD_CLOSE]
+            up_level_trend = current_bar[Const.FLD_TREND_UP_LEVEL]
+            current_ema_long = current_bar[Const.FLD_EMA_LONG]
+            up_level_atr_value = current_bar[self.FLD_ATR_UP_LEVEL]
+
+            # Stop Loss calculation
+            if up_level_trend in [
+                TrendDirectionType.TREND_DOWN,
+                TrendDirectionType.STRONG_TREND_DOWN,
+            ]:
+                # SHORT
+                stop_loss_price = current_ema_long + up_level_atr_value
+                stop_loss_value = stop_loss_price - current_close
+
+            else:
+                # LONG
+                stop_loss_price = current_ema_long - up_level_atr_value
+                stop_loss_value = current_close - stop_loss_price
+
+            values.append(stop_loss_value)
+
+        return values
+
+    def _determine_take_profit_value(self, df):
+        values = []
+
+        for i in range(len(df)):
+            take_profit_value = 0
+
+            current_bar = df.iloc[i]
+            up_level_atr_value = current_bar[self.FLD_ATR_UP_LEVEL]
+            # stop_loss_value = current_bar[Const.FLD_STOP_LOSS_VALUE]
+
+            take_profit_value = 2 * up_level_atr_value
+
+            values.append(take_profit_value)
+
+        return values

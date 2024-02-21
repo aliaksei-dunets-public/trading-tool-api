@@ -1359,6 +1359,9 @@ class SideManager:
 
     def __init__(self, session_mdl: cmn.SessionModel):
         self._session_mdl: cmn.SessionModel = session_mdl
+        self._risk_manager: RiskManagerBase = RiskManagerBase.get_risk_manager(
+            session_mdl
+        )
 
     @staticmethod
     def get_manager(session_mdl: cmn.SessionModel, side_type: cmn.OrderSideType):
@@ -1396,31 +1399,49 @@ class SideManager:
         )
 
     def get_stop_loss(self, price: float, stop_loss_value: float = None) -> float:
-        if self._session_mdl.stop_loss_rate != 0:
-            # Static Stop Loss Value
-            return (price * self._session_mdl.stop_loss_rate) / 100
-        elif self._session_mdl.is_trailing_stop == True and stop_loss_value:
-            return stop_loss_value
+        side_type = self.get_side_type()
+        if side_type == cmn.OrderSideType.buy:
+            return self._risk_manager.get_buy_stop_loss(
+                price=price, stop_loss_value=stop_loss_value
+            )
+        elif side_type == cmn.OrderSideType.sell:
+            return self._risk_manager.get_sell_stop_loss(
+                price=price, stop_loss_value=stop_loss_value
+            )
         else:
-            return 0
+            raise cmn.RobotException("Robot: SideManager - Incorrect order side type")
 
     def get_take_profit(self, price: float, take_profit_value: float = None) -> float:
-        if self._session_mdl.take_profit_rate != 0:
-            # Static Take Pofit Value
-            return (price * self._session_mdl.take_profit_rate) / 100
-        elif self._session_mdl.is_trailing_stop == True and take_profit_value:
-            # Trailing Stop Loss Value
-            return take_profit_value
+        side_type = self.get_side_type()
+        if side_type == cmn.OrderSideType.buy:
+            return self._risk_manager.get_buy_take_profit(
+                price=price, take_profit_value=take_profit_value
+            )
+        elif side_type == cmn.OrderSideType.sell:
+            return self._risk_manager.get_sell_take_profit(
+                price=price, take_profit_value=take_profit_value
+            )
         else:
-            return 0
+            raise cmn.RobotException("Robot: SideManager - Incorrect order side type")
 
     def recalculate_trailing_stop(
         self, position_mdl: cmn.OrderModel, signal_mdl: cmn.SignalModel
     ) -> cmn.TrailingStopModel:
         if self._session_mdl.is_trailing_stop == True:
-            trailing_stop_mdl = self._get_trailing_sl_tp(
-                position_mdl=position_mdl, signal_mdl=signal_mdl
-            )
+            side_type = self.get_side_type()
+
+            if side_type == cmn.OrderSideType.sell:
+                trailing_stop_mdl = self._risk_manager.recalculate_sell_sl_tp(
+                    position_mdl=position_mdl, signal_mdl=signal_mdl
+                )
+            elif side_type == cmn.OrderSideType.buy:
+                trailing_stop_mdl = self._risk_manager.recalculate_buy_sl_tp(
+                    position_mdl=position_mdl, signal_mdl=signal_mdl
+                )
+            else:
+                raise cmn.RobotException(
+                    "Robot: SideManager - Incorrect order side type"
+                )
 
             if (
                 trailing_stop_mdl.take_profit != position_mdl.take_profit
@@ -1487,7 +1508,7 @@ class SellManager(SideManager):
         ):
             close_price = position_mdl.take_profit
             close_reason = cmn.OrderReason.TAKE_PROFIT
-        elif signal_mdl.is_close_by_signal and signal_mdl.signal in [
+        elif self._risk_manager.is_close_by_signal() and signal_mdl.signal in [
             cmn.SignalType.STRONG_BUY,
             cmn.SignalType.BUY,
         ]:
@@ -1515,29 +1536,6 @@ class SellManager(SideManager):
 
     def get_side_type(self):
         return cmn.OrderSideType.sell
-
-    def get_stop_loss(self, price: float, stop_loss_value: float = None) -> float:
-        clalculated_stop_loss_value = super().get_stop_loss(
-            price=price, stop_loss_value=stop_loss_value
-        )
-        if clalculated_stop_loss_value > 0:
-            return round(
-                price + clalculated_stop_loss_value, self._get_round_value(price)
-            )
-        else:
-            return 0
-
-    def get_take_profit(self, price: float, take_profit_value: float = None) -> float:
-        clalculated_take_profit_value = super().get_take_profit(
-            price=price, take_profit_value=take_profit_value
-        )
-
-        if clalculated_take_profit_value > 0:
-            return round(
-                price - clalculated_take_profit_value, self._get_round_value(price)
-            )
-        else:
-            return 0
 
     def get_total_profit(
         self, quantity: float, open_price: float, close_price: float
@@ -1630,7 +1628,7 @@ class BuyManager(SideManager):
         ):
             close_price = position_mdl.take_profit
             close_reason = cmn.OrderReason.TAKE_PROFIT
-        elif signal_mdl.is_close_by_signal and signal_mdl.signal in [
+        elif self._risk_manager.is_close_by_signal() and signal_mdl.signal in [
             cmn.SignalType.STRONG_SELL,
             cmn.SignalType.SELL,
         ]:
@@ -1658,28 +1656,6 @@ class BuyManager(SideManager):
 
     def get_side_type(self):
         return cmn.OrderSideType.buy
-
-    def get_stop_loss(self, price: float, stop_loss_value: float = None) -> float:
-        calculated_stop_loss_value = super().get_stop_loss(
-            price=price, stop_loss_value=stop_loss_value
-        )
-        if calculated_stop_loss_value > 0:
-            return round(
-                price - calculated_stop_loss_value, self._get_round_value(price)
-            )
-        else:
-            return 0
-
-    def get_take_profit(self, price: float, take_profit_value: float = None) -> float:
-        clalculated_take_profit_value = super().get_take_profit(
-            price=price, take_profit_value=take_profit_value
-        )
-        if clalculated_take_profit_value > 0:
-            return round(
-                price + clalculated_take_profit_value, self._get_round_value(price)
-            )
-        else:
-            return 0
 
     def get_total_profit(
         self, quantity: float, open_price: float, close_price: float
@@ -1734,6 +1710,342 @@ class BuyManager(SideManager):
 
                 # Set Stop Loss = Break-Even Price
                 new_stop_loss = round(break_even_price, round_value)
+            else:
+                new_stop_loss = round(
+                    signal_mdl.close - signal_mdl.stop_loss_value, round_value
+                )
+
+            if stop_loss < new_stop_loss:
+                stop_loss = new_stop_loss
+
+        trailing_stop_mdl = cmn.TrailingStopModel(
+            stop_loss=stop_loss, take_profit=take_profit, tp_increment=tp_increment
+        )
+
+        return trailing_stop_mdl
+
+
+class RiskManagerBase:
+    @staticmethod
+    def get_risk_manager(session_mdl: cmn.SessionModel):
+        strategy_model = StrategyFactory.get_strategy_model(session_mdl.strategy)
+
+        if strategy_model.risk_type == cmn.RiskType.DEFAULT:
+            return RiskManagerBase(session_mdl=session_mdl, strategy_mdl=strategy_model)
+        elif strategy_model.risk_type == cmn.RiskType.SL_BOUND_TO_TP:
+            return RiskManager_SL_BOUND_TO_TP(
+                session_mdl=session_mdl, strategy_mdl=strategy_model
+            )
+
+    def __init__(self, session_mdl: cmn.SessionModel, strategy_mdl: cmn.StrategyModel):
+        self._session_mdl: cmn.SessionModel = session_mdl
+        self._strategy_model = strategy_mdl
+
+    def is_close_by_signal(self) -> bool:
+        return self._strategy_model.is_close_by_signal
+
+    def get_sell_stop_loss(self, price: float, stop_loss_value: float = None) -> float:
+        calculated_stop_loss_value = self._get_stop_loss(
+            price=price, stop_loss_value=stop_loss_value
+        )
+        if calculated_stop_loss_value > 0:
+            return round(
+                price + calculated_stop_loss_value, self._get_round_value(price)
+            )
+        else:
+            return 0
+
+    def get_buy_stop_loss(self, price: float, stop_loss_value: float = None) -> float:
+        calculated_stop_loss_value = self._get_stop_loss(
+            price=price, stop_loss_value=stop_loss_value
+        )
+        if calculated_stop_loss_value > 0:
+            return round(
+                price - calculated_stop_loss_value, self._get_round_value(price)
+            )
+        else:
+            return 0
+
+    def get_sell_take_profit(
+        self, price: float, take_profit_value: float = None
+    ) -> float:
+        calculated_take_profit_value = self._get_take_profit(
+            price=price, take_profit_value=take_profit_value
+        )
+
+        if calculated_take_profit_value > 0:
+            return round(
+                price - calculated_take_profit_value, self._get_round_value(price)
+            )
+        else:
+            return 0
+
+    def get_buy_take_profit(
+        self, price: float, take_profit_value: float = None
+    ) -> float:
+        calculated_take_profit_value = self._get_take_profit(
+            price=price, take_profit_value=take_profit_value
+        )
+        if calculated_take_profit_value > 0:
+            return round(
+                price + calculated_take_profit_value, self._get_round_value(price)
+            )
+        else:
+            return 0
+
+    def recalculate_sell_sl_tp(
+        self, position_mdl: cmn.OrderModel, signal_mdl: cmn.SignalModel
+    ) -> cmn.TrailingStopModel:
+        take_profit = position_mdl.take_profit
+        stop_loss = position_mdl.stop_loss
+        tp_increment = position_mdl.tp_increment
+
+        # Take Profit calculation is performed only when Static Take Profit = 0
+        if self._session_mdl.take_profit_rate == 0:
+            take_profit_value = position_mdl.open_price - position_mdl.take_profit
+            current_value = position_mdl.open_price - signal_mdl.low
+
+            # Calculate percent of current price from take profit price
+            current_price_percent_from_tp = current_value / take_profit_value
+
+            # If price is <Strategy.tp_move_limit> from take profit and TP was incremented no more than <Strategy.tp_increment_limit> times
+            # -> recalculate take profit: Add <Strategy.tp_move_step> % for the current take profit value
+            if (
+                current_price_percent_from_tp >= self._strategy_model.tp_move_limit
+                and tp_increment < self._strategy_model.tp_increment_limit
+            ):
+                tp_increment += 1
+
+                new_take_profit = round(
+                    (
+                        take_profit
+                        - self._strategy_model.tp_move_step * take_profit_value
+                    ),
+                    self._get_round_value(take_profit),
+                )
+
+                if take_profit >= new_take_profit:
+                    take_profit = new_take_profit
+
+        if self._session_mdl.stop_loss_rate == 0:
+            new_stop_loss = round(
+                signal_mdl.close + signal_mdl.stop_loss_value,
+                self._get_round_value(stop_loss),
+            )
+
+            if stop_loss > new_stop_loss:
+                stop_loss = new_stop_loss
+
+        trailing_stop_mdl = cmn.TrailingStopModel(
+            stop_loss=stop_loss, take_profit=take_profit, tp_increment=tp_increment
+        )
+
+        return trailing_stop_mdl
+
+    def recalculate_buy_sl_tp(
+        self, position_mdl: cmn.OrderModel, signal_mdl: cmn.SignalModel
+    ) -> cmn.TrailingStopModel:
+        take_profit = position_mdl.take_profit
+        stop_loss = position_mdl.stop_loss
+        tp_increment = position_mdl.tp_increment
+
+        # Take Profit calculation is performed only when Static Take Profit = 0
+        if self._session_mdl.take_profit_rate == 0:
+            take_profit_value = position_mdl.take_profit - position_mdl.open_price
+            current_value = signal_mdl.high - position_mdl.open_price
+
+            # Canlculate percent of current price from take profit price
+            current_price_percent_from_take_profit = current_value / take_profit_value
+
+            # If price is <Strategy.tp_move_limit> from take profit and TP was incremented no more than <Strategy.tp_increment_limit> times
+            # -> recalculate take profit: Add <Strategy.tp_move_step> % for the current take profit value
+            if (
+                current_price_percent_from_take_profit
+                >= self._strategy_model.tp_move_limit
+                and tp_increment < self._strategy_model.tp_increment_limit
+            ):
+                tp_increment += 1
+
+                new_take_profit = round(
+                    (
+                        take_profit
+                        + self._strategy_model.tp_move_step * take_profit_value
+                    ),
+                    self._get_round_value(take_profit),
+                )
+
+                if take_profit <= new_take_profit:
+                    take_profit = new_take_profit
+
+        if self._session_mdl.stop_loss_rate == 0:
+            new_stop_loss = round(
+                signal_mdl.close - signal_mdl.stop_loss_value,
+                self._get_round_value(stop_loss),
+            )
+
+            if stop_loss < new_stop_loss:
+                stop_loss = new_stop_loss
+
+        trailing_stop_mdl = cmn.TrailingStopModel(
+            stop_loss=stop_loss, take_profit=take_profit, tp_increment=tp_increment
+        )
+
+        return trailing_stop_mdl
+
+    def _get_stop_loss(self, price: float, stop_loss_value: float = None) -> float:
+        if self._session_mdl.stop_loss_rate != 0:
+            # Static Stop Loss Value
+            return (price * self._session_mdl.stop_loss_rate) / 100
+        elif self._session_mdl.is_trailing_stop == True and stop_loss_value:
+            return stop_loss_value
+        else:
+            return 0
+
+    def _get_take_profit(self, price: float, take_profit_value: float = None) -> float:
+        if self._session_mdl.take_profit_rate != 0:
+            # Static Take Pofit Value
+            return (price * self._session_mdl.take_profit_rate) / 100
+        elif self._session_mdl.is_trailing_stop == True and take_profit_value:
+            # Trailing Stop Loss Value
+            return take_profit_value
+        else:
+            return 0
+
+    def _get_fee_value(self, position_mdl: cmn.OrderModel) -> float:
+        fee_value = abs(position_mdl.fee * 2 / position_mdl.quantity)
+        return fee_value
+
+    def _get_round_value(self, value):
+        # Convert the float to a string
+        value_str = str(value)
+
+        # Find the position of the decimal point
+        decimal_position = value_str.find(".")
+
+        # Calculate the number of decimal places
+        decimal_places = len(value_str) - decimal_position - 1
+
+        return decimal_places
+
+
+class RiskManager_SL_BOUND_TO_TP(RiskManagerBase):
+    TP_LIMIT_FOR_SL_MOVE = 0.5
+
+    def recalculate_sell_sl_tp(
+        self, position_mdl: cmn.OrderModel, signal_mdl: cmn.SignalModel
+    ) -> cmn.TrailingStopModel:
+        take_profit = position_mdl.take_profit
+        stop_loss = position_mdl.stop_loss
+        tp_increment = position_mdl.tp_increment
+
+        take_profit_value = position_mdl.open_price - position_mdl.take_profit
+        current_value = position_mdl.open_price - signal_mdl.low
+
+        # Calculate percent of current price from take profit price
+        current_price_percent_from_tp = current_value / take_profit_value
+
+        # Take Profit calculation is performed only when Static Take Profit = 0
+        if self._session_mdl.take_profit_rate == 0:
+
+            # If price is <Strategy.tp_move_limit> from take profit and TP was incremented no more than <Strategy.tp_increment_limit> times
+            # -> recalculate take profit: Add <Strategy.tp_move_step> % for the current take profit value
+            if (
+                current_price_percent_from_tp >= self._strategy_model.tp_move_limit
+                and tp_increment < self._strategy_model.tp_increment_limit
+            ):
+                tp_increment += 1
+
+                new_take_profit = round(
+                    (
+                        take_profit
+                        - self._strategy_model.tp_move_step * take_profit_value
+                    ),
+                    self._get_round_value(take_profit),
+                )
+
+                if take_profit >= new_take_profit:
+                    take_profit = new_take_profit
+
+        if self._session_mdl.stop_loss_rate == 0:
+            round_value = self._get_round_value(stop_loss)
+
+            if current_price_percent_from_tp >= self.TP_LIMIT_FOR_SL_MOVE:
+                break_even_value = 2 * self._get_fee_value(position_mdl)
+                new_stop_loss_value = round(
+                    current_value - take_profit_value / 2, round_value
+                )
+
+                if new_stop_loss_value <= 0:
+                    new_stop_loss_value = break_even_value
+
+                new_stop_loss = round(
+                    position_mdl.open_price - new_stop_loss_value, round_value
+                )
+
+            else:
+                new_stop_loss = round(
+                    signal_mdl.close + signal_mdl.stop_loss_value, round_value
+                )
+
+            if stop_loss > new_stop_loss:
+                stop_loss = new_stop_loss
+
+        trailing_stop_mdl = cmn.TrailingStopModel(
+            stop_loss=stop_loss, take_profit=take_profit, tp_increment=tp_increment
+        )
+
+        return trailing_stop_mdl
+
+    def recalculate_buy_sl_tp(
+        self, position_mdl: cmn.OrderModel, signal_mdl: cmn.SignalModel
+    ) -> cmn.TrailingStopModel:
+        take_profit = position_mdl.take_profit
+        stop_loss = position_mdl.stop_loss
+        tp_increment = position_mdl.tp_increment
+
+        # Take Profit calculation is performed only when Static Take Profit = 0
+        if self._session_mdl.take_profit_rate == 0:
+            take_profit_value = position_mdl.take_profit - position_mdl.open_price
+            current_low_value = signal_mdl.high - position_mdl.open_price
+
+            # Canlculate percent of current price from take profit price
+            current_price_percent_from_tp = current_low_value / take_profit_value
+
+            # If price is <Strategy.tp_move_limit> from take profit and TP was incremented no more than <Strategy.tp_increment_limit> times
+            # -> recalculate take profit: Add <Strategy.tp_move_step> % for the current take profit value
+            if (
+                current_price_percent_from_tp >= self._strategy_model.tp_move_limit
+                and tp_increment < self._strategy_model.tp_increment_limit
+            ):
+                tp_increment += 1
+
+                new_take_profit = round(
+                    (
+                        take_profit
+                        + self._strategy_model.tp_move_step * take_profit_value
+                    ),
+                    self._get_round_value(take_profit),
+                )
+
+                if take_profit <= new_take_profit:
+                    take_profit = new_take_profit
+
+        if self._session_mdl.stop_loss_rate == 0:
+            round_value = 2 * self._get_round_value(stop_loss)
+
+            if current_price_percent_from_tp >= self.TP_LIMIT_FOR_SL_MOVE:
+                break_even_value = self._get_fee_value(position_mdl)
+                new_stop_loss_value = round(
+                    current_low_value - take_profit_value / 2, round_value
+                )
+
+                if new_stop_loss_value <= 0:
+                    new_stop_loss_value = break_even_value
+
+                new_stop_loss = round(
+                    position_mdl.open_price + new_stop_loss_value, round_value
+                )
+
             else:
                 new_stop_loss = round(
                     signal_mdl.close - signal_mdl.stop_loss_value, round_value
