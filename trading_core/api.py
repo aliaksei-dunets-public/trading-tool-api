@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import time
 import requests
 from requests.models import RequestEncodingMixin
 import json
@@ -699,6 +700,10 @@ class ByBitComApi(ExchangeApiBase):
 
     def create_leverage(self, position_mdl: LeverageModel) -> LeverageModel:
         created_ids = self._place_order(position_mdl=position_mdl)
+
+        time.sleep(0.50)
+
+        # Check - https://bybit-exchange.github.io/docs/v5/order/open-order
 
         if created_ids:
             if config.get_config_value(Const.CONF_PROPERTY_API_LOG):

@@ -842,3 +842,7 @@ class APIException(Exception):
 
 class RobotException(Exception):
     pass
+
+
+class JobException(Exception):
+    pass

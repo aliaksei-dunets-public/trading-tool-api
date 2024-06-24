@@ -46,10 +46,13 @@ class Config:
             Const.CONF_PROPERTY_MONGODB_LOG,
             Const.CONF_PROPERTY_RESPONSER_LOG,
             Const.CONF_PROPERTY_ROBOT_LOG,
+            Const.CONF_PROPERTY_HIST_SIMULATION_LOG,
         ]:
             return self._config_ini.getboolean(
                 self.CONFIG_GROUP_NAME_PROPERTY, property
             )
+        else:
+            return self._config_ini.get(self.CONFIG_GROUP_NAME_PROPERTY, property)
 
     def get_env_value(self, property: str) -> str:
         env_value = os.getenv(property)

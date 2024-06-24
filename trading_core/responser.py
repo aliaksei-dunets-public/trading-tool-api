@@ -42,6 +42,8 @@ from trading_core.common import (
     SessionStatus,
     OrderOpenModel,
     OrderSideType,
+    TradingType,
+    JobException,
 )
 from trading_core.strategy import StrategyFactory, SignalFactory
 from trading_core.handler import (
@@ -83,6 +85,30 @@ def decorator_json(func) -> str:
             return jsonify({"error": f"{error}"}), 400
 
     return wrapper
+
+
+def get_job_limit_by_interval(interval: IntervalType) -> float:
+    limit = 0
+    if interval == IntervalType.MIN_1:
+        limit = 20000
+    elif interval == IntervalType.MIN_5:
+        limit = 20000
+    elif interval == IntervalType.MIN_15:
+        limit = 15000
+    elif interval == IntervalType.MIN_30:
+        limit = 20000
+    elif interval == IntervalType.HOUR_1:
+        limit = 10000
+    elif interval == IntervalType.HOUR_4:
+        limit = 10000
+    elif interval == IntervalType.DAY_1:
+        limit = 5000
+    elif interval == IntervalType.WEEK_1:
+        limit = 1000
+    else:
+        raise Exception(f"Incorrect interval - {interval})")
+
+    return limit
 
 
 def job_func_initialise_runtime_data():
@@ -143,6 +169,69 @@ def job_func_trading_robot(interval):
         notificator = NotificationBot()
         message_inst = responser.get_error_messages(robot_errors=robot_errors)
         notificator.send(message_inst)
+
+
+def job_func_run_history_simulation(
+    symbols: list,
+    intervals: list,
+    strategies: list,
+    trading_type: str = TradingType.LEVERAGE,
+):
+
+    logger.info(
+        f"JOB: HISTORY SIMULATION is triggered for {symbols}/{intervals}/{strategies}"
+    )
+
+    trader_id = config.get_config_value(property=Const.CONF_PROPERTY_HS_TRADER_ID)
+    if not trader_id:
+        logger.error(f"JOB: HISTORY SIMULATION - trader is can't be detected")
+        raise JobException(f"JOB: HISTORY SIMULATION - trader is can't be detected")
+
+    trader_mdl = buffer_runtime_handler.get_trader_handler().get_trader(id=trader_id)
+    if not trader_mdl:
+        logger.error(f"JOB: HISTORY SIMULATION - trader is missed")
+        raise JobException(f"JOB: HISTORY SIMULATION - trader is missed")
+
+    # 1. Trailing stop
+    # 2. SL and TP static
+    # 3. list of limits for interval
+
+    sessions = []
+
+    for symbol in symbols:
+        for interval in intervals:
+            for strategy in strategies:
+
+                session_mng = Robot().run_history_simulation(
+                    trader_id=trader_id,
+                    trading_type=trading_type,
+                    symbol=symbol,
+                    interval=interval,
+                    strategy=strategy,
+                    stop_loss_rate=0,
+                    is_trailing_stop=True,
+                    take_profit_rate=0,
+                    init_balance=1000,
+                    limit=get_job_limit_by_interval(interval),
+                )
+
+                balance_mdl = session_mng.get_balance_manager().get_balance_model()
+                # transactions = [
+                #     item.model_dump() for item in session_mng.get_transactions()
+                # ]
+
+                positions = [item.model_dump() for item in session_mng.get_positions()]
+
+                session = session_mng.get_session().model_dump()
+                session["balance"] = balance_mdl.model_dump()
+                # session["positions"] = positions
+                # session_response["transactions"] = transactions
+
+                sessions.append(session)
+
+    mongo_instance = MongoSimulations()
+
+    mongo_instance.insert_many(sessions)
 
 
 class MessageBase:
@@ -726,47 +815,52 @@ class ResponserWeb(ResponserBase):
     ) -> json:
         response = []
 
-        sessions = Robot().run_history_simulation(
-            trader_id=trader_id,
-            trading_type=trading_type,
-            symbol=symbol,
-            intervals=intervals,
-            strategies=strategies,
-            stop_loss_rate=stop_loss_rate,
-            is_trailing_stop=is_trailing_stop,
-            take_profit_rate=take_profit_rate,
-            init_balance=init_balance,
-            limit=limit,
-        )
+        for interval in intervals:
+            for strategy in strategies:
+                positions = []
+                high_rates = []
+                low_rates = []
 
-        for session_mng in sessions:
-            positions = []
-            high_rates = []
-            low_rates = []
+                session_mng = Robot().run_history_simulation(
+                    trader_id=trader_id,
+                    trading_type=trading_type,
+                    symbol=symbol,
+                    interval=interval,
+                    strategy=strategy,
+                    stop_loss_rate=stop_loss_rate,
+                    is_trailing_stop=is_trailing_stop,
+                    take_profit_rate=take_profit_rate,
+                    init_balance=init_balance,
+                    limit=limit,
+                )
 
-            balance_mdl = session_mng.get_balance_manager().get_balance_model()
-            transactions = [
-                item.model_dump() for item in session_mng.get_transactions()
-            ]
+                balance_mdl = session_mng.get_balance_manager().get_balance_model()
+                transactions = [
+                    item.model_dump() for item in session_mng.get_transactions()
+                ]
 
-            for position in session_mng.get_positions():
-                positions.append(position.model_dump())
+                for position in session_mng.get_positions():
+                    positions.append(position.model_dump())
 
-                if position.side == OrderSideType.buy:
-                    high_rates.append(position.high_percent)
-                    low_rates.append(-1 * position.low_percent)
-                else:
-                    high_rates.append(-1 * position.low_percent)
-                    low_rates.append(position.high_percent)
+                    if position.side == OrderSideType.buy:
+                        high_rates.append(position.high_percent)
+                        low_rates.append(-1 * position.low_percent)
+                    else:
+                        high_rates.append(-1 * position.low_percent)
+                        low_rates.append(position.high_percent)
 
-            session_response = session_mng.get_session().model_dump()
-            session_response["optimal_take_profit_rate"] = np.percentile(high_rates, 80)
-            session_response["optimal_stop_loss_rate"] = np.percentile(low_rates, 80)
-            session_response["balance"] = balance_mdl.model_dump()
-            session_response["positions"] = positions
-            session_response["transactions"] = transactions
+                session_response = session_mng.get_session().model_dump()
+                session_response["optimal_take_profit_rate"] = np.percentile(
+                    high_rates, 80
+                )
+                session_response["optimal_stop_loss_rate"] = np.percentile(
+                    low_rates, 80
+                )
+                session_response["balance"] = balance_mdl.model_dump()
+                session_response["positions"] = positions
+                session_response["transactions"] = transactions
 
-            response.append(session_response)
+                response.append(session_response)
 
         return response
 

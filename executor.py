@@ -3,17 +3,26 @@ import trading_core.common as cmn
 import pandas_ta as ta
 import pandas as pd
 from datetime import datetime, timedelta
+import trading_core.responser as responser
 
-handler = ExchangeHandler.get_handler(trader_id="658dab8b3b0719ad3f9b53dd")
-symbol = "LDOUSDT"
-
-params = cmn.HistoryDataParamModel(
-    symbol=symbol, interval=cmn.IntervalType.MIN_5, limit=1200
+responser.job_func_run_history_simulation(
+    symbols=["AVAXUSDT"],
+    intervals=[cmn.IntervalType.MIN_5],
+    strategies=[
+        cmn.StrategyType.EMA_50_CROSS_EMA_100_FILTER_UP_LEVEL_TREND,
+    ],
 )
 
-history_data = handler.get_history_data(history_data_param=params, start="", end="")
+# handler = ExchangeHandler.get_handler(trader_id="658dab8b3b0719ad3f9b53dd")
+# symbol = "LDOUSDT"
 
-print(history_data.data)
+# params = cmn.HistoryDataParamModel(
+#     symbol=symbol, interval=cmn.IntervalType.MIN_5, limit=1200
+# )
+
+# history_data = handler.get_history_data(history_data_param=params, start="", end="")
+
+# print(history_data.data)
 
 # local_datetime = datetime.now()
 # closd_datetime = handler.get_end_datetime(interval=params.interval)
