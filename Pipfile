@@ -17,11 +17,15 @@ pytelegrambotapi = "*"
 pydantic = {extras = ["email"], version = "*"}
 cryptography = "*"
 pybit = "*"
+pytest = "*"
 
 [dev-packages]
 autopep8 = "*"
 ipykernel = "*"
 openpyxl = "*"
+pytest = "*"
+coverage = "*"
+pytest-cov = "*"
 
 [requires]
 python_version = "3.12"
