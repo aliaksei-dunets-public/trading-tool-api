@@ -309,9 +309,6 @@ class HistoryDataModel(SymbolIntervalLimitModel):
     data: pd.DataFrame
     end_date_time: datetime = None
 
-    def print_model(self):
-        return {"symbol": self.symbol, "interval": self.interval, "limit": self.limit}
-
     @validator("end_date_time", pre=True, always=True)
     def get_end_date_time(cls, end_date_time, values):
         end_date_time = values.get("data").index[-1]
@@ -648,10 +645,12 @@ class TrailingStopModel(BaseModel):
         if self.take_profit != 0:
             if self.take_profit > open_price:
                 delta = self.take_profit - open_price
+                base = open_price
             else:
                 delta = open_price - self.take_profit
+                base = self.take_profit
 
-            self.take_profit_percent = round((delta / open_price) * 100, 3)
+            self.take_profit_percent = round((delta / base) * 100, 3)
             return self.take_profit_percent
 
     def to_mongodb_doc(self):

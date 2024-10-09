@@ -26,6 +26,7 @@ openpyxl = "*"
 pytest = "*"
 coverage = "*"
 pytest-cov = "*"
+pytest-mock = "*"
 
 [requires]
 python_version = "3.12"
