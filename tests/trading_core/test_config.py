@@ -102,6 +102,21 @@ def test_update_config(mock_config_ini, caplog):
         assert config.get_config_value(Const.CONF_PROPERTY_DEBUG_LOG) == False
         assert config.get_config_value(Const.CONF_PROPERTY_CORE_LOG) == True
 
+    # Restore config file to default values
+    config.update_config(
+        {
+            Const.CONF_PROPERTY_DEBUG_LOG: True,
+            Const.CONF_PROPERTY_CORE_LOG: True,
+            Const.CONF_PROPERTY_API_LOG: True,
+            Const.CONF_PROPERTY_HANDLER_LOG: True,
+            Const.CONF_PROPERTY_MONGODB_LOG: True,
+            Const.CONF_PROPERTY_RESPONSER_LOG: True,
+            Const.CONF_PROPERTY_ROBOT_LOG: True,
+            Const.CONF_PROPERTY_HIST_SIMULATION_LOG: False,
+            "hs_trader_id": "658dab8b3b0719ad3f9b53dd",
+        }
+    )
+
 
 def test_update_config_file(mock_config_ini):
     config = Config()
