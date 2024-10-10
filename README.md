@@ -18,4 +18,4 @@ pytest --cov=trading_core --cov-report term-missing
 pytest --cov=trading_core --cov-report html
 
 # Run a single file
-pytest -v tests/models/test_models.py
+pytest -v tests/trading_core/test_handler.py

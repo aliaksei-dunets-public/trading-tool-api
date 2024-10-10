@@ -1,15 +1,9 @@
 import pytest
 from unittest.mock import MagicMock, patch
-from datetime import datetime, timedelta
+from datetime import datetime
 from bson import ObjectId
 
-from trading_core.mongodb import (
-    MongoBase,
-    MongoJobs,
-    MongoSimulations,
-    MongoUser,
-    Const,
-)
+from trading_core.mongodb import MongoBase, Const
 
 
 @pytest.fixture
@@ -26,12 +20,12 @@ def mock_mongo_base(mock_get_env_value, mock_mongo_client):
     return mongo_base, mock_db  # Return the base instance and mock_db for further use
 
 
-# # Fixture to mock datetime.utcnow
-# @pytest.fixture
-# @patch("trading_core.mongodb.datetime")  # Patch datetime at the correct module
-# def mock_datetime(mock_datetime):
-#     mock_datetime.utcnow.return_value = datetime(2024, 10, 10)  # Mock datetime.utcnow
-#     return mock_datetime
+# Fixture to mock datetime.utcnow
+@pytest.fixture
+@patch("trading_core.mongodb.datetime")  # Patch datetime at the correct module
+def mock_datetime(mock_datetime):
+    mock_datetime.utcnow.return_value = datetime(2024, 10, 10)  # Mock datetime.utcnow
+    return mock_datetime
 
 
 class TestMongoBase:
@@ -159,30 +153,3 @@ class TestMongoBase:
             mongo_base._convert_id(None)
 
         assert isinstance(mongo_base._convert_id(str(ObjectId())), ObjectId)
-
-
-# class TestMongoJobs:
-#     @patch("module_where_code_is_located.MongoBase.insert_one")
-#     def test_create_job(self, mock_insert_one):
-#         mock_insert_one.return_value = str(ObjectId())
-#         mongo_jobs = MongoJobs()
-#         job_id = mongo_jobs.create_job("test_job", "daily")
-
-#         assert job_id is not None
-#         mock_insert_one.assert_called_once()
-
-#     def test_get_active_jobs(self):
-#         mongo_jobs = MongoJobs()
-#         mongo_jobs.get_many = MagicMock(return_value=[{"job": "active"}])
-#         jobs = mongo_jobs.get_active_jobs()
-
-#         assert jobs == [{"job": "active"}]
-
-#     @patch("module_where_code_is_located.MongoBase.delete_one")
-#     def test_delete_job(self, mock_delete_one):
-#         mock_delete_one.return_value = True
-#         mongo_jobs = MongoJobs()
-#         result = mongo_jobs.delete_job(str(ObjectId()))
-
-#         assert result
-#         mock_delete_one.assert_called_once()
