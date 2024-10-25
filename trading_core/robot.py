@@ -2099,12 +2099,15 @@ class Robot:
         )
 
         for session_mdl in active_sessions:
-            try:
-                self._run(session_mdl)
-            except Exception as error:
-                error_message = f"{self.__class__.__name__} ({session_mdl.id}): Error during session run - {error}"
-                logger.error(error_message)
-                errors[session_mdl.id] = error_message
+
+            # Check traiding time and skip closed symbols
+            if buffer_runtime_handler.get_symbol_handler(trader_id=session_mdl.trader_id).is_trading_available(interval=session_mdl.interval, symbol=session_mdl.symbol):
+                try:
+                    self._run(session_mdl)
+                except Exception as error:
+                    error_message = f"{self.__class__.__name__} ({session_mdl.id}): Error during session run - {error}"
+                    logger.error(error_message)
+                    errors[session_mdl.id] = error_message
 
         return errors
 

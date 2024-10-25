@@ -178,6 +178,7 @@ class StrategyFactory:
             StrategyType.CCI_50_CROSS_0,
             StrategyType.CCI_14_CROSS_100,
             StrategyType.CCI_20_CROSS_100,
+            StrategyType.CCI_50_CROSS_100,
         ]:
             strategy_instance = Strategy_CCI(strategy_config_mdl)
 
@@ -236,6 +237,19 @@ class StrategyFactory:
                 tp_increment_limit=0,
                 history_limit=22,
                 length=20,
+                miv_value=-100,
+                max_value=100,
+            ),
+            StrategyType.CCI_50_CROSS_100: StrategyConfigModel(
+                strategy=StrategyType.CCI_50_CROSS_100,
+                name="2. CCI(50) cross +/- 100",
+                is_close_by_signal=True,
+                risk_type=RiskType.DEFAULT,
+                tp_move_limit=0.7,
+                tp_move_step=0.25,
+                tp_increment_limit=0,
+                history_limit=52,
+                length=50,
                 miv_value=-100,
                 max_value=100,
             ),
